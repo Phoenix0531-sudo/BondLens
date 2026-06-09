@@ -23,7 +23,7 @@ docker compose up --build
 
 ## Repository
 
-<https://github.com/Phoenix0531-sudo/bondlens-ai>
+<https://github.com/Phoenix0531-sudo/BondLens>
 
 ## License
 

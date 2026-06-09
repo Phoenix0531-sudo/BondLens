@@ -4,13 +4,13 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
-![CI](https://github.com/Phoenix0531-sudo/bondlens-ai/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 
 BondLens AI 是一个面向中文债券市场数据的轻量级、证据驱动分析智能体。它默认优先使用 AkShare 实时债券行情，实时接口不可用时先降级到最近一次成功获取的实时快照；如果快照也不可用，再降级到保留的本地 Excel 样本。每次回答都会返回工具轨迹、证据账本、答案评审、风险画像、guardrail 状态和能力边界。
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 
-项目主页：[https://phoenix0531-sudo.github.io/bondlens-ai/](https://phoenix0531-sudo.github.io/bondlens-ai/)
+项目主页：[https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
 
 ## 项目截图
 
