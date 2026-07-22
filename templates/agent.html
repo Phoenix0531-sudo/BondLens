@@ -464,6 +464,58 @@
     color: var(--muted);
   }
 
+  .action-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .action-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    background: #f4f0e7;
+    color: var(--ink);
+    text-decoration: none;
+    font-size: 13px;
+  }
+
+  .action-link:hover {
+    border-color: var(--teal);
+    color: var(--teal-dark);
+  }
+
+  .stress-panel {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    background: #f9f6ef;
+  }
+
+  .stress-panel.high {
+    border-color: rgba(169, 66, 58, 0.35);
+    background: rgba(169, 66, 58, 0.06);
+  }
+
+  .stress-panel.medium {
+    border-color: rgba(192, 122, 34, 0.35);
+    background: rgba(192, 122, 34, 0.06);
+  }
+
+  .stress-list {
+    margin: 10px 0 0;
+    padding-left: 18px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .stress-list li {
+    margin: 4px 0;
+  }
+
   .trust-reason-list {
     display: grid;
     gap: 6px;
@@ -626,7 +678,34 @@
           </ul>
         {% endif %}
         {% if view.evidence_pack_id %}
-          <p class="surface-subtitle" style="margin-top:10px" data-lang-zh="Evidence Pack：{{ view.evidence_pack_id }}（运行后写入本地导出目录）" data-lang-en="Evidence Pack: {{ view.evidence_pack_id }} (exported after each run)">Evidence Pack：{{ view.evidence_pack_id }}（运行后写入本地导出目录）</p>
+          <div class="action-row">
+            <span class="badge" data-lang-zh="Pack {{ view.evidence_pack_id }}" data-lang-en="Pack {{ view.evidence_pack_id }}">Pack {{ view.evidence_pack_id }}</span>
+            {% if view.pack_html_url %}
+              <a class="action-link" href="{{ view.pack_html_url }}" target="_blank" rel="noopener" data-lang-zh="打开证据包 HTML" data-lang-en="Open Evidence Pack HTML">打开证据包 HTML</a>
+            {% endif %}
+            {% if view.pack_json_url %}
+              <a class="action-link" href="{{ view.pack_json_url }}" data-lang-zh="下载 JSON" data-lang-en="Download JSON">下载 JSON</a>
+            {% endif %}
+            <a class="action-link" href="/replay" data-lang-zh="查看回放" data-lang-en="Open Replay">查看回放</a>
+          </div>
+        {% endif %}
+        {% if view.stress_view %}
+          <div class="stress-panel {{ view.stress_severity or '' }}">
+            <div class="badge-row">
+              <span class="badge {% if view.stress_severity == 'high' %}warn{% elif view.stress_severity == 'low' %}good{% endif %}" data-lang-zh="运行压力 {{ view.stress_severity_label }}" data-lang-en="Stress {{ view.stress_severity }}">运行压力 {{ view.stress_severity_label }}</span>
+              {% if view.stress_view.requires_review %}
+                <span class="badge warn" data-lang-zh="建议人工复核" data-lang-en="Manual review recommended">建议人工复核</span>
+              {% endif %}
+            </div>
+            <p class="surface-subtitle" style="margin-top:8px" data-lang-zh="{{ view.stress_summary_by_lang.zh }}" data-lang-en="{{ view.stress_summary_by_lang.en }}">{{ view.stress_summary }}</p>
+            {% if view.stress_signals %}
+              <ul class="stress-list">
+                {% for item in view.stress_signals %}
+                  <li data-lang-zh="[{{ item.severity_label }}] {{ item.message_zh }}" data-lang-en="[{{ item.severity }}] {{ item.message_en }}">[{{ item.severity_label }}] {{ item.message }}</li>
+                {% endfor %}
+              </ul>
+            {% endif %}
+          </div>
         {% endif %}
       </div>
     </div>

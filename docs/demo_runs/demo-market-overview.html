@@ -47,9 +47,9 @@
       display: inline-block; padding: 5px 9px; border: 1px solid var(--line);
       background: #f4f0e7; color: var(--muted); font-size: 12px; margin-right: 6px;
     }
-    .badge.good { color: var(--green); border-color: rgba(47,125,85,.35); }
-    .badge.warn { color: var(--amber); border-color: rgba(192,122,34,.35); }
-    .badge.bad { color: var(--red); border-color: rgba(169,66,58,.35); }
+    .badge.good, .badge.low { color: var(--green); border-color: rgba(47,125,85,.35); }
+    .badge.warn, .badge.medium { color: var(--amber); border-color: rgba(192,122,34,.35); }
+    .badge.bad, .badge.high { color: var(--red); border-color: rgba(169,66,58,.35); }
     .grid { display: grid; gap: 14px; margin-top: 16px; }
     .section {
       padding: 18px 20px; border: 1px solid var(--line); background: var(--surface);
@@ -68,10 +68,11 @@
     <header class="hero">
       <p class="eyebrow">Bond Evidence Pack</p>
       <h1>当前样本收益率分布是什么样？</h1>
-      <p class="muted">id=demo-market-overview · created=2026-07-22T14:44:07.472074+00:00 · intent=market_overview</p>
+      <p class="muted">id=demo-market-overview · created=2026-07-22T14:59:00.045916+00:00 · intent=market_overview</p>
       <div class="trust">
         <div class="trust-score">59<span style="font-size:16px">/100</span></div>
         <span class="badge warn">trust medium</span>
+        <span class="badge medium">stress medium</span>
         <span class="badge">judge not_applicable</span>
         <span class="badge">guardrail not_run</span>
         <span class="badge">final deterministic_fallback</span>
@@ -81,6 +82,12 @@
     </header>
 
     <div class="grid">
+      <section class="section">
+        <h2>运行压力 · Stress view</h2>
+        <p>运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（59/100）。</p>
+        <ul><li><span class='badge medium'>medium</span> 数据为静态/备用样本，新鲜度受限。</li><li><span class='badge medium'>medium</span> 信任分中等（59/100）。</li><li><span class='badge low'>low</span> 最终答案来自确定性工具链（未采用 LLM 叙述，或已回退）。</li></ul>
+      </section>
+
       <section class="section">
         <h2>数据血缘 · Data lineage</h2>
         <p><strong>data/testdata.xlsx</strong> · static_sample</p>

@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-bond-report",
-  "created_at": "2026-07-22T14:44:07.630073+00:00",
+  "created_at": "2026-07-22T14:59:00.191417+00:00",
   "agent": "BondLens AI",
   "question": "搜索23附息国债26并给出收益率分析",
   "intent": "bond_report",
@@ -446,5 +446,33 @@
     "Live access may degrade to snapshot or local sample; trust the data_source lineage."
   ],
   "disclaimer": "非投资建议，仅用于学习和研究。",
-  "replay_id": "20260722-144407-808ea2a8"
+  "replay_id": "20260722-145900-9009fec3",
+  "stress_view": {
+    "severity": "medium",
+    "summary_zh": "运行压力 medium：数据为静态/备用样本，新鲜度受限。",
+    "summary_en": "Runtime stress medium: Static or fallback sample in use; freshness is limited.",
+    "runtime_mode": "static_sample",
+    "fallback_reason": null,
+    "trust_score": 70,
+    "trust_level": "medium",
+    "guardrail_status": "not_run",
+    "judge_status": "not_applicable",
+    "final_answer_source": "deterministic_fallback",
+    "signals": [
+      {
+        "id": "data_static",
+        "severity": "medium",
+        "message_zh": "数据为静态/备用样本，新鲜度受限。",
+        "message_en": "Static or fallback sample in use; freshness is limited."
+      },
+      {
+        "id": "deterministic_final",
+        "severity": "low",
+        "message_zh": "最终答案来自确定性工具链（未采用 LLM 叙述，或已回退）。",
+        "message_en": "Final answer is deterministic (LLM unused or rejected)."
+      }
+    ],
+    "active_signal_count": 1,
+    "requires_review": true
+  }
 }

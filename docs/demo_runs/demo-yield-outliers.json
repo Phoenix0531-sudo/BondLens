@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-yield-outliers",
-  "created_at": "2026-07-22T14:44:07.787073+00:00",
+  "created_at": "2026-07-22T14:59:00.325918+00:00",
   "agent": "BondLens AI",
   "question": "有没有收益率异常的债券？",
   "intent": "outlier_detection",
@@ -363,5 +363,45 @@
     "Live access may degrade to snapshot or local sample; trust the data_source lineage."
   ],
   "disclaimer": "非投资建议，仅用于学习和研究。",
-  "replay_id": "20260722-144407-a1520909"
+  "replay_id": "20260722-145900-ca0b723b",
+  "stress_view": {
+    "severity": "medium",
+    "summary_zh": "运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（51/100）。；证据质量偏弱（48/100）。",
+    "summary_en": "Runtime stress medium: Static or fallback sample in use; freshness is limited.; Trust score is medium (51/100).; Evidence quality is weak (48/100).",
+    "runtime_mode": "static_sample",
+    "fallback_reason": null,
+    "trust_score": 51,
+    "trust_level": "medium",
+    "guardrail_status": "not_run",
+    "judge_status": "not_applicable",
+    "final_answer_source": "deterministic_fallback",
+    "signals": [
+      {
+        "id": "data_static",
+        "severity": "medium",
+        "message_zh": "数据为静态/备用样本，新鲜度受限。",
+        "message_en": "Static or fallback sample in use; freshness is limited."
+      },
+      {
+        "id": "trust_medium",
+        "severity": "medium",
+        "message_zh": "信任分中等（51/100）。",
+        "message_en": "Trust score is medium (51/100)."
+      },
+      {
+        "id": "deterministic_final",
+        "severity": "low",
+        "message_zh": "最终答案来自确定性工具链（未采用 LLM 叙述，或已回退）。",
+        "message_en": "Final answer is deterministic (LLM unused or rejected)."
+      },
+      {
+        "id": "evidence_weak",
+        "severity": "medium",
+        "message_zh": "证据质量偏弱（48/100）。",
+        "message_en": "Evidence quality is weak (48/100)."
+      }
+    ],
+    "active_signal_count": 3,
+    "requires_review": true
+  }
 }

@@ -14,6 +14,7 @@ from .replay_store import save_replay
 from .risk_knowledge import retrieve_risk_explanations
 from .risk_profile import build_risk_profile
 from .schemas import AgentResponse
+from .stress_view import build_stress_view
 from .tools import (
     compare_bond_to_market,
     describe_market,
@@ -143,6 +144,14 @@ class BondAnalystAgent:
             final_answer_source=final_answer_source,
             evidence_ledger=evidence_ledger,
         )
+        stress_view = build_stress_view(
+            data_source=data_source,
+            trust_score=trust_score,
+            llm_guardrail=llm_guardrail,
+            answer_judge=answer_judge,
+            final_answer_source=final_answer_source,
+            evidence_quality=evidence_quality,
+        )
         tool_trace.append("-> final answer")
 
         response = {
@@ -160,6 +169,7 @@ class BondAnalystAgent:
             "answer_judge": answer_judge,
             "risk_profile": risk_profile,
             "trust_score": trust_score,
+            "stress_view": stress_view,
             "analysis": report["analysis"],
             "risk_notes": report["risk_notes"],
             "limitations": limitations,

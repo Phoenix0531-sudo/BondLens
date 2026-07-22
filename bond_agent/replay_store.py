@@ -89,6 +89,13 @@ def _summarize_response(response: dict[str, Any], replay_id: str) -> dict[str, A
         },
         "evidence_ledger": response.get("evidence_ledger", [])[:6],
         "evidence_pack_id": response.get("evidence_pack_id"),
+        "stress_view": {
+            "severity": (response.get("stress_view") or {}).get("severity"),
+            "summary_zh": (response.get("stress_view") or {}).get("summary_zh"),
+            "summary_en": (response.get("stress_view") or {}).get("summary_en"),
+            "active_signal_count": (response.get("stress_view") or {}).get("active_signal_count"),
+            "requires_review": (response.get("stress_view") or {}).get("requires_review"),
+        },
     }
 
 

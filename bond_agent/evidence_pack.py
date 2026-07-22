@@ -76,6 +76,7 @@ def build_evidence_pack(response: dict[str, Any], *, pack_id: str | None = None)
         "limitations_template_en": LIMITATIONS_TEMPLATE_EN,
         "disclaimer": response.get("disclaimer") or LIMITATIONS_TEMPLATE_ZH[0],
         "replay_id": response.get("replay_id"),
+        "stress_view": response.get("stress_view") or {},
     }
     return pack
 
@@ -116,6 +117,7 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
     risk = pack.get("risk_profile") or {}
     lineage = pack.get("data_lineage") or {}
     ledger = pack.get("evidence_ledger") or []
+    stress = pack.get("stress_view") or {}
     adjustments = trust.get("headline_reasons") or trust.get("adjustments") or []
 
     def esc(value: Any) -> str:
@@ -147,8 +149,16 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
             f"<li><strong>{esc(sign)}</strong> {esc(item.get('reason_zh') or item.get('reason_en'))}</li>"
         )
 
+    stress_html = []
+    for item in stress.get("signals") or []:
+        sev = esc(item.get("severity"))
+        stress_html.append(
+            f"<li><span class='badge {sev}'>{sev}</span> {esc(item.get('message_zh') or item.get('message_en'))}</li>"
+        )
+
     trust_level = esc(trust.get("level") or "n/a")
     trust_score = esc(trust.get("score") if trust.get("score") is not None else "n/a")
+    stress_severity = esc(stress.get("severity") or "n/a")
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -199,9 +209,9 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
       display: inline-block; padding: 5px 9px; border: 1px solid var(--line);
       background: #f4f0e7; color: var(--muted); font-size: 12px; margin-right: 6px;
     }}
-    .badge.good {{ color: var(--green); border-color: rgba(47,125,85,.35); }}
-    .badge.warn {{ color: var(--amber); border-color: rgba(192,122,34,.35); }}
-    .badge.bad {{ color: var(--red); border-color: rgba(169,66,58,.35); }}
+    .badge.good, .badge.low {{ color: var(--green); border-color: rgba(47,125,85,.35); }}
+    .badge.warn, .badge.medium {{ color: var(--amber); border-color: rgba(192,122,34,.35); }}
+    .badge.bad, .badge.high {{ color: var(--red); border-color: rgba(169,66,58,.35); }}
     .grid {{ display: grid; gap: 14px; margin-top: 16px; }}
     .section {{
       padding: 18px 20px; border: 1px solid var(--line); background: var(--surface);
@@ -224,6 +234,7 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
       <div class="trust">
         <div class="trust-score">{trust_score}<span style="font-size:16px">/100</span></div>
         <span class="badge {'good' if trust.get('level')=='high' else 'warn' if trust.get('level')=='medium' else 'bad'}">trust {trust_level}</span>
+        <span class="badge {stress_severity}">stress {stress_severity}</span>
         <span class="badge">judge {esc(judge.get('status'))}</span>
         <span class="badge">guardrail {esc(guardrail.get('status'))}</span>
         <span class="badge">final {esc(pack.get('final_answer_source'))}</span>
@@ -233,6 +244,12 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
     </header>
 
     <div class="grid">
+      <section class="section">
+        <h2>运行压力 · Stress view</h2>
+        <p>{esc(stress.get('summary_zh') or stress.get('summary_en') or '（无压力信号）')}</p>
+        <ul>{''.join(stress_html) if stress_html else '<li class="muted">（无显著压力信号）</li>'}</ul>
+      </section>
+
       <section class="section">
         <h2>数据血缘 · Data lineage</h2>
         <p><strong>{esc(lineage.get('source_name'))}</strong> · {esc(lineage.get('runtime_mode'))}</p>

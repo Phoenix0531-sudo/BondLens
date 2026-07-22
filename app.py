@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import os
 
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from pathlib import Path
+
+from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
 from pydantic import ValidationError
 
 from bond_agent import BondAnalystAgent
+from bond_agent.evidence_pack import DEMO_PACK_DIR, DEFAULT_PACK_DIR
 from bond_agent.replay_store import list_replays
 from bond_agent.schemas import AgentQueryRequest, ApiError, HealthResponse, api_schema_bundle
 
@@ -136,6 +139,29 @@ def replay_page():
     return render_template("replay.html", replays=replays, lang=lang)
 
 
+@app.route("/packs/<pack_id>.<ext>")
+def evidence_pack_file(pack_id: str, ext: str):
+    """Serve a previously exported Evidence Pack (JSON or HTML)."""
+    if ext not in {"json", "html"}:
+        abort(404)
+    safe_id = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in pack_id).strip("-")
+    if not safe_id:
+        abort(404)
+    filename = f"{safe_id}.{ext}"
+    search_dirs = []
+    configured = request.args.get("dir") or None
+    env_dir = os.environ.get("BOND_EVIDENCE_PACK_DIR")
+    for candidate in [configured, env_dir, str(DEFAULT_PACK_DIR), str(DEMO_PACK_DIR)]:
+        if candidate and candidate not in search_dirs:
+            search_dirs.append(candidate)
+    for directory in search_dirs:
+        path = Path(directory) / filename
+        if path.is_file():
+            mimetype = "application/json" if ext == "json" else "text/html"
+            return send_file(path, mimetype=mimetype, download_name=filename, as_attachment=ext == "json")
+    abort(404)
+
+
 def _normalize_data_mode(value: str | None) -> str:
     mode = (value or "auto").strip().lower()
     if mode not in DATA_MODES:
@@ -167,6 +193,8 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
     maturity_coverage = data_source.get("maturity_coverage") or {}
 
     trust = result.get("trust_score") or {}
+    stress = result.get("stress_view") or {}
+    pack_id = result.get("evidence_pack_id")
     return {
         "metrics": [
             _metric("Trust Score", "信任分", trust.get("score"), lang, "/100"),
@@ -195,7 +223,28 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             for item in (trust.get("headline_reasons") or trust.get("adjustments") or [])[:5]
             if item.get("delta")
         ],
-        "evidence_pack_id": result.get("evidence_pack_id"),
+        "stress_view": stress,
+        "stress_severity": stress.get("severity"),
+        "stress_severity_label": _localized_status(stress.get("severity"), lang),
+        "stress_summary": stress.get("summary_zh") if lang == "zh" else stress.get("summary_en"),
+        "stress_summary_by_lang": {
+            "zh": stress.get("summary_zh") or "",
+            "en": stress.get("summary_en") or "",
+        },
+        "stress_signals": [
+            {
+                "id": item.get("id"),
+                "severity": item.get("severity"),
+                "severity_label": _localized_status(item.get("severity"), lang),
+                "message": item.get("message_zh") if lang == "zh" else item.get("message_en"),
+                "message_zh": item.get("message_zh"),
+                "message_en": item.get("message_en"),
+            }
+            for item in (stress.get("signals") or [])
+        ],
+        "evidence_pack_id": pack_id,
+        "pack_html_url": f"/packs/{pack_id}.html" if pack_id else None,
+        "pack_json_url": f"/packs/{pack_id}.json" if pack_id else None,
         "yield_bars": _distribution_bars(market.get("yield_distribution") or {}),
         "ranking_records": (ranking.get("records") or [])[:5],
         "outlier_records": (outliers.get("records") or [])[:5],

@@ -133,8 +133,15 @@
           <p data-lang-zh="证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}" data-lang-en="Evidence score: {{ replay.evidence_quality.score }}/100, level {{ replay.evidence_quality.level }}">证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}</p>
           <p data-lang-zh="LLM：{{ replay.llm.status }}；护栏：{{ replay.llm.guardrail_status }}；评审：{{ replay.llm.judge_status }}" data-lang-en="LLM: {{ replay.llm.status }}; guardrail: {{ replay.llm.guardrail_status }}; judge: {{ replay.llm.judge_status }}">LLM：{{ replay.llm.status }}；护栏：{{ replay.llm.guardrail_status }}；评审：{{ replay.llm.judge_status }}</p>
           <p data-lang-zh="{{ replay.risk.summary_zh }}" data-lang-en="{{ replay.risk.summary_en }}">{{ replay.risk.summary_zh }}</p>
+          {% if replay.stress_view and replay.stress_view.severity %}
+            <p data-lang-zh="运行压力：{{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %}（建议复核）{% endif %}" data-lang-en="Stress: {{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %} (review recommended){% endif %}">运行压力：{{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %}（建议复核）{% endif %}</p>
+          {% endif %}
           {% if replay.evidence_pack_id %}
             <p class="replay-meta" data-lang-zh="Evidence Pack：{{ replay.evidence_pack_id }}" data-lang-en="Evidence Pack: {{ replay.evidence_pack_id }}">Evidence Pack：{{ replay.evidence_pack_id }}</p>
+            <div class="badge-row">
+              <a class="badge" href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='html') }}" target="_blank" rel="noopener" data-lang-zh="打开 HTML" data-lang-en="Open HTML">打开 HTML</a>
+              <a class="badge" href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='json') }}" data-lang-zh="下载 JSON" data-lang-en="Download JSON">下载 JSON</a>
+            </div>
           {% endif %}
         </div>
       </article>

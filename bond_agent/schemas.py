@@ -163,6 +163,29 @@ class EvidencePackPaths(FlexibleModel):
     html_path: str | None = None
 
 
+class StressSignal(FlexibleModel):
+    id: str
+    severity: Literal["low", "medium", "high"]
+    message_zh: str
+    message_en: str
+
+
+class StressView(FlexibleModel):
+    severity: Literal["low", "medium", "high"]
+    summary_zh: str
+    summary_en: str
+    runtime_mode: str | None = None
+    fallback_reason: str | None = None
+    trust_score: int | None = None
+    trust_level: Literal["low", "medium", "high"] | None = None
+    guardrail_status: str | None = None
+    judge_status: str | None = None
+    final_answer_source: str | None = None
+    signals: list[StressSignal] = Field(default_factory=list)
+    active_signal_count: int = 0
+    requires_review: bool = False
+
+
 class AgentResponse(BaseModel):
     agent: str
     subtitle: str
@@ -178,6 +201,7 @@ class AgentResponse(BaseModel):
     answer_judge: AnswerJudge
     risk_profile: RiskProfile
     trust_score: TrustScore
+    stress_view: StressView | None = None
     analysis: list[str]
     risk_notes: list[str]
     limitations: list[str]
