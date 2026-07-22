@@ -166,8 +166,10 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
     data_source = result.get("data_source", {})
     maturity_coverage = data_source.get("maturity_coverage") or {}
 
+    trust = result.get("trust_score") or {}
     return {
         "metrics": [
+            _metric("Trust Score", "信任分", trust.get("score"), lang, "/100"),
             _metric("Data Source", "数据源", _localized_status(data_source.get("runtime_mode", "unknown"), lang), lang),
             _metric("Rows", "样本行数", data_source.get("row_count"), lang),
             _metric("Maturity Coverage", "期限覆盖率", _coverage_ratio_text(maturity_coverage), lang),
@@ -175,6 +177,25 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             _metric("Evidence Score", "证据评分", result.get("evidence_quality", {}).get("score"), lang, "/100"),
             _metric("Final Source", "最终来源", _localized_status(result.get("final_answer_source", "unknown"), lang), lang),
         ],
+        "trust_score": trust.get("score"),
+        "trust_level": trust.get("level"),
+        "trust_level_label": _localized_status(trust.get("level"), lang),
+        "trust_summary": trust.get("summary_zh") if lang == "zh" else trust.get("summary_en"),
+        "trust_summary_by_lang": {
+            "zh": trust.get("summary_zh") or "",
+            "en": trust.get("summary_en") or "",
+        },
+        "trust_reasons": [
+            {
+                "delta": item.get("delta"),
+                "reason_zh": item.get("reason_zh"),
+                "reason_en": item.get("reason_en"),
+                "reason": item.get("reason_zh") if lang == "zh" else item.get("reason_en"),
+            }
+            for item in (trust.get("headline_reasons") or trust.get("adjustments") or [])[:5]
+            if item.get("delta")
+        ],
+        "evidence_pack_id": result.get("evidence_pack_id"),
         "yield_bars": _distribution_bars(market.get("yield_distribution") or {}),
         "ranking_records": (ranking.get("records") or [])[:5],
         "outlier_records": (outliers.get("records") or [])[:5],

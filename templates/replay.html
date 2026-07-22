@@ -129,9 +129,13 @@
           </div>
         </div>
         <div>
+          <p data-lang-zh="信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}/100（{{ replay.trust_score.level if replay.trust_score else 'n/a' }}）" data-lang-en="Trust: {{ replay.trust_score.score if replay.trust_score else '—' }}/100 ({{ replay.trust_score.level if replay.trust_score else 'n/a' }})">信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}/100（{{ replay.trust_score.level if replay.trust_score else 'n/a' }}）</p>
           <p data-lang-zh="证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}" data-lang-en="Evidence score: {{ replay.evidence_quality.score }}/100, level {{ replay.evidence_quality.level }}">证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}</p>
           <p data-lang-zh="LLM：{{ replay.llm.status }}；护栏：{{ replay.llm.guardrail_status }}；评审：{{ replay.llm.judge_status }}" data-lang-en="LLM: {{ replay.llm.status }}; guardrail: {{ replay.llm.guardrail_status }}; judge: {{ replay.llm.judge_status }}">LLM：{{ replay.llm.status }}；护栏：{{ replay.llm.guardrail_status }}；评审：{{ replay.llm.judge_status }}</p>
           <p data-lang-zh="{{ replay.risk.summary_zh }}" data-lang-en="{{ replay.risk.summary_en }}">{{ replay.risk.summary_zh }}</p>
+          {% if replay.evidence_pack_id %}
+            <p class="replay-meta" data-lang-zh="Evidence Pack：{{ replay.evidence_pack_id }}" data-lang-en="Evidence Pack: {{ replay.evidence_pack_id }}">Evidence Pack：{{ replay.evidence_pack_id }}</p>
+          {% endif %}
         </div>
       </article>
     {% endfor %}

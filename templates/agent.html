@@ -6,21 +6,21 @@
 <style>
   .agent-hero {
     display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
-    gap: 22px;
+    grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
+    gap: 18px;
     align-items: stretch;
   }
 
   .hero-copy {
-    min-height: 360px;
-    padding: 38px;
+    min-height: 0;
+    padding: 28px 30px;
     border: 1px solid var(--line);
-    background: linear-gradient(135deg, rgba(255, 253, 248, 0.98), rgba(235, 230, 218, 0.92));
+    background: linear-gradient(145deg, rgba(255, 253, 248, 0.98), rgba(235, 230, 218, 0.88));
     box-shadow: var(--shadow);
   }
 
   .eyebrow {
-    margin: 0 0 16px;
+    margin: 0 0 12px;
     color: var(--teal);
     font-size: 13px;
     font-weight: 760;
@@ -32,18 +32,35 @@
     margin: 0;
     max-width: 760px;
     font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(42px, 7vw, 92px);
+    font-size: clamp(32px, 4.8vw, 52px);
     font-weight: 500;
-    line-height: 0.92;
+    line-height: 1.05;
     letter-spacing: 0;
   }
 
   .hero-lead {
     max-width: 720px;
-    margin: 24px 0 0;
+    margin: 16px 0 0;
     color: var(--muted);
-    font-size: 18px;
-    line-height: 1.7;
+    font-size: 15px;
+    line-height: 1.65;
+  }
+
+  .principle-list {
+    display: grid;
+    gap: 8px;
+    margin: 16px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .principle-list li {
+    padding: 10px 12px;
+    border-left: 3px solid var(--teal);
+    background: rgba(255, 253, 248, 0.72);
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
   }
 
   .query-console {
@@ -422,12 +439,87 @@
     color: var(--green);
   }
 
+  .trust-bar {
+    display: grid;
+    grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.45fr);
+    gap: 16px;
+    margin-bottom: 18px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    background: linear-gradient(120deg, rgba(15, 107, 95, 0.08), rgba(255, 253, 248, 0.96));
+    box-shadow: var(--shadow);
+  }
+
+  .trust-score-big {
+    margin: 0;
+    font-size: 42px;
+    font-weight: 780;
+    color: var(--teal);
+    line-height: 1;
+  }
+
+  .trust-score-big span {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .trust-reason-list {
+    display: grid;
+    gap: 6px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .trust-reason-list li {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .trace-list li {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .trace-step {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: var(--teal);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .example-chip {
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+  }
+
+  .example-chip:hover {
+    border-color: rgba(15, 107, 95, 0.45);
+    background: rgba(15, 107, 95, 0.06);
+    color: var(--ink);
+  }
+
   .finding-list {
     display: grid;
     gap: 8px;
     margin: 12px 0 0;
     padding: 0;
     list-style: none;
+  }
+
+  @media (max-width: 900px) {
+    .trust-bar {
+      grid-template-columns: 1fr;
+    }
   }
 
   @media (max-width: 1120px) {
@@ -465,14 +557,19 @@
 
 <div class="agent-hero">
   <section class="hero-copy">
-    <p class="eyebrow" data-lang-zh="可解释债券分析智能体" data-lang-en="Explainable Bond Analysis Agent">可解释债券分析智能体</p>
-    <h1>BondLens AI</h1>
-    <p class="hero-lead" data-lang-zh="面向中文债券市场的证据驱动分析工作台：实时 AkShare 优先，实时快照兜底，本地 Excel 保底；每个回答都展示工具轨迹、证据账本、风险画像、答案评审和非投资建议边界。" data-lang-en="An evidence-driven workspace for the Chinese bond market: AkShare live data first, cached snapshot fallback, local Excel as the final backup. Every answer exposes tool traces, an evidence ledger, structured risk profile, answer judge, and a non-advisory boundary.">面向中文债券市场的证据驱动分析工作台：实时 AkShare 优先，实时快照兜底，本地 Excel 保底；每个回答都展示工具轨迹、证据账本、风险画像、答案评审和非投资建议边界。</p>
+    <p class="eyebrow" data-lang-zh="证据优先 · 中文债市 Agent" data-lang-en="Evidence-first · Chinese bond agent">证据优先 · 中文债市 Agent</p>
+    <h1 data-lang-zh="数字只来自确定性工具" data-lang-en="Numbers from tools only">数字只来自确定性工具</h1>
+    <p class="hero-lead" data-lang-zh="面向中文债券数据的证据优先分析 Agent：工具出数，大模型只能在证据上叙述；每次回答可回放、可裁决、可导出 Bond Evidence Pack。" data-lang-en="Evidence-first bond analysis agent for Chinese market data. Tools compute numbers; the LLM may only narrate over evidence. Every answer is replayable, judged, and exportable as a Bond Evidence Pack.">面向中文债券数据的证据优先分析 Agent：工具出数，大模型只能在证据上叙述；每次回答可回放、可裁决、可导出 Bond Evidence Pack。</p>
+    <ul class="principle-list">
+      <li data-lang-zh="数字由代码计算，不经 LLM 生成。" data-lang-en="Numbers are code-calculated, never invented by the LLM.">数字由代码计算，不经 LLM 生成。</li>
+      <li data-lang-zh="叙述可经 LLM，但必须通过护栏与评审。" data-lang-en="Narration may use an LLM, only after guardrails and judge.">叙述可经 LLM，但必须通过护栏与评审。</li>
+      <li data-lang-zh="每次输出可追溯：血缘、账本、信任分、局限性。" data-lang-en="Every output is provenance-tracked: lineage, ledger, trust, limitations.">每次输出可追溯：血缘、账本、信任分、局限性。</li>
+    </ul>
     <div class="example-strip" aria-label="示例问题">
-      <div class="example-chip" data-lang-zh="当前样本收益率分布是什么样？" data-lang-en="What does the current yield distribution look like?">当前样本收益率分布是什么样？</div>
-      <div class="example-chip" data-lang-zh="按收益率列出最高的前5只债券" data-lang-en="List the top 5 bonds by yield.">按收益率列出最高的前5只债券</div>
-      <div class="example-chip" data-lang-zh="搜索23附息国债26并给出收益率分析" data-lang-en="Search 23附息国债26 and analyze its yield.">搜索23附息国债26并给出收益率分析</div>
-      <div class="example-chip" data-lang-zh="有没有收益率异常的债券？" data-lang-en="Are there any yield outliers?">有没有收益率异常的债券？</div>
+      <button type="button" class="example-chip" data-fill-question="当前样本收益率分布是什么样？" data-lang-zh="当前样本收益率分布是什么样？" data-lang-en="What does the current yield distribution look like?">当前样本收益率分布是什么样？</button>
+      <button type="button" class="example-chip" data-fill-question="按收益率列出最高的前5只债券" data-lang-zh="按收益率列出最高的前5只债券" data-lang-en="List the top 5 bonds by yield.">按收益率列出最高的前5只债券</button>
+      <button type="button" class="example-chip" data-fill-question="搜索23附息国债26并给出收益率分析" data-lang-zh="搜索23附息国债26并给出收益率分析" data-lang-en="Search 23附息国债26 and analyze its yield.">搜索23附息国债26并给出收益率分析</button>
+      <button type="button" class="example-chip" data-fill-question="有没有收益率异常的债券？" data-lang-zh="有没有收益率异常的债券？" data-lang-en="Are there any yield outliers?">有没有收益率异常的债券？</button>
     </div>
   </section>
 
@@ -505,6 +602,35 @@
 
 {% if result %}
   <section class="dashboard">
+    <div class="trust-bar">
+      <div>
+        <p class="metric-label" data-lang-zh="信任分 Trust" data-lang-en="Trust score">信任分 Trust</p>
+        <p class="trust-score-big">{{ view.trust_score if view.trust_score is not none else '—' }}<span>/100</span></p>
+        <div class="badge-row">
+          <span class="badge {% if view.trust_level == 'high' %}good{% elif view.trust_level == 'low' %}warn{% endif %}" data-lang-zh="等级 {{ view.trust_level_label }}" data-lang-en="Level {{ result.trust_score.level }}">等级 {{ view.trust_level_label }}</span>
+          <span class="badge" data-lang-zh="评审 {{ view.answer_judge_status_label }}" data-lang-en="Judge {{ result.answer_judge.status }}">评审 {{ view.answer_judge_status_label }}</span>
+          <span class="badge {% if result.llm_guardrail.status == 'passed' %}good{% elif result.llm_guardrail.status == 'failed' %}warn{% endif %}" data-lang-zh="护栏 {{ view.guardrail_status_label }}" data-lang-en="Guardrail {{ result.llm_guardrail.status }}">护栏 {{ view.guardrail_status_label }}</span>
+          <span class="badge" data-lang-zh="数据 {{ view.metrics[1].value if view.metrics|length > 1 else result.data_source.runtime_mode }}" data-lang-en="Data {{ result.data_source.runtime_mode }}">数据 {{ result.data_source.runtime_mode }}</span>
+        </div>
+      </div>
+      <div>
+        <p class="surface-subtitle" data-lang-zh="{{ view.trust_summary_by_lang.zh }}" data-lang-en="{{ view.trust_summary_by_lang.en }}">{{ view.trust_summary }}</p>
+        {% if view.trust_reasons %}
+          <ul class="trust-reason-list">
+            {% for item in view.trust_reasons %}
+              <li>
+                <strong>{% if item.delta > 0 %}+{% endif %}{{ item.delta }}</strong>
+                <span data-lang-zh="{{ item.reason_zh }}" data-lang-en="{{ item.reason_en }}">{{ item.reason }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if view.evidence_pack_id %}
+          <p class="surface-subtitle" style="margin-top:10px" data-lang-zh="Evidence Pack：{{ view.evidence_pack_id }}（运行后写入本地导出目录）" data-lang-en="Evidence Pack: {{ view.evidence_pack_id }} (exported after each run)">Evidence Pack：{{ view.evidence_pack_id }}（运行后写入本地导出目录）</p>
+        {% endif %}
+      </div>
+    </div>
+
     <div class="metric-grid">
       {% for metric in view.metrics %}
         <article class="metric">
@@ -540,7 +666,7 @@
         <div class="surface-body">
           <ul class="trace-list" data-trace-list>
             {% for item in view.tool_trace %}
-              <li>{{ item }}</li>
+              <li><span class="trace-step">{{ loop.index }}</span><span>{{ item }}</span></li>
             {% endfor %}
           </ul>
           <script id="trace-translations" type="application/json">{{ view.tool_trace_by_lang | tojson }}</script>

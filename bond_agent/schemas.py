@@ -141,6 +141,28 @@ class RiskProfile(FlexibleModel):
     summary_en: str
 
 
+class TrustAdjustment(FlexibleModel):
+    id: str
+    delta: int
+    reason_zh: str
+    reason_en: str
+
+
+class TrustScore(FlexibleModel):
+    score: int
+    level: Literal["low", "medium", "high"]
+    summary_zh: str
+    summary_en: str
+    components: dict[str, Any] = Field(default_factory=dict)
+    adjustments: list[TrustAdjustment] = Field(default_factory=list)
+    headline_reasons: list[TrustAdjustment] = Field(default_factory=list)
+
+
+class EvidencePackPaths(FlexibleModel):
+    json_path: str | None = None
+    html_path: str | None = None
+
+
 class AgentResponse(BaseModel):
     agent: str
     subtitle: str
@@ -155,6 +177,7 @@ class AgentResponse(BaseModel):
     evidence_ledger: list[EvidenceLedgerItem] = Field(default_factory=list)
     answer_judge: AnswerJudge
     risk_profile: RiskProfile
+    trust_score: TrustScore
     analysis: list[str]
     risk_notes: list[str]
     limitations: list[str]
@@ -168,6 +191,8 @@ class AgentResponse(BaseModel):
     llm_error: str | None = None
     disclaimer: str
     replay_id: str | None = None
+    evidence_pack_id: str | None = None
+    evidence_pack_paths: EvidencePackPaths | None = None
 
 
 class HealthResponse(BaseModel):

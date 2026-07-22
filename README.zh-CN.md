@@ -1,18 +1,43 @@
-# 证据优先 · 可解释 · 作品集级呈现。
+# BondLens AI
 
-BondLens AI
-
-**可解释债券分析智能体**
+**面向中文债市数据的证据优先分析智能体**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 
-BondLens AI 是一个面向中文债券市场数据的轻量级、证据驱动分析智能体。它默认优先使用 AkShare 实时债券行情，实时接口不可用时先降级到最近一次成功获取的实时快照；如果快照也不可用，再降级到保留的本地 Excel 样本。每次回答都会返回工具轨迹、证据账本、答案评审、风险画像、guardrail 状态和能力边界。
+```text
+数字由代码计算。
+叙述可由大模型辅助。
+每次输出都可追溯。
+```
+
+BondLens AI 是面向中文债券市场数据的轻量级、证据驱动分析智能体。确定性工具负责所有数字；可选 LLM 只能在证据上叙述。每次回答返回工具轨迹、证据账本、答案评审、风险画像、**信任分**、强制局限性，以及可导出的 **Bond Evidence Pack**。
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 
 项目主页：[https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
+
+静态 Demo 证据包（无需 API Key）：[docs/demo_runs/](docs/demo_runs/)
+
+## 哪些数字绝不可能来自 LLM
+
+| 层级 | 来源 | 能否编造数字 |
+| --- | --- | --- |
+| 收益率 / 成交量 / 分位 / 排序 | 确定性工具 `bond_agent/tools.py` | 否 |
+| 数据血缘（实时 / 快照 / 样本） | 数据解析器 | 否 |
+| 证据账本 claim | 由工具输出构建 | 否 |
+| 最终回答文本 | 确定性报告；或仅在护栏+评审通过后用 LLM | 文本可润色，数字必须对齐证据 |
+
+## 三层架构
+
+```text
+Data Ops      实时 / 快照 / 本地样本 + 血缘
+Agent Core    Planner → Tools → Evidence → Report
+Trust Layer   Guardrail + Judge + Risk + Trust Score + Replay + Evals
+```
+
+吸收业界「确定性计算 + LLM 叙述」原则（如 FinRobot 一类平台），BondLens 在**中文债**垂直场景强化 claim 级证据、答案评审、红队评测与审查向 Evidence Pack——不是多角色股权研报流水线。
 
 ## 项目截图
 
@@ -43,10 +68,109 @@ BondLens AI 是一个面向中文债券市场数据的轻量级、证据驱动�
       <br><strong>GitHub Pages 项目主页</strong>
     </td>
     <td width="50%">
-      一个包含实时优先数据源、确定性工具、可选 LLM 增强、护栏、运行回放、Docker 和 CI 的作品集项目。
+      实时优先数据源、确定性工具、可选 LLM、信任分、Evidence Pack、护栏、回放、Docker 与 CI。
     </td>
   </tr>
 </table>
+
+## 快速上手
+
+### 5 分钟（离线演示）
+
+```bash
+pip install -r requirements.txt
+export BOND_DATA_MODE=static
+python app.py
+# 打开 http://127.0.0.1:5000/agent
+# 试试：当前样本收益率分布是什么样？
+```
+
+或直接打开预生成证据包（无需服务）：
+
+- [demo-market-overview.html](docs/demo_runs/demo-market-overview.html)
+- [demo-bond-report.html](docs/demo_runs/demo-bond-report.html)
+- [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html)
+
+### 30 分钟（实时链路与降级）
+
+```bash
+export BOND_DATA_MODE=auto   # 实时优先，失败后快照/本地
+python app.py
+# 强制实时：BOND_DATA_MODE=live
+# 观察 data_source.runtime_mode 与信任分在降级时如何变化
+```
+
+可选 LLM 润色（非必需）：
+
+```bash
+export OPENAI_API_KEY=...
+# 或 OPENAI_BASE_URL 接本地 OpenAI 兼容端点
+```
+
+## 确定性算子清单（Tool Catalog）
+
+| 工具 | 输入 | 确定性输出 | 典型账本 claim |
+| --- | --- | --- | --- |
+| `search_bonds` | 名称 / 期限 / 收益率筛选 | match_count、records | 命中债券、筛选条件 |
+| `describe_market` | 当前数据表 | 收益率/成交量摘要、分布 | 样本量、收益统计 |
+| `rank_bonds` | 排序字段、top_n | 排序记录 | 指定字段 Top-N |
+| `detect_yield_outliers` | 方法、阈值 | 异常数量、分数 | 异常候选 |
+| `compare_bond_to_market` | 债券/记录 | 分位、异常标记 | 相对市场位置 |
+| `generate_bond_report` | 工具输出 + plan | 分析、风险、局限性 | 报告结构 |
+
+最终回答中的数字必须来自上述工具（否则护栏拒绝）。
+
+## 信任分
+
+每次回答包含 `trust_score`（0–100），由以下因素合成：
+
+- 证据质量
+- 数据新鲜度 / 降级（实时 vs 快照 vs 静态）
+- 账本覆盖
+- LLM 护栏结果
+- 答案评审结果
+- 强制非投资建议扣分
+
+工作台顶部信任条展示分数与主要加减分原因。
+
+## Bond Evidence Pack（债市证据包）
+
+每次运行可导出便携证据包（JSON + 静态 HTML）：
+
+- 问题 / 意图 / 工具
+- 数据血缘
+- 信任分与调整项
+- 护栏 + 评审
+- 风险画像
+- 证据账本
+- 最终回答
+- **强制局限性**
+
+运行时默认写入 `.tmp/evidence_packs/`。  
+仓库内静态 Demo 见 [docs/demo_runs/](docs/demo_runs/)。
+
+```bash
+python scripts/generate_demo_packs.py
+```
+
+## 对抗样例（红队演示）
+
+失败与降级是一等公民演示（见 `evals/red_team_eval_cases.yml`）：
+
+| 场景 | 预期行为 |
+| --- | --- |
+| 诱导保证收益 / 买卖建议 | 护栏语言检查失败；优先确定性回退 |
+| LLM 捏造证据外收益率 | 数字一致性失败；评审拒绝 LLM 最终答案 |
+| 实时链路不可用 | 诚实记录快照/样本血缘；信任分下降 |
+
+## 强制局限性模板
+
+每次回答合并固定 limitations，至少包括：
+
+1. 非投资建议，仅用于学习和研究。
+2. 行情源不含主体评级、财报、担保与信用事件。
+3. 收益率高低是风险信号，不是买卖依据。
+4. 实时可能降级到快照或本地样本——以 `data_source` 血缘为准。
 
 ## 项目背景
 
@@ -55,16 +179,10 @@ BondLens AI 是一个面向中文债券市场数据的轻量级、证据驱动�
 - 本科毕设原版分支：`undergraduate-thesis-2024`
 - 当前分支：`main`
 
-当前版本把原来的毕设项目升级为一个适合 AI Agent、LLM 应用和 AI Engineer 岗位展示的作品集项目，同时保留项目的历史来源。
-
 ## 仓库结构
-
-这个仓库有意只保留两个长期分支：
 
 - `main`：当前的 BondLens AI 作品集版本
 - `undergraduate-thesis-2024`：本科毕业设计原始版本
-
-因为本科毕设原版分支已经作为固定历史版本保留，所以当前不再额外保留 release tag。
 
 ## 为什么这是 Agent，而不是普通聊天机器人
 
@@ -78,7 +196,7 @@ BondLens AI 不会让大模型直接猜金融结论。它使用一个小而清�
 6. **Optional LLM** 只在本地证据已经生成之后，对回答进行可选增强。它支持 OpenAI，也支持 Ollama 这类 OpenAI-compatible 本地接口。
 7. **LLM guardrail** 会把大模型输出里的数字和不安全投资语言与规则做比对；如果出现证据外数字、买卖建议、收益保证或过度安全表述，最终答案自动回退到确定性报告。
 8. **Answer judge** 记录模型输出是被接受、被护栏拒绝，还是没有调用。
-9. **Evidence ledger、risk profile 和 replay store** 让回答可审计，同时避免作品集 UI 默认展示原始 JSON。
+9. **Trust score、Evidence Pack、risk profile 和 replay store** 让回答可审计，同时避免作品集 UI 默认展示原始 JSON。
 10. **Schema contract** 使用 Pydantic 校验最终 API 响应结构，再返回给调用方。
 
 如果没有配置 `OPENAI_API_KEY`，项目仍然可以运行，并使用确定性的 fallback 输出。
@@ -103,6 +221,8 @@ BondLens AI 不会让大模型直接猜金融结论。它使用一个小而清�
 - 证据账本：把工具输出转成“声明 / 证据 / 来源 / 置信度”记录
 - 答案评审：解释 LLM 输出为什么被接受、拒绝或跳过
 - 结构化风险画像：覆盖数据质量、信用上下文、流动性、久期、异常收益率和模型输出风险
+- 可解释信任分（Trust Score）
+- Bond Evidence Pack 导出（JSON + HTML）
 - 运行回放页：`/replay` 展示最近 Agent 运行摘要，默认不展示原始 JSON
 - Pydantic 响应结构合约，并通过 `/api/agent/schema` 暴露
 - 轻量 `/healthz` 健康检查，适合 Docker 和部署平台

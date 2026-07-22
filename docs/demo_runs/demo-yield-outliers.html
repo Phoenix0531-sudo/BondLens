@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bond Evidence Pack · demo-yield-outliers</title>
+  <style>
+    :root {
+      --ink: #17211d;
+      --muted: #62706b;
+      --line: #d8ded9;
+      --paper: #f7f5f0;
+      --surface: #fffdf8;
+      --teal: #0f6b5f;
+      --amber: #c07a22;
+      --red: #a9423a;
+      --green: #2f7d55;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      background: var(--paper);
+      font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    }
+    .wrap { width: min(980px, calc(100% - 32px)); margin: 28px auto 56px; }
+    .hero {
+      padding: 28px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      box-shadow: 0 18px 45px rgba(23,33,29,.08);
+    }
+    .eyebrow { color: var(--teal); font-size: 12px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }
+    h1 { margin: 8px 0 0; font-family: Georgia, "Times New Roman", serif; font-size: 40px; font-weight: 500; }
+    h2 { margin: 0 0 12px; font-size: 20px; }
+    h3 { margin: 0 0 8px; font-size: 16px; }
+    p, li { line-height: 1.6; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .trust {
+      display: flex; flex-wrap: wrap; gap: 10px; align-items: center;
+      margin-top: 16px;
+    }
+    .trust-score {
+      font-size: 34px; font-weight: 780; color: var(--teal);
+    }
+    .badge {
+      display: inline-block; padding: 5px 9px; border: 1px solid var(--line);
+      background: #f4f0e7; color: var(--muted); font-size: 12px; margin-right: 6px;
+    }
+    .badge.good { color: var(--green); border-color: rgba(47,125,85,.35); }
+    .badge.warn { color: var(--amber); border-color: rgba(192,122,34,.35); }
+    .badge.bad { color: var(--red); border-color: rgba(169,66,58,.35); }
+    .grid { display: grid; gap: 14px; margin-top: 16px; }
+    .section {
+      padding: 18px 20px; border: 1px solid var(--line); background: var(--surface);
+    }
+    .cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+    .card { padding: 14px; border: 1px solid var(--line); background: #f9f6ef; }
+    pre {
+      white-space: pre-wrap; word-break: break-word; background: #f3f0e8;
+      padding: 14px; border-left: 3px solid var(--teal); font-size: 13px; line-height: 1.55;
+    }
+    .footer { margin-top: 18px; color: var(--muted); font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <p class="eyebrow">Bond Evidence Pack</p>
+      <h1>有没有收益率异常的债券？</h1>
+      <p class="muted">id=demo-yield-outliers · created=2026-07-22T14:44:07.787073+00:00 · intent=outlier_detection</p>
+      <div class="trust">
+        <div class="trust-score">51<span style="font-size:16px">/100</span></div>
+        <span class="badge warn">trust medium</span>
+        <span class="badge">judge not_applicable</span>
+        <span class="badge">guardrail not_run</span>
+        <span class="badge">final deterministic_fallback</span>
+        <span class="badge">data static_sample</span>
+      </div>
+      <p class="muted" style="margin-top:12px">信任分 51/100（medium）。 主要因素：使用静态样本，新鲜度受限。；证据账本覆盖 4 条 claim。；未使用 LLM；最终答案完全来自确定性工具链。</p>
+    </header>
+
+    <div class="grid">
+      <section class="section">
+        <h2>数据血缘 · Data lineage</h2>
+        <p><strong>data/testdata.xlsx</strong> · static_sample</p>
+        <p class="muted">provider=repository · rows=3365 · valid_yield=3102</p>
+        <p class="muted">fetched_at=</p>
+        <p class="muted">fallback=none</p>
+      </section>
+
+      <section class="section">
+        <h2>信任分调整 · Trust adjustments</h2>
+        <ul><li><strong>-12</strong> 使用静态样本，新鲜度受限。</li><li><strong>+8</strong> 证据账本覆盖 4 条 claim。</li><li><strong>+6</strong> 未使用 LLM；最终答案完全来自确定性工具链。</li><li><strong>-4</strong> 证据质量 48/100（等级 low）。</li></ul>
+      </section>
+
+      <section class="section">
+        <h2>答案评审 · Answer judge</h2>
+        <p>未使用 LLM 输出，最终答案来自确定性报告。</p>
+        <p class="muted">score=82 · action=use_deterministic_report</p>
+      </section>
+
+      <section class="section">
+        <h2>LLM 护栏 · Guardrail</h2>
+        <p>LLM output was not available, so faithfulness checks were not run.</p>
+        <p class="muted">status=not_run · numeric=not_run · language=not_run</p>
+      </section>
+
+      <section class="section">
+        <h2>风险画像 · Risk profile</h2>
+        <p>本次分析存在高优先级风险信号，应先补充数据或复核异常。</p>
+        <p class="muted">overall=high</p>
+      </section>
+
+      <section class="section">
+        <h2>工具轨迹 · Tool trace</h2>
+        <ul><li>User question: 有没有收益率异常的债券？</li><li>-&gt; data_source(mode=static_sample, source=local_static_excel)</li><li>-&gt; planner(intent=outlier_detection)</li><li>-&gt; detect_yield_outliers(method=zscore, threshold=3.0)</li><li>-&gt; generate_bond_report()</li><li>-&gt; llm_guardrail(skipped: llm_disabled)</li><li>-&gt; final answer</li></ul>
+      </section>
+
+      <section class="section">
+        <h2>证据账本 · Evidence ledger</h2>
+        <div class="cards">
+            <article class="card">
+              <div class="badge">medium</div>
+              <h3>本次回答使用了明确的数据源画像。</h3>
+              <p>data/testdata.xlsx，运行模式 static_sample，样本 3365 行，有效收益率 3102 条。</p>
+              <p class="muted">tool=data_source · source=data/testdata.xlsx</p>
+            </article>
+            
+            <article class="card">
+              <div class="badge">medium</div>
+              <h3>待偿期字段有覆盖率记录，补全来源可追踪。</h3>
+              <p>覆盖率 92.6%，已填充 3117 条，缺失 248 条。</p>
+              <p class="muted">tool=data_source · source=data/testdata.xlsx</p>
+            </article>
+            
+            <article class="card">
+              <div class="badge">medium</div>
+              <h3>收益率异常检测使用固定阈值规则。</h3>
+              <p>方法 zscore，异常样本 13 条。</p>
+              <p class="muted">tool=detect_yield_outliers · source=data/testdata.xlsx</p>
+            </article>
+            
+            <article class="card">
+              <div class="badge">low</div>
+              <h3>最终答案经过安全边界选择。</h3>
+              <p>最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 48/100。</p>
+              <p class="muted">tool=answer_selection · source=BondLens AI response contract</p>
+            </article>
+            </div>
+      </section>
+
+      <section class="section">
+        <h2>最终回答 · Final answer</h2>
+        <pre>Question: 有没有收益率异常的债券？
+Intent: outlier_detection
+
+Tools Used:
+- detect_yield_outliers
+- generate_bond_report
+
+Data Evidence:
+- 数据源: data/testdata.xlsx (static_sample)
+- 样本行数: 3365，有效收益率记录: 3102
+- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条
+- 异常样本数量: 13
+
+Risk Explanation Layer:
+- Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.
+- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.
+- Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.
+- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.
+
+Evidence Quality:
+- Score: 48/100
+- Level: low
+- Data Freshness: static_snapshot
+- Decision Confidence: low
+- Summary: Evidence quality is low for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.
+
+Analysis:
+- 异常检测使用 zscore 方法，共发现 13 条收益率异常样本。
+- 异常分数最高的是 21金地MTN004，收益率 57.0224%，异常分数 23.8091。
+- 异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。
+
+Risk Notes:
+- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。
+- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。
+
+Limitations:
+- 本报告仅基于当前 Agent 数据源的可用字段计算。
+- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。
+- 未接入评级、主体财务、宏观利率曲线或新闻事件。
+- 非投资建议，仅用于学习和研究。</pre>
+      </section>
+
+      <section class="section">
+        <h2>分析 · Analysis</h2>
+        <ul><li>异常检测使用 zscore 方法，共发现 13 条收益率异常样本。</li><li>异常分数最高的是 21金地MTN004，收益率 57.0224%，异常分数 23.8091。</li><li>异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。</li></ul>
+      </section>
+
+      <section class="section">
+        <h2>风险提示 · Risk notes</h2>
+        <ul><li>收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。</li><li>成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。</li></ul>
+      </section>
+
+      <section class="section">
+        <h2>局限性 · Limitations（强制）</h2>
+        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li></ul>
+        <p class="muted" style="margin-top:12px">非投资建议，仅用于学习和研究。</p>
+      </section>
+    </div>
+
+    <p class="footer">BondLens AI · Bond Evidence Pack schema v1.0 · Numbers come from deterministic tools; LLM may only narrate over evidence.</p>
+  </div>
+</body>
+</html>

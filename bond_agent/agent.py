@@ -6,6 +6,7 @@ import os
 from .answer_judge import judge_answer
 from .data_loader import resolve_bond_data
 from .evidence_ledger import build_evidence_ledger
+from .evidence_pack import export_evidence_pack
 from .evidence_quality import assess_evidence_quality
 from .llm_guardrail import assess_llm_faithfulness
 from .planner import classify_intent
@@ -21,9 +22,16 @@ from .tools import (
     rank_bonds,
     search_bonds,
 )
+from .trust_score import compute_trust_score
 
 
 DISCLAIMER = "非投资建议，仅用于学习和研究。"
+LIMITATIONS_TEMPLATE = [
+    "非投资建议，仅用于学习和研究。",
+    "当前行情源不包含主体评级、财务报表、担保与信用事件。",
+    "收益率高低是风险信号，不是买卖依据。",
+    "实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。",
+]
 
 
 class BondAnalystAgent:
@@ -126,6 +134,15 @@ class BondAnalystAgent:
             llm_guardrail=llm_guardrail,
             final_answer_source=final_answer_source,
         )
+        limitations = self._merge_limitations(report.get("limitations") or [])
+        trust_score = compute_trust_score(
+            data_source=data_source,
+            evidence_quality=evidence_quality,
+            llm_guardrail=llm_guardrail,
+            answer_judge=answer_judge,
+            final_answer_source=final_answer_source,
+            evidence_ledger=evidence_ledger,
+        )
         tool_trace.append("-> final answer")
 
         response = {
@@ -142,9 +159,10 @@ class BondAnalystAgent:
             "evidence_ledger": evidence_ledger,
             "answer_judge": answer_judge,
             "risk_profile": risk_profile,
+            "trust_score": trust_score,
             "analysis": report["analysis"],
             "risk_notes": report["risk_notes"],
-            "limitations": report["limitations"],
+            "limitations": limitations,
             "final_answer": final_answer,
             "final_answer_source": final_answer_source,
             "llm_enhanced_answer": llm_result["text"],
@@ -155,12 +173,43 @@ class BondAnalystAgent:
             "llm_error": llm_result["error"],
             "disclaimer": DISCLAIMER,
             "replay_id": None,
+            "evidence_pack_id": None,
+            "evidence_pack_paths": None,
         }
         validated = AgentResponse.model_validate(response).model_dump(mode="json")
+        pack_meta = self._maybe_export_evidence_pack(validated)
+        if pack_meta:
+            validated["evidence_pack_id"] = pack_meta.get("id")
+            validated["evidence_pack_paths"] = {
+                "json_path": pack_meta.get("json_path"),
+                "html_path": pack_meta.get("html_path"),
+            }
         replay_record = save_replay(validated)
         if replay_record:
             validated["replay_id"] = replay_record["id"]
+            if not validated.get("evidence_pack_id"):
+                validated["evidence_pack_id"] = replay_record["id"]
         return AgentResponse.model_validate(validated).model_dump(mode="json")
+
+    def _merge_limitations(self, limitations: list[str]) -> list[str]:
+        merged = list(limitations)
+        for item in LIMITATIONS_TEMPLATE:
+            if item not in merged:
+                merged.append(item)
+        return merged
+
+    def _maybe_export_evidence_pack(self, response: dict) -> dict | None:
+        if os.environ.get("BOND_EVIDENCE_PACK_ENABLED", "true").strip().lower() in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }:
+            return None
+        try:
+            return export_evidence_pack(response, pack_id=response.get("replay_id"))
+        except OSError:
+            return None
 
     def _try_llm_answer(self, question: str, plan: dict, report: dict) -> dict:
         base_url = os.environ.get("OPENAI_BASE_URL")

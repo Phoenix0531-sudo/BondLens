@@ -27,11 +27,7 @@
         body {
             margin: 0;
             color: var(--ink);
-            background:
-                linear-gradient(90deg, rgba(15, 107, 95, 0.07) 1px, transparent 1px),
-                linear-gradient(0deg, rgba(15, 107, 95, 0.05) 1px, transparent 1px),
-                var(--paper);
-            background-size: 36px 36px;
+            background: var(--paper);
             font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
         }
 
@@ -213,10 +209,19 @@
                     try {
                         const payload = JSON.parse(traceTranslations.textContent || "{}");
                         traceList.querySelectorAll("li").forEach((item, index) => {
-                            item.textContent = (payload[activeLang] || [])[index] || item.textContent;
+                            const text = (payload[activeLang] || [])[index] || "";
+                            if (!text) {
+                                return;
+                            }
+                            const label = item.querySelector("span:last-child");
+                            if (label) {
+                                label.textContent = text;
+                            } else {
+                                item.textContent = text;
+                            }
                         });
                     } catch {
-                        traceList.textContent = traceList.textContent;
+                        /* keep current text */
                     }
                 }
 
@@ -232,6 +237,16 @@
 
             document.querySelectorAll("[data-language-option]").forEach((button) => {
                 button.addEventListener("click", () => applyLanguage(button.dataset.languageOption));
+            });
+
+            document.querySelectorAll("[data-fill-question]").forEach((chip) => {
+                chip.addEventListener("click", () => {
+                    const question = document.getElementById("question");
+                    if (question) {
+                        question.value = chip.dataset.fillQuestion || chip.textContent || "";
+                        question.focus();
+                    }
+                });
             });
 
             const urlLang = new URL(window.location.href).searchParams.get("lang");

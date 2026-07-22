@@ -1,19 +1,44 @@
 # BondLens AI
 
-**Explainable Bond Analysis Agent**
+**Evidence-first Bond Analysis Agent for Chinese market data**
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
-Evidence-first. Explainable. Portfolio-ready.
+```text
+Numbers are code-calculated.
+Narratives are LLM-assisted.
+Every output is provenance-tracked.
+```
 
-BondLens AI is a lightweight, evidence-grounded analysis agent for Chinese bond market data. It uses AkShare live bond market data by default, falls back to the latest cached live snapshot when live access is unavailable, then falls back to the preserved local Excel sample if no usable snapshot exists. Each answer returns a structured trace with an evidence ledger, answer judge, risk profile, guardrail status, and limitations.
+BondLens is a lightweight, evidence-grounded analysis agent for Chinese bond market data. Deterministic tools compute every number; an optional LLM may only narrate over that evidence. Each answer returns a tool trace, evidence ledger, answer judge, risk profile, **trust score**, limitations, and an exportable **Bond Evidence Pack**.
 
 > Non-investment advice. For learning, research, and portfolio demonstration only.
 
 Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
+
+Static demo packs (no API key): [docs/demo_runs/](docs/demo_runs/)
+
+## What is not LLM-generated
+
+| Layer | Source | Can invent numbers? |
+| --- | --- | --- |
+| Yield / volume / percentiles / rankings | Deterministic tools (`bond_agent/tools.py`) | No |
+| Data lineage (live / snapshot / sample) | Data resolver | No |
+| Evidence ledger claims | Built from tool outputs | No |
+| Final answer text | Deterministic report, or LLM only if guardrail + judge pass | LLM text only; numbers must match evidence |
+
+## Architecture (three layers)
+
+```text
+Data Ops      live / snapshot / static sample + lineage
+Agent Core    Planner → Tools → Evidence → Report
+Trust Layer   Guardrail + Judge + Risk Profile + Trust Score + Replay + Evals
+```
+
+Inspired by the industry principle of *deterministic compute, LLM narration* (see FinRobot and similar research platforms), BondLens specializes the same idea for **Chinese bonds** with claim-level evidence, answer judging, red-team evals, and reviewer-facing evidence packs — not a multi-role equity research platform.
 
 ## Screenshots
 
@@ -44,28 +69,121 @@ Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531
       <br><strong>GitHub Pages Project Page</strong>
     </td>
     <td width="50%">
-      Live-first data, deterministic tools, optional LLM enhancement, guardrails, replay, Docker, and CI in one portfolio-ready project.
+      Live-first data, deterministic tools, optional LLM enhancement, trust score, evidence packs, guardrails, replay, Docker, and CI.
     </td>
   </tr>
 </table>
 
+## Quick start
+
+### 5 minutes (offline demo)
+
+```bash
+pip install -r requirements.txt
+export BOND_DATA_MODE=static
+python app.py
+# open http://127.0.0.1:5000/agent
+# try: 当前样本收益率分布是什么样？
+```
+
+Or open a pre-generated pack with no server:
+
+- [demo-market-overview.html](docs/demo_runs/demo-market-overview.html)
+- [demo-bond-report.html](docs/demo_runs/demo-bond-report.html)
+- [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html)
+
+### 30 minutes (live path + fallback)
+
+```bash
+export BOND_DATA_MODE=auto   # live first, then snapshot, then static
+python app.py
+# force live: BOND_DATA_MODE=live
+# watch data_source.runtime_mode and trust score when live fails
+```
+
+Optional LLM polish (never required):
+
+```bash
+export OPENAI_API_KEY=...
+# or OPENAI_BASE_URL for OpenAI-compatible local endpoints
+```
+
+## Tool catalog (deterministic operators)
+
+| Tool | Inputs | Deterministic outputs | Typical ledger claims |
+| --- | --- | --- | --- |
+| `search_bonds` | name / maturity / yield filters | match_count, records | matched bonds, criteria coverage |
+| `describe_market` | active frame | yield/volume summaries, distribution | sample size, yield stats |
+| `rank_bonds` | by, top_n, order | ranked records | top-N by chosen field |
+| `detect_yield_outliers` | method, threshold | outlier_count, scores | anomaly candidates |
+| `compare_bond_to_market` | bond / record | percentiles, outlier flag | relative market position |
+| `generate_bond_report` | tool outputs + plan | analysis, risk_notes, limitations | composed report structure |
+
+Numbers in the final answer must come from these tools (or be rejected by the guardrail).
+
+## Trust score
+
+Each answer includes `trust_score` (0–100) built from:
+
+- evidence quality
+- data freshness / degradation (live vs snapshot vs static)
+- ledger coverage
+- LLM guardrail outcome
+- answer judge outcome
+- forced non-advisory penalty
+
+The UI trust bar shows the score plus top adjustments (for example: “static sample −12”).
+
+## Bond Evidence Pack
+
+Every run can export a portable pack (JSON + static HTML):
+
+- question / intent / tools
+- data lineage
+- trust score + adjustments
+- guardrail + judge
+- risk profile
+- evidence ledger
+- final answer
+- **mandatory limitations**
+
+Runtime exports go to `.tmp/evidence_packs/` by default.  
+Committed demo packs live under [docs/demo_runs/](docs/demo_runs/).
+
+```bash
+python scripts/generate_demo_packs.py
+```
+
+## Adversarial / red-team demos
+
+BondLens treats failure and degradation as first-class demos (see `evals/red_team_eval_cases.yml`):
+
+| Scenario | Expected behavior |
+| --- | --- |
+| Prompt for guaranteed returns / buy-sell advice | Guardrail language check fails; deterministic fallback preferred |
+| LLM invents yields not in evidence | Numeric faithfulness fails; judge rejects LLM final |
+| Live feed unavailable | Snapshot/static lineage recorded honestly; trust score drops |
+
+## Mandatory limitations template
+
+Every answer merges a fixed limitations set, including:
+
+1. Non-investment advice; learning and research only.
+2. No issuer ratings, financial statements, guarantees, or credit events in the feed.
+3. Yield level is a risk signal, not a trade instruction.
+4. Live may degrade to snapshot/sample — trust `data_source` lineage.
+
 ## Background
 
-This project started as a 2024 undergraduate thesis project: a Flask-based bond data analysis system. The original thesis version is preserved and should not be rewritten:
+This project started as a 2024 undergraduate thesis: a Flask-based bond data analysis system. The original thesis version is preserved and should not be rewritten:
 
 - Original thesis branch: `undergraduate-thesis-2024`
 - Current branch: `main`
 
-The current branch upgrades the thesis project into an AI Agent / LLM Application / AI Engineer portfolio project while keeping the historical origin visible.
-
 ## Repository Structure
-
-This repository intentionally keeps two long-lived branches:
 
 - `main`: the modern BondLens AI portfolio project
 - `undergraduate-thesis-2024`: the original undergraduate thesis version
-
-No release tag is kept because the original thesis branch is the preserved historical version.
 
 ## Why This Is An Agent, Not A Chatbot
 
@@ -79,7 +197,7 @@ BondLens AI does not ask an LLM to guess financial answers. The agent follows a 
 6. **Optional LLM** can polish the answer only after the local evidence exists. It supports OpenAI and OpenAI-compatible local endpoints such as Ollama.
 7. **LLM guardrail** checks numeric claims and unsafe investment-language patterns against structured evidence and falls back to the deterministic report if the LLM output is not safe to use.
 8. **Answer judge** records whether model output was accepted, rejected by guardrails, or bypassed.
-9. **Evidence ledger, risk profile, and replay store** make the answer auditable without showing raw JSON in the portfolio UI.
+9. **Trust score + Evidence Pack + risk profile + replay store** make the answer auditable without showing raw JSON in the portfolio UI.
 10. **Schema contract** validates the final API response with Pydantic before returning it.
 
 If `OPENAI_API_KEY` is not set, the project still runs and uses deterministic fallback output.
@@ -98,17 +216,19 @@ If `OPENAI_API_KEY` is not set, the project still runs and uses deterministic fa
 - Yield outlier detection with z-score
 - Bond-to-market comparison: yield percentile, volume percentile, maturity percentile, outlier status
 - Data source profile: requested mode, actual runtime mode, provider, fetch time, fallback reason, and legacy crawler boundary
-- Retrieval-augmented risk explanations for fixed-income concepts
-- Evidence quality scoring with confidence and freshness labels
-- LLM faithfulness guardrail for numeric evidence checks, unsafe investment-language checks, and safe fallback
-- Evidence ledger: turns tool outputs into claim/evidence/source/confidence records for review
-- Answer judge: explains why an LLM answer was accepted, rejected, or bypassed
-- Structured risk profile: data quality, credit context, liquidity, duration, outlier, and model-output risks
-- Replay dashboard: `/replay` summarizes recent Agent runs without exposing raw JSON by default
-- Pydantic response schema with `/api/agent/schema`
-- Lightweight `/healthz` endpoint for containers and deployment platforms
-- Agent eval and red-team eval suites for repeatable behavior and safety checks
-- Docker deployment with gunicorn
+- Risk explanation retrieval: local RAG-style fixed-income risk snippets
+- Evidence quality scoring: confidence, freshness, missing context
+- LLM faithfulness checks: numeric + unsafe investment language; safe fallback on failure
+- Evidence ledger: claim / evidence / source / confidence records
+- Answer judge: accept / reject / bypass model output
+- Structured risk profile: data quality, credit context, liquidity, duration, outliers, model-output risk
+- Trust score with explainable adjustments
+- Bond Evidence Pack export (JSON + HTML)
+- Replay page `/replay` for recent run summaries
+- Pydantic response contract via `/api/agent/schema`
+- Lightweight `/healthz` for Docker and deploy platforms
+- Agent eval and red-team eval suites
+- Docker deployment with gunicorn and Compose
 
 ## Agent Workflow
 
@@ -136,10 +256,10 @@ flowchart TD
     P --> Q[LLM numeric and language guardrail]
     Q -->|passed| R[LLM final answer]
     Q -->|numeric or language failure| S[Deterministic fallback answer]
-    R --> T[Answer Judge + Evidence Ledger + Risk Profile]
+    R --> T[Answer Judge + Trust Score + Evidence Ledger + Risk Profile]
     S --> T
     O --> T
-    T --> U[Replay Dashboard]
+    T --> U[Evidence Pack + Replay Dashboard]
 ```
 
 ## Tool Trace Example

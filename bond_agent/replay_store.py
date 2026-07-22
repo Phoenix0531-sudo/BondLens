@@ -49,6 +49,7 @@ def _summarize_response(response: dict[str, Any], replay_id: str) -> dict[str, A
     llm_guardrail = response.get("llm_guardrail") or {}
     answer_judge = response.get("answer_judge") or {}
     risk_profile = response.get("risk_profile") or {}
+    trust_score = response.get("trust_score") or {}
     return {
         "id": replay_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
@@ -69,6 +70,12 @@ def _summarize_response(response: dict[str, Any], replay_id: str) -> dict[str, A
             "data_freshness": evidence_quality.get("data_freshness"),
             "decision_confidence": evidence_quality.get("decision_confidence"),
         },
+        "trust_score": {
+            "score": trust_score.get("score"),
+            "level": trust_score.get("level"),
+            "summary_zh": trust_score.get("summary_zh"),
+            "summary_en": trust_score.get("summary_en"),
+        },
         "llm": {
             "status": response.get("llm_status"),
             "guardrail_status": llm_guardrail.get("status"),
@@ -81,6 +88,7 @@ def _summarize_response(response: dict[str, Any], replay_id: str) -> dict[str, A
             "summary_en": risk_profile.get("summary_en"),
         },
         "evidence_ledger": response.get("evidence_ledger", [])[:6],
+        "evidence_pack_id": response.get("evidence_pack_id"),
     }
 
 
