@@ -7,6 +7,8 @@
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 
+Evidence-first. Explainable. Portfolio-ready.
+
 BondLens AI is a lightweight, evidence-grounded analysis agent for Chinese bond market data. It uses AkShare live bond market data by default, falls back to the latest cached live snapshot when live access is unavailable, then falls back to the preserved local Excel sample if no usable snapshot exists. Each answer returns a structured trace with an evidence ledger, answer judge, risk profile, guardrail status, and limitations.
 
 > Non-investment advice. For learning, research, and portfolio demonstration only.
