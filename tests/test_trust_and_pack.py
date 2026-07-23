@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from bond_agent import BondAnalystAgent
-from bond_agent.evidence_pack import DEMO_PACK_DIR, export_evidence_pack, render_evidence_pack_html
+from bond_agent.evidence_pack import DEMO_PACK_DIR, export_evidence_pack
 from bond_agent.stress_view import build_stress_view
 from bond_agent.trust_score import compute_trust_score
 

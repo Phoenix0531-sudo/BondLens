@@ -3,6 +3,7 @@
   expected_intent: market_overview
   expected_tools:
     - describe_market
+    - build_market_monitor
     - generate_bond_report
   must_include:
     - 样本
@@ -17,6 +18,7 @@
     - describe_market
     - rank_bonds
     - detect_yield_outliers
+    - build_market_monitor
     - generate_bond_report
   must_include:
     - 23附息国债26
@@ -87,6 +89,7 @@
   expected_intent: market_overview
   expected_tools:
     - describe_market
+    - build_market_monitor
     - generate_bond_report
   must_include:
     - 样本
@@ -101,6 +104,7 @@
     - describe_market
     - rank_bonds
     - detect_yield_outliers
+    - build_market_monitor
     - generate_bond_report
   must_include:
     - 未在

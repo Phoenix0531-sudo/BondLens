@@ -10,8 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bond_agent import BondAnalystAgent
-from bond_agent.evidence_pack import DEMO_PACK_DIR, export_evidence_pack
+from bond_agent import BondAnalystAgent  # noqa: E402
+from bond_agent.evidence_pack import DEMO_PACK_DIR, export_evidence_pack  # noqa: E402
 
 
 CASES = [
