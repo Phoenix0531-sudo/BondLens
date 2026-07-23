@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-yield-outliers",
-  "created_at": "2026-07-23T01:30:24.318809+00:00",
+  "created_at": "2026-07-23T02:11:08.281953+00:00",
   "agent": "BondLens AI",
   "question": "有没有收益率异常的债券？",
   "intent": "outlier_detection",

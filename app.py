@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import csv
+import io
+import json
 import os
-
 from pathlib import Path
 
 from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
@@ -165,6 +167,68 @@ def evidence_pack_file(pack_id: str, ext: str):
     abort(404)
 
 
+@app.route("/api/maturity/unmatched", methods=["GET", "POST"])
+def export_unmatched_maturity():
+    """Export unmatched-maturity bond names as CSV or JSON (live enrichment gap list)."""
+    payload = request.get_json(silent=True) or {}
+    fmt = (request.args.get("format") or payload.get("format") or "csv").strip().lower()
+    if fmt not in {"csv", "json"}:
+        return jsonify(ApiError(error="Unsupported format. Use csv or json.").model_dump(mode="json")), 400
+
+    try:
+        data_mode = _normalize_data_mode(
+            request.args.get("data_mode")
+            or payload.get("data_mode")
+            or request.form.get("data_mode")
+            or os.environ.get("BOND_DATA_MODE", "auto")
+        )
+    except ValueError as exc:
+        return jsonify(ApiError(error=str(exc), allowed_data_modes=sorted(DATA_MODES)).model_dump(mode="json", exclude_none=True)), 400
+
+    # Prefer records posted from the latest agent run (same snapshot as the UI board).
+    records = payload.get("records")
+    coverage = payload.get("maturity_coverage") or {}
+    if not isinstance(records, list):
+        result = BondAnalystAgent(data_mode=data_mode).answer(
+            payload.get("question") or "打开今日市场监控面板：高收益、低成交与异常"
+        )
+        coverage = (result.get("data_source") or {}).get("maturity_coverage") or {}
+        records = coverage.get("unmatched_records") or []
+
+    export_body = {
+        "data_mode": data_mode,
+        "filled_count": coverage.get("filled_count"),
+        "missing_count": coverage.get("missing_count"),
+        "coverage_ratio": coverage.get("coverage_ratio"),
+        "unmatched_count": coverage.get("unmatched_count", len(records)),
+        "records": records,
+    }
+
+    if fmt == "json":
+        raw = json.dumps(export_body, ensure_ascii=False, indent=2)
+        return send_file(
+            io.BytesIO(raw.encode("utf-8")),
+            mimetype="application/json",
+            download_name="maturity-unmatched.json",
+            as_attachment=True,
+        )
+
+    buffer = io.StringIO()
+    fieldnames = ["债券简称", "收盘到期收益率(%)", "交易量(亿元)", "成交净价(元)", "加权收益率(%)", "涨跌(BP)", "待偿期来源"]
+    writer = csv.DictWriter(buffer, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        writer.writerow({key: record.get(key) for key in fieldnames})
+    return send_file(
+        io.BytesIO(buffer.getvalue().encode("utf-8-sig")),
+        mimetype="text/csv; charset=utf-8",
+        download_name="maturity-unmatched.csv",
+        as_attachment=True,
+    )
+
+
 def _normalize_data_mode(value: str | None) -> str:
     mode = (value or "auto").strip().lower()
     if mode not in DATA_MODES:
@@ -275,6 +339,10 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             "zh": _maturity_honesty_note(data_source, "zh"),
             "en": _maturity_honesty_note(data_source, "en"),
         },
+        "maturity_board": _build_maturity_board(data_source, lang),
+        "maturity_unmatched_records": (maturity_coverage.get("unmatched_records") or [])[:20],
+        "maturity_export_csv_url": _maturity_export_url("csv", data_source),
+        "maturity_export_json_url": _maturity_export_url("json", data_source),
         "ranking_records": (ranking.get("records") or [])[:5],
         "outlier_records": (outliers.get("records") or [])[:5],
         "market_summary": [
@@ -293,6 +361,11 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
         "tool_trace_by_lang": {
             "zh": [_localize_trace_item(item, "zh") for item in result.get("tool_trace", [])],
             "en": [_localize_trace_item(item, "en") for item in result.get("tool_trace", [])],
+        },
+        "answer_summary": _build_answer_summary(result, lang),
+        "answer_summary_by_lang": {
+            "zh": _build_answer_summary(result, "zh"),
+            "en": _build_answer_summary(result, "en"),
         },
         "final_answer": _format_display_answer(result, lang),
         "final_answer_by_lang": {
@@ -834,11 +907,257 @@ def _risk_profile_summary(risk_profile: dict, lang: str) -> str:
     return risk_profile.get("summary_zh", "")
 
 
+def _maturity_export_url(fmt: str, data_source: dict) -> str:
+    requested = (data_source.get("requested_mode") or "").strip().lower()
+    if requested in DATA_MODES:
+        mode = requested
+    else:
+        runtime = (data_source.get("runtime_mode") or "").strip().lower()
+        if runtime in {"live"}:
+            mode = "live"
+        elif runtime in {"live_snapshot"}:
+            mode = "auto"
+        else:
+            mode = "static"
+    return f"/api/maturity/unmatched?format={fmt}&data_mode={mode}"
+
+
 def _coverage_ratio_text(coverage: dict) -> str:
     ratio = coverage.get("coverage_ratio")
     if ratio is None:
         return "N/A"
     return f"{round(float(ratio) * 100, 1)}%"
+
+
+def _build_answer_summary(result: dict, lang: str = "zh") -> dict:
+    """Build a 3-sentence headline + key metrics for the answer-first hero."""
+    evidence = result.get("data_evidence") or {}
+    market = evidence.get("market") or {}
+    comparison = evidence.get("comparison") or {}
+    monitor = evidence.get("monitor") or {}
+    search = evidence.get("search") or {}
+    data_source = result.get("data_source") or {}
+    trust = result.get("trust_score") or {}
+    plan = result.get("plan") or {}
+    intent = plan.get("intent") or "market_overview"
+    coverage = data_source.get("maturity_coverage") or {}
+    yield_summary = market.get("yield_summary") or {}
+    quality = market.get("data_quality") or {}
+    peer = comparison.get("peer_comparison") or {}
+    rows = data_source.get("row_count")
+    mode = data_source.get("runtime_mode") or "unknown"
+    trust_score = trust.get("score")
+    median = yield_summary.get("median")
+    quality_score = quality.get("score")
+    coverage_text = _coverage_ratio_text(coverage)
+
+    key_metrics = [
+        _metric("Trust", "信任分", trust_score, lang, "/100"),
+        _metric("Rows", "样本行数", rows, lang),
+        _metric("Median Yield", "中位收益", median, lang, "%"),
+        _metric("Maturity Coverage", "期限覆盖", coverage_text, lang),
+        _metric("Data Quality", "数据质量", quality_score, lang, "/100"),
+    ]
+
+    if peer.get("peer_count"):
+        key_metrics.append(
+            _metric(
+                "Peer Spread",
+                "同业利差",
+                peer.get("spread_vs_peer_mean_bp"),
+                lang,
+                " bp",
+            )
+        )
+
+    if lang == "en":
+        sentences = _answer_summary_sentences_en(
+            intent=intent,
+            mode=mode,
+            rows=rows,
+            median=median,
+            trust_score=trust_score,
+            coverage_text=coverage_text,
+            quality_score=quality_score,
+            peer=peer,
+            monitor=monitor,
+            search=search,
+            data_source=data_source,
+        )
+    else:
+        sentences = _answer_summary_sentences_zh(
+            intent=intent,
+            mode=mode,
+            rows=rows,
+            median=median,
+            trust_score=trust_score,
+            coverage_text=coverage_text,
+            quality_score=quality_score,
+            peer=peer,
+            monitor=monitor,
+            search=search,
+            data_source=data_source,
+        )
+
+    return {
+        "headline": sentences[0] if sentences else "",
+        "sentences": sentences[:3],
+        "key_metrics": key_metrics[:6],
+        "intent": intent,
+        "intent_label": _intent_label(intent, lang),
+    }
+
+
+def _answer_summary_sentences_zh(
+    *,
+    intent: str,
+    mode: str,
+    rows,
+    median,
+    trust_score,
+    coverage_text: str,
+    quality_score,
+    peer: dict,
+    monitor: dict,
+    search: dict,
+    data_source: dict,
+) -> list[str]:
+    mode_label = _localized_status(mode, "zh")
+    sentence_1 = f"本次意图为{_intent_label(intent, 'zh')}，数据源运行模式 {mode_label}，样本 {rows if rows is not None else '—'} 行。"
+    if median is not None:
+        sentence_2 = f"样本中位收益率 {median}%，数据质量 {quality_score if quality_score is not None else '—'} /100，期限覆盖率 {coverage_text}。"
+    else:
+        sentence_2 = f"数据质量 {quality_score if quality_score is not None else '—'} /100，期限覆盖率 {coverage_text}；部分统计字段缺失。"
+
+    if peer.get("peer_count"):
+        spread = peer.get("spread_vs_peer_mean_bp")
+        sentence_3 = (
+            f"同业可比 n={peer.get('peer_count')}，相对同业利差 "
+            f"{'—' if spread is None else str(spread) + ' bp'}；信任分 {trust_score if trust_score is not None else '—'}/100。"
+        )
+    elif monitor:
+        hy = len(monitor.get("high_yield") or [])
+        lv = len(monitor.get("low_volume") or [])
+        out = len(monitor.get("yield_outliers") or [])
+        sentence_3 = f"监控面板已生成：高收益 {hy}、低成交 {lv}、收益异常 {out} 条观察清单；信任分 {trust_score if trust_score is not None else '—'}/100。"
+    elif search.get("match_count") is not None:
+        sentence_3 = f"检索命中 {search.get('match_count')} 条；信任分 {trust_score if trust_score is not None else '—'}/100，完整证据见下方展开区。"
+    else:
+        filled = (data_source.get("maturity_coverage") or {}).get("filled_count")
+        missing = (data_source.get("maturity_coverage") or {}).get("missing_count")
+        sentence_3 = (
+            f"期限补全 {filled if filled is not None else '—'} 条、缺失 {missing if missing is not None else '—'} 条；"
+            f"信任分 {trust_score if trust_score is not None else '—'}/100，完整正文可展开查看。"
+        )
+    return [sentence_1, sentence_2, sentence_3]
+
+
+def _answer_summary_sentences_en(
+    *,
+    intent: str,
+    mode: str,
+    rows,
+    median,
+    trust_score,
+    coverage_text: str,
+    quality_score,
+    peer: dict,
+    monitor: dict,
+    search: dict,
+    data_source: dict,
+) -> list[str]:
+    sentence_1 = (
+        f"Intent is {_intent_label(intent, 'en')}; runtime mode {mode}; "
+        f"sample size {rows if rows is not None else '—'} rows."
+    )
+    if median is not None:
+        sentence_2 = (
+            f"Median yield {median}%; data quality {quality_score if quality_score is not None else '—'}/100; "
+            f"maturity coverage {coverage_text}."
+        )
+    else:
+        sentence_2 = (
+            f"Data quality {quality_score if quality_score is not None else '—'}/100; "
+            f"maturity coverage {coverage_text}; some stats are incomplete."
+        )
+
+    if peer.get("peer_count"):
+        spread = peer.get("spread_vs_peer_mean_bp")
+        sentence_3 = (
+            f"Peer set n={peer.get('peer_count')}, spread vs peers "
+            f"{'—' if spread is None else str(spread) + ' bp'}; "
+            f"trust score {trust_score if trust_score is not None else '—'}/100."
+        )
+    elif monitor:
+        hy = len(monitor.get("high_yield") or [])
+        lv = len(monitor.get("low_volume") or [])
+        out = len(monitor.get("yield_outliers") or [])
+        sentence_3 = (
+            f"Monitor board ready: high-yield {hy}, low-volume {lv}, outliers {out}; "
+            f"trust score {trust_score if trust_score is not None else '—'}/100."
+        )
+    elif search.get("match_count") is not None:
+        sentence_3 = (
+            f"Search matched {search.get('match_count')} bonds; "
+            f"trust score {trust_score if trust_score is not None else '—'}/100. Expand for full evidence."
+        )
+    else:
+        filled = (data_source.get("maturity_coverage") or {}).get("filled_count")
+        missing = (data_source.get("maturity_coverage") or {}).get("missing_count")
+        sentence_3 = (
+            f"Maturity filled {filled if filled is not None else '—'}, missing {missing if missing is not None else '—'}; "
+            f"trust score {trust_score if trust_score is not None else '—'}/100. Expand for full answer."
+        )
+    return [sentence_1, sentence_2, sentence_3]
+
+
+def _build_maturity_board(data_source: dict, lang: str = "zh") -> dict:
+    coverage = data_source.get("maturity_coverage") or {}
+    ratio = coverage.get("coverage_ratio")
+    source_counts = coverage.get("source_counts") or {}
+    unmatched = coverage.get("unmatched_records") or []
+    runtime = data_source.get("runtime_mode") or ""
+    if lang == "en":
+        title = "Maturity Enrichment Board"
+        subtitle = (
+            "Live/snapshot feeds have no native maturity. "
+            f"Coverage {_coverage_ratio_text(coverage)} "
+            f"({coverage.get('filled_count')} filled / {coverage.get('missing_count')} missing)."
+        )
+        if runtime not in {"live", "live_snapshot"}:
+            subtitle = (
+                f"Maturity coverage {_coverage_ratio_text(coverage)} "
+                f"({coverage.get('filled_count')} filled / {coverage.get('missing_count')} missing)."
+            )
+    else:
+        title = "期限补全看板"
+        subtitle = (
+            "实时/快照源原生无期限字段。"
+            f"当前补全覆盖率 {_coverage_ratio_text(coverage)} "
+            f"（已补全 {coverage.get('filled_count')}，缺失 {coverage.get('missing_count')}）。"
+        )
+        if runtime not in {"live", "live_snapshot"}:
+            subtitle = (
+                f"期限覆盖率 {_coverage_ratio_text(coverage)} "
+                f"（已补全 {coverage.get('filled_count')}，缺失 {coverage.get('missing_count')}）。"
+            )
+
+    source_rows = [
+        {"source": source, "count": count}
+        for source, count in sorted(source_counts.items(), key=lambda item: (-item[1], str(item[0])))
+    ]
+    return {
+        "title": title,
+        "subtitle": subtitle,
+        "coverage_ratio": ratio,
+        "coverage_text": _coverage_ratio_text(coverage),
+        "filled_count": coverage.get("filled_count"),
+        "missing_count": coverage.get("missing_count"),
+        "unmatched_count": coverage.get("unmatched_count", coverage.get("missing_count")),
+        "source_rows": source_rows,
+        "unmatched_preview": unmatched[:10],
+        "note": _maturity_honesty_note(data_source, lang),
+    }
 
 
 def _maturity_honesty_note(data_source: dict, lang: str) -> str:

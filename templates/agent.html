@@ -423,6 +423,58 @@
     margin-bottom: 18px;
   }
 
+  .answer-hero {
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(245, 241, 232, 0.95), var(--surface));
+    box-shadow: var(--shadow);
+    margin-bottom: 18px;
+  }
+
+  .answer-hero .surface-body {
+    display: grid;
+    gap: 14px;
+  }
+
+  .summary-sentences {
+    margin: 0;
+    padding-left: 18px;
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .summary-sentences li + li {
+    margin-top: 6px;
+  }
+
+  details.answer-body-fold {
+    border: 1px solid var(--line);
+    background: #fbf9f4;
+  }
+
+  details.answer-body-fold > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 12px 14px;
+    color: var(--teal-dark);
+    font-weight: 700;
+  }
+
+  details.answer-body-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.answer-body-fold .fold-body {
+    padding: 0 14px 14px;
+  }
+
+  .maturity-board-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 12px;
+  }
+
   details {
     border-top: 1px solid var(--line);
   }
@@ -776,6 +828,43 @@
       {% endfor %}
     </div>
 
+    {% if view.answer_summary %}
+    <section class="answer-hero surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="首屏答案摘要" data-lang-en="Answer Snapshot">首屏答案摘要</h2>
+          <p class="surface-subtitle" data-lang-zh="3 句结论 + 关键指标；完整正文默认折叠。" data-lang-en="Three-sentence snapshot + key metrics; full body collapsed by default.">3 句结论 + 关键指标；完整正文默认折叠。</p>
+        </div>
+        <div class="badge-row" style="margin-top:0">
+          <span class="badge" data-lang-zh="意图 {{ view.answer_summary.intent_label }}" data-lang-en="Intent {{ view.answer_summary.intent }}">意图 {{ view.answer_summary.intent_label }}</span>
+          <span class="badge good" data-lang-zh="证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}" data-lang-en="Evidence {{ result.evidence_quality.level }} / {{ result.evidence_quality.score }}">证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}</span>
+        </div>
+      </div>
+      <div class="surface-body">
+        <ol class="summary-sentences" data-summary-sentences>
+          {% for sentence in view.answer_summary.sentences %}
+            <li>{{ sentence }}</li>
+          {% endfor %}
+        </ol>
+        <script id="summary-translations" type="application/json">{{ view.answer_summary_by_lang | tojson }}</script>
+        <div class="metric-grid">
+          {% for metric in view.answer_summary.key_metrics %}
+            <article class="metric">
+              <p class="metric-label" data-lang-zh="{{ metric.label_zh }}" data-lang-en="{{ metric.label_en }}">{{ metric.label }}</p>
+              <p class="metric-value">{{ metric.value }}</p>
+            </article>
+          {% endfor %}
+        </div>
+        <details class="answer-body-fold">
+          <summary data-lang-zh="展开完整最终回答" data-lang-en="Expand full final answer">展开完整最终回答</summary>
+          <div class="fold-body answer-box" data-answer-target>{{ view.final_answer }}</div>
+        </details>
+        <script id="answer-translations" type="application/json">{{ view.final_answer_by_lang | tojson }}</script>
+        <p class="surface-subtitle">{{ result.disclaimer }}</p>
+      </div>
+    </section>
+    {% endif %}
+
     {% if view.segment_type_rows or view.segment_bucket_rows or view.peer_comparison.peer_count is defined %}
     <div class="insight-grid">
       {% if view.segment_type_rows %}
@@ -965,20 +1054,97 @@
     </section>
     {% endif %}
 
+    {% if view.maturity_board %}
+    <section class="surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="期限补全看板" data-lang-en="Maturity Enrichment Board">期限补全看板</h2>
+          <p class="surface-subtitle">{{ view.maturity_board.subtitle }}</p>
+        </div>
+        <div class="badge-row" style="margin-top:0">
+          <span class="badge {% if view.maturity_board.coverage_ratio is not none and view.maturity_board.coverage_ratio >= 0.8 %}good{% elif view.maturity_board.coverage_ratio is not none and view.maturity_board.coverage_ratio < 0.5 %}warn{% endif %}">{{ view.maturity_board.coverage_text }}</span>
+          <span class="badge" data-lang-zh="未匹配 {{ view.maturity_board.unmatched_count }}" data-lang-en="Unmatched {{ view.maturity_board.unmatched_count }}">未匹配 {{ view.maturity_board.unmatched_count }}</span>
+        </div>
+      </div>
+      <div class="surface-body">
+        <div class="metric-grid">
+          <article class="metric">
+            <p class="metric-label" data-lang-zh="已补全" data-lang-en="Filled">已补全</p>
+            <p class="metric-value">{{ view.maturity_board.filled_count if view.maturity_board.filled_count is not none else '—' }}</p>
+          </article>
+          <article class="metric">
+            <p class="metric-label" data-lang-zh="缺失" data-lang-en="Missing">缺失</p>
+            <p class="metric-value">{{ view.maturity_board.missing_count if view.maturity_board.missing_count is not none else '—' }}</p>
+          </article>
+          <article class="metric">
+            <p class="metric-label" data-lang-zh="覆盖率" data-lang-en="Coverage">覆盖率</p>
+            <p class="metric-value">{{ view.maturity_board.coverage_text }}</p>
+          </article>
+          <article class="metric">
+            <p class="metric-label" data-lang-zh="未匹配预览" data-lang-en="Unmatched preview">未匹配预览</p>
+            <p class="metric-value">{{ view.maturity_board.unmatched_preview|length }}</p>
+          </article>
+        </div>
+        {% if view.maturity_board.source_rows %}
+        <table class="data-table" style="margin-top:14px">
+          <thead>
+            <tr>
+              <th data-lang-zh="期限来源" data-lang-en="Maturity source">期限来源</th>
+              <th data-lang-zh="条数" data-lang-en="Count">条数</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in view.maturity_board.source_rows %}
+            <tr>
+              <td>{{ row.source }}</td>
+              <td>{{ row.count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        {% if view.maturity_board.unmatched_preview %}
+        <table class="data-table" style="margin-top:14px">
+          <thead>
+            <tr>
+              <th data-lang-zh="未匹配债券" data-lang-en="Unmatched bond">未匹配债券</th>
+              <th data-lang-zh="收益率" data-lang-en="Yield">收益率</th>
+              <th data-lang-zh="成交量" data-lang-en="Volume">成交量</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for bond in view.maturity_board.unmatched_preview %}
+            <tr>
+              <td>{{ bond['债券简称'] }}</td>
+              <td>{% if bond.get('收盘到期收益率(%)') is not none %}{{ bond['收盘到期收益率(%)'] }}%{% else %}—{% endif %}</td>
+              <td>{{ bond.get('交易量(亿元)') if bond.get('交易量(亿元)') is not none else '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+        <div class="maturity-board-actions">
+          <a class="action-link" href="{{ view.maturity_export_csv_url }}" data-lang-zh="导出未匹配 CSV" data-lang-en="Export unmatched CSV">导出未匹配 CSV</a>
+          <a class="action-link" href="{{ view.maturity_export_json_url }}" data-lang-zh="导出未匹配 JSON" data-lang-en="Export unmatched JSON">导出未匹配 JSON</a>
+          <span class="badge" data-lang-zh="{{ view.maturity_board.note }}" data-lang-en="{{ view.maturity_note_by_lang.en }}">{{ view.maturity_board.note }}</span>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
     <div class="workbench answer-first">
       <section class="surface">
         <div class="surface-header">
           <div>
-            <h2 class="surface-title" data-lang-zh="最终回答" data-lang-en="Final Answer">最终回答</h2>
-            <p class="surface-subtitle">{{ result.disclaimer }}</p>
+            <h2 class="surface-title" data-lang-zh="完整回答与轨迹" data-lang-en="Full Answer & Trace">完整回答与轨迹</h2>
+            <p class="surface-subtitle" data-lang-zh="首屏摘要已给出结论；这里保留完整正文与工具轨迹。" data-lang-en="Snapshot above is the headline; full body and tool trace stay here.">首屏摘要已给出结论；这里保留完整正文与工具轨迹。</p>
           </div>
           <div class="badge-row">
             <span class="badge good" data-lang-zh="证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}" data-lang-en="Evidence {{ result.evidence_quality.level }} / {{ result.evidence_quality.score }}">证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}</span>
             <span class="badge" data-lang-zh="最终 {{ view.final_source_label }}" data-lang-en="Final {{ result.final_answer_source }}">最终 {{ view.final_source_label }}</span>
           </div>
         </div>
-        <div class="surface-body answer-box" data-answer-target>{{ view.final_answer }}</div>
-        <script id="answer-translations" type="application/json">{{ view.final_answer_by_lang | tojson }}</script>
+        <div class="surface-body answer-box" data-answer-target-secondary>{{ view.final_answer }}</div>
       </section>
 
       <aside class="surface">

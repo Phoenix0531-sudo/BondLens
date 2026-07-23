@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-bond-report",
-  "created_at": "2026-07-23T01:30:24.158307+00:00",
+  "created_at": "2026-07-23T02:11:08.135953+00:00",
   "agent": "BondLens AI",
   "question": "搜索23附息国债26并给出收益率分析",
   "intent": "bond_report",

@@ -36,7 +36,7 @@ def test_agent_page_localizes_result_for_chinese():
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "最终回答" in html
+    assert "首屏答案摘要" in html or "最终回答" in html or "完整回答与轨迹" in html
     assert "问题：" in html
     assert "风险解释层" in html
     assert "风险画像" in html
@@ -129,3 +129,67 @@ def test_agent_api_handles_regex_special_character_search():
     assert payload["plan"]["intent"] == "bond_report"
     assert payload["data_evidence"]["search"]["match_count"] == 0
     assert "未在当前债券数据源中找到符合条件的债券记录" in payload["final_answer"]
+
+
+def test_agent_page_shows_answer_summary_and_maturity_board():
+    client = app.test_client()
+
+    response = client.post(
+        "/agent",
+        data={"question": "当前样本收益率分布是什么样？", "data_mode": "static", "lang": "zh"},
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "首屏答案摘要" in html
+    assert "展开完整最终回答" in html
+    assert "期限补全看板" in html
+    assert "导出未匹配 CSV" in html
+    assert "/api/maturity/unmatched?format=csv" in html
+
+
+def test_maturity_unmatched_export_csv_and_json():
+    client = app.test_client()
+
+    csv_response = client.post(
+        "/api/maturity/unmatched?format=csv&data_mode=static",
+        json={
+            "data_mode": "static",
+            "maturity_coverage": {
+                "filled_count": 1,
+                "missing_count": 1,
+                "coverage_ratio": 0.5,
+                "unmatched_count": 1,
+            },
+            "records": [
+                {
+                    "债券简称": "测试债A",
+                    "收盘到期收益率(%)": 3.2,
+                    "交易量(亿元)": 1.1,
+                }
+            ],
+        },
+    )
+    assert csv_response.status_code == 200
+    assert "text/csv" in csv_response.headers.get("Content-Type", "")
+    body = csv_response.get_data(as_text=True)
+    assert "债券简称" in body
+    assert "测试债A" in body
+
+    json_response = client.post(
+        "/api/maturity/unmatched?format=json&data_mode=static",
+        json={
+            "data_mode": "static",
+            "maturity_coverage": {
+                "filled_count": 1,
+                "missing_count": 1,
+                "coverage_ratio": 0.5,
+                "unmatched_count": 1,
+            },
+            "records": [{"债券简称": "测试债B"}],
+        },
+    )
+    assert json_response.status_code == 200
+    payload = json_response.get_json()
+    assert payload["unmatched_count"] == 1
+    assert payload["records"][0]["债券简称"] == "测试债B"

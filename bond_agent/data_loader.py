@@ -397,19 +397,47 @@ def _format_maturity(years: float) -> str:
     return f"{max(0, round(years * 365))}D"
 
 
-def _maturity_coverage(df: pd.DataFrame) -> dict:
+def _maturity_coverage(df: pd.DataFrame, unmatched_limit: int = 50) -> dict:
     filled = int(df[MATURITY_YEARS].notna().sum()) if MATURITY_YEARS in df.columns else 0
+    missing = int(len(df) - filled)
     source_counts = {}
     if MATURITY_SOURCE in df.columns:
         source_counts = {
             str(source): int(count)
             for source, count in df[MATURITY_SOURCE].dropna().value_counts().items()
         }
+
+    unmatched_records: list[dict] = []
+    if MATURITY_YEARS in df.columns and BOND_NAME in df.columns:
+        missing_df = df[df[MATURITY_YEARS].isna()].copy()
+        if not missing_df.empty:
+            display_columns = [
+                column
+                for column in [BOND_NAME, YIELD, VOLUME, PRICE, WEIGHTED_YIELD, LIVE_CHANGE_BP, MATURITY_SOURCE]
+                if column in missing_df.columns
+            ]
+            unmatched_records = (
+                missing_df[display_columns]
+                .head(unmatched_limit)
+                .where(pd.notnull(missing_df[display_columns]), None)
+                .to_dict(orient="records")
+            )
+
     return {
         "filled_count": filled,
-        "missing_count": int(len(df) - filled),
+        "missing_count": missing,
         "coverage_ratio": round(filled / len(df), 4) if len(df) else 0,
         "source_counts": source_counts,
+        "unmatched_count": missing,
+        "unmatched_limit": unmatched_limit,
+        "unmatched_records": unmatched_records,
+        "enrichment_note": (
+            "Live/snapshot feeds have no native maturity; unmatched names cannot join "
+            "peer/maturity buckets reliably."
+            if any(str(source).startswith("local_static_excel") for source in source_counts)
+            or (missing > 0 and filled > 0)
+            else None
+        ),
     }
 
 

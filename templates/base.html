@@ -192,14 +192,34 @@
                     element.value = activeLang;
                 });
 
-                const answerTarget = document.querySelector("[data-answer-target]");
+                const answerTargets = document.querySelectorAll("[data-answer-target], [data-answer-target-secondary]");
                 const answerTranslations = document.getElementById("answer-translations");
-                if (answerTarget && answerTranslations) {
+                if (answerTargets.length && answerTranslations) {
                     try {
                         const payload = JSON.parse(answerTranslations.textContent || "{}");
-                        answerTarget.textContent = payload[activeLang] || payload.zh || "";
+                        const text = payload[activeLang] || payload.zh || "";
+                        answerTargets.forEach((target) => {
+                            target.textContent = text;
+                        });
                     } catch {
-                        answerTarget.textContent = answerTarget.textContent;
+                        /* keep current text */
+                    }
+                }
+
+                const summaryList = document.querySelector("[data-summary-sentences]");
+                const summaryTranslations = document.getElementById("summary-translations");
+                if (summaryList && summaryTranslations) {
+                    try {
+                        const payload = JSON.parse(summaryTranslations.textContent || "{}");
+                        const sentences = (payload[activeLang] || payload.zh || {}).sentences || [];
+                        const items = summaryList.querySelectorAll("li");
+                        sentences.forEach((sentence, index) => {
+                            if (items[index]) {
+                                items[index].textContent = sentence;
+                            }
+                        });
+                    } catch {
+                        /* keep current text */
                     }
                 }
 

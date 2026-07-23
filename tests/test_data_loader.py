@@ -100,6 +100,33 @@ def test_load_live_bond_data_enriches_matching_maturity_from_static_sample(tmp_p
     assert str(df.iloc[0][MATURITY_SOURCE]).startswith("local_static_excel_adjusted_from_")
 
 
+def test_maturity_coverage_lists_unmatched_records(tmp_path):
+    def fake_fetcher():
+        return pd.DataFrame(
+            {
+                "债券简称": ["23附息国债26", "不存在的测试债XYZ"],
+                "成交净价": [107.51, 100.0],
+                "最新收益率": [1.6025, 4.2],
+                "涨跌": [-0.5, 0.1],
+                "加权收益率": [1.608, 4.1],
+                "交易量": [23.1214, 0.5],
+            }
+        )
+
+    df, profile = resolve_bond_data(
+        mode="live",
+        live_fetcher=fake_fetcher,
+        live_cache_path=tmp_path / "live_snapshot.csv",
+    )
+    coverage = profile["maturity_coverage"]
+
+    assert coverage["filled_count"] >= 1
+    assert coverage["missing_count"] >= 1
+    assert coverage["unmatched_count"] == coverage["missing_count"]
+    names = {item.get(BOND_NAME) for item in coverage.get("unmatched_records") or []}
+    assert "不存在的测试债XYZ" in names
+
+
 def test_resolve_bond_data_uses_live_profile_when_available(tmp_path):
     def fake_fetcher():
         return pd.DataFrame(
