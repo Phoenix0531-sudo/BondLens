@@ -15,6 +15,14 @@ from .data_loader import (
     load_bond_data,
     records_from_frame,
 )
+from .taxonomy import (
+    annotate_frame,
+    assess_data_quality,
+    classify_bond_type,
+    maturity_bucket,
+    peer_bucket_frame,
+    summarize_segments,
+)
 
 
 RANK_COLUMNS = {
@@ -90,18 +98,23 @@ def search_bonds(
 
 def describe_market(data_path: str | None = None, data_frame: pd.DataFrame | None = None) -> dict:
     df = _resolve_frame(data_frame=data_frame, data_path=data_path)
-    yield_data = pd.to_numeric(df[YIELD], errors="coerce").dropna()
+    annotated = annotate_frame(df)
+    yield_data = pd.to_numeric(annotated[YIELD], errors="coerce").dropna()
     bins = pd.cut(yield_data, bins=5).value_counts().sort_index()
+    segments = summarize_segments(annotated)
+    quality = assess_data_quality(annotated)
 
     return {
         "tool": "describe_market",
-        "sample_count": int(len(df)),
+        "sample_count": int(len(annotated)),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME],
-        "yield_summary": _summary(df[YIELD]),
-        "weighted_yield_summary": _summary(df[WEIGHTED_YIELD]),
-        "volume_summary": _summary(df[VOLUME]),
-        "maturity_summary_years": _summary(df[MATURITY_YEARS]),
+        "yield_summary": _summary(annotated[YIELD]),
+        "weighted_yield_summary": _summary(annotated[WEIGHTED_YIELD]),
+        "volume_summary": _summary(annotated[VOLUME]),
+        "maturity_summary_years": _summary(annotated[MATURITY_YEARS]),
         "yield_distribution": {str(interval): int(count) for interval, count in bins.items()},
+        "segments": segments,
+        "data_quality": quality,
     }
 
 
@@ -204,16 +217,38 @@ def compare_bond_to_market(
     target_yield = float(target[YIELD]) if pd.notna(target[YIELD]) else None
     target_volume = float(target[VOLUME]) if pd.notna(target[VOLUME]) else None
     target_maturity = float(target[MATURITY_YEARS]) if pd.notna(target[MATURITY_YEARS]) else None
+    bond_type = classify_bond_type(target[BOND_NAME])
+    bucket = maturity_bucket(target_maturity)
 
     yield_mean = yield_series.mean()
     yield_std = yield_series.std(ddof=0)
     yield_zscore = None if target_yield is None or yield_std == 0 else (target_yield - yield_mean) / yield_std
     is_yield_outlier = bool(yield_zscore is not None and abs(yield_zscore) >= outlier_threshold)
 
+    peers = peer_bucket_frame(df, target_maturity, bond_type=bond_type)
+    peer_yield = pd.to_numeric(peers[YIELD], errors="coerce").dropna()
+    peer_volume = (
+        pd.to_numeric(peers[VOLUME], errors="coerce").dropna()
+        if VOLUME in peers.columns
+        else pd.Series(dtype=float)
+    )
+    peer_mean = peer_yield.mean() if not peer_yield.empty else None
+    peer_std = peer_yield.std(ddof=0) if not peer_yield.empty else None
+    peer_z = (
+        None
+        if target_yield is None or peer_std in (None, 0) or peer_mean is None
+        else (target_yield - peer_mean) / peer_std
+    )
+    peer_spread_bp = None
+    if target_yield is not None and peer_mean is not None:
+        peer_spread_bp = round((target_yield - float(peer_mean)) * 100, 2)
+
     return {
         "tool": "compare_bond_to_market",
         "bond_name": target[BOND_NAME],
         "found": True,
+        "bond_type": bond_type,
+        "maturity_bucket": bucket,
         "record": records_from_frame(pd.DataFrame([target]), 1)[0],
         "yield_percentile": _percentile(yield_series, target_yield),
         "volume_percentile": _percentile(volume_series, target_volume),
@@ -221,7 +256,29 @@ def compare_bond_to_market(
         "yield_zscore": None if yield_zscore is None else round(float(yield_zscore), 4),
         "is_yield_outlier": is_yield_outlier,
         "nearest_market_context": _market_context(target_yield, target_volume, yield_series, volume_series),
+        "peer_comparison": {
+            "peer_count": int(len(peers)),
+            "bond_type": bond_type,
+            "maturity_bucket": bucket,
+            "peer_yield_median": None if peer_yield.empty else round(float(peer_yield.median()), 4),
+            "peer_yield_mean": None if peer_mean is None else round(float(peer_mean), 4),
+            "peer_yield_percentile": _percentile(peer_yield, target_yield),
+            "peer_volume_percentile": _percentile(peer_volume, target_volume),
+            "peer_yield_zscore": None if peer_z is None else round(float(peer_z), 4),
+            "spread_vs_peer_mean_bp": peer_spread_bp,
+            "note_zh": (
+                f"同业可比样本 {len(peers)} 条（券种={bond_type}，期限桶={bucket or '未知'}）。"
+                if len(peers)
+                else "同业可比样本不足，回退全市场比较。"
+            ),
+            "note_en": (
+                f"Peer sample size {len(peers)} (type={bond_type}, bucket={bucket or 'unknown'})."
+                if len(peers)
+                else "Peer sample too small; falling back to full-sample comparison."
+            ),
+        },
     }
+
 
 
 def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict | None = None) -> dict:
@@ -296,24 +353,51 @@ def _build_analysis(
         if search.get("criteria", {}).get("name") is None:
             preview_names = "、".join(str(item.get(BOND_NAME)) for item in search["records"][:5])
             return [
-            f"检索条件命中 {search.get('match_count')} 条记录。",
-            f"前 {min(5, len(search['records']))} 条样本包括：{preview_names}。",
-            "该结果是筛选列表，不代表投资优先级；如需单券分析，请提供具体债券简称。",
+                f"检索条件命中 {search.get('match_count')} 条记录。",
+                f"前 {min(5, len(search['records']))} 条样本包括：{preview_names}。",
+                "该结果是筛选列表，不代表投资优先级；如需单券分析，请提供具体债券简称。",
             ]
         analysis = [
             f"检索命中 {search.get('match_count')} 条记录，优先分析 {record.get(BOND_NAME)}。",
-            f"{record.get(BOND_NAME)} 的待偿期为 {_display_maturity(record)}，收盘净价 {record.get(PRICE)} 元，收益率 {record.get(YIELD)}%，成交量 {record.get(VOLUME)} 亿元。",
+            (
+                f"{record.get(BOND_NAME)} 的待偿期为 {_display_maturity(record)}，"
+                f"收盘净价 {record.get(PRICE)} 元，收益率 {record.get(YIELD)}%，"
+                f"成交量 {record.get(VOLUME)} 亿元。"
+            ),
         ]
         if comparison.get("found"):
             analysis.append(
-                f"相对全市场样本，它的收益率分位数为 {comparison.get('yield_percentile')}%，成交量分位数为 {comparison.get('volume_percentile')}%，期限分位数为 {comparison.get('maturity_percentile')}%。"
+                f"相对全市场样本，它的收益率分位数为 {comparison.get('yield_percentile')}%，"
+                f"成交量分位数为 {comparison.get('volume_percentile')}%，"
+                f"期限分位数为 {comparison.get('maturity_percentile')}%。"
             )
+            peer = comparison.get("peer_comparison") or {}
+            if peer:
+                analysis.append(
+                    f"同业可比（{peer.get('bond_type')}/{peer.get('maturity_bucket') or '未知期限'}，"
+                    f"n={peer.get('peer_count')}）：相对同业均值利差 {peer.get('spread_vs_peer_mean_bp')} bp，"
+                    f"同业收益率分位数 {peer.get('peer_yield_percentile')}%。"
+                )
             outlier_text = "属于" if comparison.get("is_yield_outlier") else "不属于"
-            analysis.append(f"按 z-score 阈值判断，该债券{outlier_text}收益率异常样本。{comparison.get('nearest_market_context', '')}")
+            analysis.append(
+                f"按 z-score 阈值判断，该债券{outlier_text}收益率异常样本。"
+                f"{comparison.get('nearest_market_context', '')}"
+            )
         if market:
             analysis.append(
-                f"全市场背景：样本收益率中位数约 {market.get('yield_summary', {}).get('median', 'N/A')}%，均值约 {market.get('yield_summary', {}).get('mean', 'N/A')}%。"
+                f"全市场背景：样本收益率中位数约 {market.get('yield_summary', {}).get('median', 'N/A')}%，"
+                f"均值约 {market.get('yield_summary', {}).get('mean', 'N/A')}%。"
             )
+            segments = (market.get("segments") or {}).get("by_bond_type") or []
+            if segments:
+                top_types = "；".join(
+                    f"{item['bond_type']} {item['count']}只/中位收益{item.get('yield_median')}%"
+                    for item in segments[:4]
+                )
+                analysis.append(f"券种结构：{top_types}。")
+            quality = market.get("data_quality") or {}
+            if quality:
+                analysis.append(quality.get("summary_zh") or f"数据质量 {quality.get('score')}/100。")
         return analysis
 
     if search and search.get("match_count") == 0:
@@ -329,7 +413,10 @@ def _build_analysis(
         first = records[0]
         return [
             f"本次按 {ranked.get('rank_by')} 排序，返回前 {len(records)} 条样本。",
-            f"排名首位为 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，成交量 {first.get(VOLUME)} 亿元，待偿期 {_display_maturity(first)}。",
+            (
+                f"排名首位为 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，"
+                f"成交量 {first.get(VOLUME)} 亿元，待偿期 {_display_maturity(first)}。"
+            ),
             "排序结果只反映当前样本字段，不代表投资优先级。",
         ]
 
@@ -339,8 +426,14 @@ def _build_analysis(
             return ["按当前阈值未发现显著收益率异常样本。"]
         first = records[0]
         return [
-            f"异常检测使用 {outliers.get('metadata', {}).get('method')} 方法，共发现 {outliers.get('outlier_count')} 条收益率异常样本。",
-            f"异常分数最高的是 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，异常分数 {first.get('outlier_score')}。",
+            (
+                f"异常检测使用 {outliers.get('metadata', {}).get('method')} 方法，"
+                f"共发现 {outliers.get('outlier_count')} 条收益率异常样本。"
+            ),
+            (
+                f"异常分数最高的是 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，"
+                f"异常分数 {first.get('outlier_score')}。"
+            ),
             "异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。",
         ]
 
@@ -348,17 +441,42 @@ def _build_analysis(
     volume_summary = market.get("volume_summary", {})
     analysis = [
         f"样本共 {market.get('sample_count', 0)} 条债券记录，收益率均值约 {yield_summary.get('mean', 'N/A')}%。",
-        f"收益率中位数约 {yield_summary.get('median', 'N/A')}%，区间约为 {yield_summary.get('min', 'N/A')}% 到 {yield_summary.get('max', 'N/A')}%。",
-        f"成交量均值约 {volume_summary.get('mean', 'N/A')} 亿元，中位数约 {volume_summary.get('median', 'N/A')} 亿元。",
+        (
+            f"收益率中位数约 {yield_summary.get('median', 'N/A')}%，"
+            f"区间约为 {yield_summary.get('min', 'N/A')}% 到 {yield_summary.get('max', 'N/A')}%。"
+        ),
+        (
+            f"成交量均值约 {volume_summary.get('mean', 'N/A')} 亿元，"
+            f"中位数约 {volume_summary.get('median', 'N/A')} 亿元。"
+        ),
     ]
+    segments = (market.get("segments") or {}).get("by_bond_type") or []
+    if segments:
+        top_types = "；".join(
+            f"{item['bond_type']} {item['count']}只/中位收益{item.get('yield_median')}%"
+            for item in segments[:4]
+        )
+        analysis.append(f"券种结构：{top_types}。")
+    buckets = (market.get("segments") or {}).get("by_maturity_bucket") or []
+    if buckets:
+        top_buckets = "；".join(
+            f"{item['bucket']} {item['count']}只/中位收益{item.get('yield_median')}%"
+            for item in buckets[:5]
+        )
+        analysis.append(f"期限分桶：{top_buckets}。")
+    quality = market.get("data_quality") or {}
+    if quality:
+        analysis.append(quality.get("summary_zh") or f"数据质量 {quality.get('score')}/100。")
     if ranked.get("records"):
         first = ranked["records"][0]
         analysis.append(
-            f"按 {ranked.get('rank_by')} 排序的首位样本是 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，成交量 {first.get(VOLUME)} 亿元。"
+            f"按 {ranked.get('rank_by')} 排序的首位样本是 {first.get(BOND_NAME)}，"
+            f"收益率 {first.get(YIELD)}%，成交量 {first.get(VOLUME)} 亿元。"
         )
     if outliers.get("records"):
         analysis.append(f"异常检测发现 {outliers.get('outlier_count')} 条收益率异常样本。")
     return analysis
+
 
 
 def _display_maturity(record: dict) -> str:

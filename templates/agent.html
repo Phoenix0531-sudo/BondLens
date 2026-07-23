@@ -719,6 +719,102 @@
       {% endfor %}
     </div>
 
+    {% if view.segment_type_rows or view.segment_bucket_rows or view.peer_comparison.peer_count is defined %}
+    <div class="insight-grid">
+      {% if view.segment_type_rows %}
+      <section class="surface">
+        <div class="surface-header">
+          <div>
+            <h2 class="surface-title" data-lang-zh="券种结构" data-lang-en="Bond Type Mix">券种结构</h2>
+            <p class="surface-subtitle" data-lang-zh="按名称规则保守分桶，不做评级推断。" data-lang-en="Conservative name-rule buckets; no rating inference.">按名称规则保守分桶，不做评级推断。</p>
+          </div>
+        </div>
+        <div class="surface-body">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-lang-zh="券种" data-lang-en="Type">券种</th>
+                <th data-lang-zh="只数" data-lang-en="Count">只数</th>
+                <th data-lang-zh="中位收益" data-lang-en="Median yield">中位收益</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in view.segment_type_rows %}
+              <tr>
+                <td>{{ row.bond_type }}</td>
+                <td>{{ row.count }}</td>
+                <td>{% if row.yield_median is not none %}{{ row.yield_median }}%{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+
+      {% if view.segment_bucket_rows %}
+      <section class="surface">
+        <div class="surface-header">
+          <div>
+            <h2 class="surface-title" data-lang-zh="期限分桶" data-lang-en="Maturity Buckets">期限分桶</h2>
+            <p class="surface-subtitle" data-lang-zh="用于同业可比与结构概览。" data-lang-en="Used for peer comparison and structure overview.">用于同业可比与结构概览。</p>
+          </div>
+        </div>
+        <div class="surface-body">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th data-lang-zh="分桶" data-lang-en="Bucket">分桶</th>
+                <th data-lang-zh="只数" data-lang-en="Count">只数</th>
+                <th data-lang-zh="中位收益" data-lang-en="Median yield">中位收益</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in view.segment_bucket_rows %}
+              <tr>
+                <td>{{ row.bucket }}</td>
+                <td>{{ row.count }}</td>
+                <td>{% if row.yield_median is not none %}{{ row.yield_median }}%{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    {% if view.peer_comparison and view.peer_comparison.peer_count %}
+    <section class="surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="同业可比" data-lang-en="Peer Comparison">同业可比</h2>
+          <p class="surface-subtitle" data-lang-zh="{{ view.peer_comparison.note_zh }}" data-lang-en="{{ view.peer_comparison.note_en }}">{{ view.peer_comparison.note_zh }}</p>
+        </div>
+        <span class="badge">n={{ view.peer_comparison.peer_count }}</span>
+      </div>
+      <div class="surface-body metric-grid">
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="相对同业利差" data-lang-en="Spread vs peers">相对同业利差</p>
+          <p class="metric-value">{% if view.peer_comparison.spread_vs_peer_mean_bp is not none %}{{ view.peer_comparison.spread_vs_peer_mean_bp }} bp{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="同业收益分位" data-lang-en="Peer yield percentile">同业收益分位</p>
+          <p class="metric-value">{% if view.peer_comparison.peer_yield_percentile is not none %}{{ view.peer_comparison.peer_yield_percentile }}%{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="同业中位收益" data-lang-en="Peer median yield">同业中位收益</p>
+          <p class="metric-value">{% if view.peer_comparison.peer_yield_median is not none %}{{ view.peer_comparison.peer_yield_median }}%{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="券种/期限" data-lang-en="Type / bucket">券种/期限</p>
+          <p class="metric-value">{{ view.peer_comparison.bond_type or '—' }} / {{ view.peer_comparison.maturity_bucket or '—' }}</p>
+        </article>
+      </div>
+    </section>
+    {% endif %}
+
     <div class="workbench">
       <section class="surface">
         <div class="surface-header">

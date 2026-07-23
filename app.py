@@ -187,6 +187,7 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
     market = evidence.get("market") or {}
     ranking = evidence.get("ranking") or {}
     outliers = evidence.get("outliers") or {}
+    comparison = evidence.get("comparison") or {}
     summary = market.get("yield_summary") or {}
     volume = market.get("volume_summary") or {}
     data_source = result.get("data_source", {})
@@ -246,12 +247,23 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
         "pack_html_url": f"/packs/{pack_id}.html" if pack_id else None,
         "pack_json_url": f"/packs/{pack_id}.json" if pack_id else None,
         "yield_bars": _distribution_bars(market.get("yield_distribution") or {}),
+        "segment_type_rows": (market.get("segments") or {}).get("by_bond_type") or [],
+        "segment_bucket_rows": (market.get("segments") or {}).get("by_maturity_bucket") or [],
+        "data_quality": market.get("data_quality") or {},
+        "peer_comparison": (comparison.get("peer_comparison") if comparison else None) or {},
         "ranking_records": (ranking.get("records") or [])[:5],
         "outlier_records": (outliers.get("records") or [])[:5],
         "market_summary": [
             _metric("Yield Mean", "收益率均值", summary.get("mean"), lang, "%"),
             _metric("Yield Range", "收益率区间", _range_text(summary.get("min"), summary.get("max")), lang, "%"),
             _metric("Volume Median", "成交量中位数", volume.get("median"), lang, "bn CNY" if lang == "en" else " 亿元"),
+            _metric(
+                "Data Quality",
+                "数据质量",
+                (market.get("data_quality") or {}).get("score"),
+                lang,
+                "/100",
+            ),
         ],
         "tool_trace": [_localize_trace_item(item, lang) for item in result.get("tool_trace", [])],
         "tool_trace_by_lang": {
