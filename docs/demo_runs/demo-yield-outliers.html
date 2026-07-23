@@ -68,7 +68,7 @@
     <header class="hero">
       <p class="eyebrow">Bond Evidence Pack</p>
       <h1>有没有收益率异常的债券？</h1>
-      <p class="muted">id=demo-yield-outliers · created=2026-07-23T01:10:37.038605+00:00 · intent=outlier_detection</p>
+      <p class="muted">id=demo-yield-outliers · created=2026-07-23T01:30:24.318809+00:00 · intent=outlier_detection</p>
       <div class="trust">
         <div class="trust-score">51<span style="font-size:16px">/100</span></div>
         <span class="badge warn">trust medium</span>
@@ -198,6 +198,7 @@ Limitations:
 - 本报告仅基于当前 Agent 数据源的可用字段计算。
 - 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。
 - 未接入评级、主体财务、宏观利率曲线或新闻事件。
+- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。
 - 非投资建议，仅用于学习和研究。</pre>
       </section>
 
@@ -213,7 +214,7 @@ Limitations:
 
       <section class="section">
         <h2>局限性 · Limitations（强制）</h2>
-        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li></ul>
+        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li></ul>
         <p class="muted" style="margin-top:12px">非投资建议，仅用于学习和研究。</p>
       </section>
     </div>

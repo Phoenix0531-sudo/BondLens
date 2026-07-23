@@ -64,14 +64,18 @@ def search_bonds(
     max_maturity: float | None = None,
     min_yield: float | None = None,
     max_yield: float | None = None,
+    bond_type: str | None = None,
     limit: int = 20,
     data_path: str | None = None,
     data_frame: pd.DataFrame | None = None,
 ) -> dict:
     df = _resolve_frame(data_frame=data_frame, data_path=data_path)
+    df = annotate_frame(df)
 
     if name:
         df = df[df[BOND_NAME].str.contains(name, case=False, na=False, regex=False)]
+    if bond_type:
+        df = df[df["券种"] == bond_type]
     if min_maturity is not None:
         df = df[df[MATURITY_YEARS] >= min_maturity]
     if max_maturity is not None:
@@ -85,6 +89,7 @@ def search_bonds(
         "tool": "search_bonds",
         "criteria": {
             "name": name,
+            "bond_type": bond_type,
             "min_maturity": min_maturity,
             "max_maturity": max_maturity,
             "min_yield": min_yield,
@@ -96,13 +101,22 @@ def search_bonds(
     }
 
 
-def describe_market(data_path: str | None = None, data_frame: pd.DataFrame | None = None) -> dict:
+def describe_market(
+    data_path: str | None = None,
+    data_frame: pd.DataFrame | None = None,
+    maturity_coverage: dict | None = None,
+    runtime_mode: str | None = None,
+) -> dict:
     df = _resolve_frame(data_frame=data_frame, data_path=data_path)
     annotated = annotate_frame(df)
     yield_data = pd.to_numeric(annotated[YIELD], errors="coerce").dropna()
     bins = pd.cut(yield_data, bins=5).value_counts().sort_index()
     segments = summarize_segments(annotated)
-    quality = assess_data_quality(annotated)
+    quality = assess_data_quality(
+        annotated,
+        maturity_coverage=maturity_coverage,
+        runtime_mode=runtime_mode,
+    )
 
     return {
         "tool": "describe_market",
@@ -115,6 +129,72 @@ def describe_market(data_path: str | None = None, data_frame: pd.DataFrame | Non
         "yield_distribution": {str(interval): int(count) for interval, count in bins.items()},
         "segments": segments,
         "data_quality": quality,
+    }
+
+
+def build_market_monitor(
+    top_n: int = 5,
+    data_path: str | None = None,
+    data_frame: pd.DataFrame | None = None,
+) -> dict:
+    """Cross-section monitor board: high yield, low volume, thin maturity gaps, outliers."""
+    df = annotate_frame(_resolve_frame(data_frame=data_frame, data_path=data_path))
+    clean = df.dropna(subset=[YIELD]).copy()
+    by_yield = clean.sort_values(YIELD, ascending=False)
+    low_volume = clean.dropna(subset=[VOLUME]).sort_values(VOLUME, ascending=True)
+    missing_maturity = df[df[MATURITY_YEARS].isna()].head(top_n)
+
+    # Simple z-score outliers for the monitor panel.
+    mean = clean[YIELD].mean() if not clean.empty else 0.0
+    std = clean[YIELD].std(ddof=0) if not clean.empty else 0.0
+    if std and std > 0 and not clean.empty:
+        scored = clean.copy()
+        scored["outlier_score"] = ((scored[YIELD] - mean) / std).abs()
+        outlier_rows = scored[scored["outlier_score"] >= 3.0].sort_values(
+            "outlier_score", ascending=False
+        )
+    else:
+        outlier_rows = clean.iloc[0:0].copy()
+        outlier_rows["outlier_score"] = pd.Series(dtype=float)
+
+    high_yield_records = records_from_frame(by_yield, top_n)
+    for record in high_yield_records:
+        record["券种"] = classify_bond_type(record.get(BOND_NAME))
+        record["期限分桶"] = maturity_bucket(record.get(MATURITY_YEARS))
+
+    low_volume_records = records_from_frame(low_volume, top_n)
+    for record in low_volume_records:
+        record["券种"] = classify_bond_type(record.get(BOND_NAME))
+
+    outlier_records = records_from_frame(outlier_rows, top_n)
+    if "outlier_score" in outlier_rows.columns and outlier_records:
+        for record, score in zip(
+            outlier_records, outlier_rows["outlier_score"].head(top_n), strict=False
+        ):
+            record["outlier_score"] = round(float(score), 4)
+            record["券种"] = classify_bond_type(record.get(BOND_NAME))
+    else:
+        for record in outlier_records:
+            record["券种"] = classify_bond_type(record.get(BOND_NAME))
+
+    maturity_gap_records = records_from_frame(missing_maturity, top_n)
+
+    return {
+        "tool": "build_market_monitor",
+        "top_n": top_n,
+        "high_yield": high_yield_records,
+        "low_volume": low_volume_records,
+        "yield_outliers": outlier_records,
+        "missing_maturity": maturity_gap_records,
+        "summary_zh": (
+            f"监控面板：高收益 {len(high_yield_records)} 条、低成交 {len(low_volume_records)} 条、"
+            f"收益异常 {len(outlier_records)} 条、缺期限 {int(df[MATURITY_YEARS].isna().sum())} 条。"
+        ),
+        "summary_en": (
+            f"Monitor board: high-yield {len(high_yield_records)}, low-volume {len(low_volume_records)}, "
+            f"yield outliers {len(outlier_records)}, missing maturity "
+            f"{int(df[MATURITY_YEARS].isna().sum())}."
+        ),
     }
 
 
@@ -287,9 +367,10 @@ def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict
     outliers = next((item for item in tool_outputs if item.get("tool") == "detect_yield_outliers"), {})
     search = next((item for item in tool_outputs if item.get("tool") == "search_bonds"), {})
     comparison = next((item for item in tool_outputs if item.get("tool") == "compare_bond_to_market"), {})
+    monitor = next((item for item in tool_outputs if item.get("tool") == "build_market_monitor"), {})
     intent = (plan or {}).get("intent", "bond_report")
 
-    analysis = _build_analysis(intent, market, ranked, outliers, search, comparison)
+    analysis = _build_analysis(intent, market, ranked, outliers, search, comparison, monitor=monitor)
 
     return {
         "tool": "generate_bond_report",
@@ -301,6 +382,7 @@ def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict
             "ranking": ranked,
             "outliers": outliers,
             "comparison": comparison,
+            "monitor": monitor,
         },
         "analysis": analysis,
         "risk_notes": [
@@ -311,6 +393,7 @@ def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict
             "本报告仅基于当前 Agent 数据源的可用字段计算。",
             "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
             "未接入评级、主体财务、宏观利率曲线或新闻事件。",
+            "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
             "非投资建议，仅用于学习和研究。",
         ],
     }
@@ -347,16 +430,22 @@ def _build_analysis(
     outliers: dict,
     search: dict,
     comparison: dict,
+    monitor: dict | None = None,
 ) -> list[str]:
+    monitor = monitor or {}
     if search.get("records"):
         record = search["records"][0]
         if search.get("criteria", {}).get("name") is None:
             preview_names = "、".join(str(item.get(BOND_NAME)) for item in search["records"][:5])
-            return [
+            analysis = [
                 f"检索条件命中 {search.get('match_count')} 条记录。",
                 f"前 {min(5, len(search['records']))} 条样本包括：{preview_names}。",
                 "该结果是筛选列表，不代表投资优先级；如需单券分析，请提供具体债券简称。",
             ]
+            bond_type = (search.get("criteria") or {}).get("bond_type")
+            if bond_type:
+                analysis.insert(1, f"已按券种筛选：{bond_type}。")
+            return analysis
         analysis = [
             f"检索命中 {search.get('match_count')} 条记录，优先分析 {record.get(BOND_NAME)}。",
             (
@@ -398,12 +487,15 @@ def _build_analysis(
             quality = market.get("data_quality") or {}
             if quality:
                 analysis.append(quality.get("summary_zh") or f"数据质量 {quality.get('score')}/100。")
+                for issue in (quality.get("issues") or [])[:2]:
+                    if issue.get("message_zh"):
+                        analysis.append(f"数据诊断：{issue['message_zh']}")
         return analysis
 
     if search and search.get("match_count") == 0:
         return [
             "未在当前债券数据源中找到符合条件的债券记录。",
-            "请检查债券简称、收益率范围或待偿期条件；本项目不会凭空补充数据源之外的信息。",
+            "请检查债券简称、收益率范围、券种或待偿期条件；本项目不会凭空补充数据源之外的信息。",
         ]
 
     if intent == "ranking":
@@ -467,6 +559,9 @@ def _build_analysis(
     quality = market.get("data_quality") or {}
     if quality:
         analysis.append(quality.get("summary_zh") or f"数据质量 {quality.get('score')}/100。")
+        for issue in (quality.get("issues") or [])[:2]:
+            if issue.get("message_zh"):
+                analysis.append(f"数据诊断：{issue['message_zh']}")
     if ranked.get("records"):
         first = ranked["records"][0]
         analysis.append(
@@ -475,6 +570,14 @@ def _build_analysis(
         )
     if outliers.get("records"):
         analysis.append(f"异常检测发现 {outliers.get('outlier_count')} 条收益率异常样本。")
+    if monitor.get("summary_zh"):
+        analysis.append(monitor["summary_zh"])
+    if intent in {"market_monitor", "composite_market"} and monitor.get("high_yield"):
+        top = monitor["high_yield"][0]
+        analysis.append(
+            f"监控关注：截面高收益首位 {top.get(BOND_NAME)}（{top.get(YIELD)}%），"
+            "仅为样本观察，不构成交易建议。"
+        )
     return analysis
 
 

@@ -2,12 +2,13 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-market-overview",
-  "created_at": "2026-07-23T01:10:36.676105+00:00",
+  "created_at": "2026-07-23T01:30:23.871308+00:00",
   "agent": "BondLens AI",
   "question": "当前样本收益率分布是什么样？",
   "intent": "market_overview",
   "tools_used": [
     "describe_market",
+    "build_market_monitor",
     "generate_bond_report"
   ],
   "tool_trace": [
@@ -15,6 +16,7 @@
     "-> data_source(mode=static_sample, source=local_static_excel)",
     "-> planner(intent=market_overview)",
     "-> describe_market()",
+    "-> build_market_monitor(top_n=5)",
     "-> generate_bond_report()",
     "-> llm_guardrail(skipped: llm_disabled)",
     "-> final answer"
@@ -34,12 +36,12 @@
     "active_live_snapshot": false
   },
   "trust_score": {
-    "score": 59,
+    "score": 61,
     "level": "medium",
-    "summary_zh": "信任分 59/100（medium）。 主要因素：使用静态样本，新鲜度受限。；证据账本覆盖 4 条 claim。；未使用 LLM；最终答案完全来自确定性工具链。",
-    "summary_en": "Trust score 59/100 (medium). Top factors: Static sample in use; freshness is limited.; Evidence ledger covers 4 claims.; LLM not used; final answer is fully deterministic.",
+    "summary_zh": "信任分 61/100（medium）。 主要因素：使用静态样本，新鲜度受限。；证据账本覆盖 4 条 claim。；证据质量 67/100（等级 medium）。",
+    "summary_en": "Trust score 61/100 (medium). Top factors: Static sample in use; freshness is limited.; Evidence ledger covers 4 claims.; Evidence quality 67/100 (level medium).",
     "components": {
-      "evidence_quality_score": 63,
+      "evidence_quality_score": 67,
       "runtime_mode": "static_sample",
       "guardrail_status": "not_run",
       "judge_status": "not_applicable",
@@ -49,9 +51,9 @@
     "adjustments": [
       {
         "id": "evidence_quality",
-        "delta": 4,
-        "reason_zh": "证据质量 63/100（等级 medium）。",
-        "reason_en": "Evidence quality 63/100 (level medium)."
+        "delta": 6,
+        "reason_zh": "证据质量 67/100（等级 medium）。",
+        "reason_en": "Evidence quality 67/100 (level medium)."
       },
       {
         "id": "data_freshness",
@@ -98,28 +100,28 @@
         "reason_en": "Evidence ledger covers 4 claims."
       },
       {
+        "id": "evidence_quality",
+        "delta": 6,
+        "reason_zh": "证据质量 67/100（等级 medium）。",
+        "reason_en": "Evidence quality 67/100 (level medium)."
+      },
+      {
         "id": "answer_judge",
         "delta": 6,
         "reason_zh": "未使用 LLM；最终答案完全来自确定性工具链。",
         "reason_en": "LLM not used; final answer is fully deterministic."
-      },
-      {
-        "id": "evidence_quality",
-        "delta": 4,
-        "reason_zh": "证据质量 63/100（等级 medium）。",
-        "reason_en": "Evidence quality 63/100 (level medium)."
       }
     ]
   },
   "evidence_quality": {
-    "score": 63,
+    "score": 67,
     "level": "medium",
     "analysis_confidence": "medium",
     "decision_confidence": "low",
     "data_freshness": "static_snapshot",
     "coverage": {
       "intent": "market_overview",
-      "tools_used_count": 2,
+      "tools_used_count": 3,
       "has_market_summary": true,
       "has_search_results": false,
       "has_bond_comparison": false,
@@ -127,7 +129,7 @@
     },
     "checks": [
       "Local Excel sample loaded successfully.",
-      "2 tool steps produced structured evidence.",
+      "3 tool steps produced structured evidence.",
       "Final analysis was generated from tool outputs.",
       "Market-level summary covers the loaded sample.",
       "Risk explanation snippets were retrieved from the local knowledge base."
@@ -165,8 +167,8 @@
         "label_zh": "证据质量",
         "label_en": "Evidence quality",
         "status": "passed",
-        "detail_zh": "证据评分 63/100，等级 medium。",
-        "detail_en": "Evidence score 63/100, level medium."
+        "detail_zh": "证据评分 67/100，等级 medium。",
+        "detail_en": "Evidence score 67/100, level medium."
       },
       {
         "id": "llm_availability",
@@ -186,8 +188,8 @@
         "title_zh": "数据质量风险",
         "title_en": "Data Quality Risk",
         "severity": "medium",
-        "signal_zh": "当前数据源 data/testdata.xlsx，运行模式 static_sample，证据评分 63/100。",
-        "signal_en": "Active source data/testdata.xlsx, runtime mode static_sample, evidence score 63/100.",
+        "signal_zh": "当前数据源 data/testdata.xlsx，运行模式 static_sample，证据评分 67/100。",
+        "signal_en": "Active source data/testdata.xlsx, runtime mode static_sample, evidence score 67/100.",
         "evidence_zh": "待偿期覆盖率 92.6%；有效收益率 3102 条。",
         "evidence_en": "Maturity coverage 92.6%; 3102 valid yield records.",
         "action_boundary_zh": "需要更完整的证券主数据、评级、发行人信息和曲线数据。",
@@ -319,8 +321,8 @@
       "id": "answer_safety",
       "claim_zh": "最终答案经过安全边界选择。",
       "claim_en": "The final answer was selected through a safety boundary.",
-      "evidence_zh": "最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 63/100。",
-      "evidence_en": "Final source deterministic_fallback; LLM guardrail not_run; evidence score 63/100.",
+      "evidence_zh": "最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 67/100。",
+      "evidence_en": "Final source deterministic_fallback; LLM guardrail not_run; evidence score 67/100.",
       "source": "BondLens AI response contract",
       "tool": "answer_selection",
       "confidence": "medium",
@@ -336,15 +338,18 @@
       ]
     }
   ],
-  "final_answer": "Question: 当前样本收益率分布是什么样？\nIntent: market_overview\n\nTools Used:\n- describe_market\n- generate_bond_report\n\nData Evidence:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n\nRisk Explanation Layer:\n- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n- Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n- Trading volume is a liquidity proxy: Low trading volume can mean wider bid-ask spreads and harder execution. A bond can look attractive in sample data but still be difficult to trade.\n\nEvidence Quality:\n- Score: 63/100\n- Level: medium\n- Data Freshness: static_snapshot\n- Decision Confidence: low\n- Summary: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\nAnalysis:\n- 样本共 3365 条债券记录，收益率均值约 2.7709%。\n- 收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。\n- 成交量均值约 4.934 亿元，中位数约 1.0 亿元。\n- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 137只/中位收益2.25%；地方政府债 8只/中位收益3.8616%；同业存单 671只/中位收益2.1951%。\n- 期限分桶：0-1Y 1476只/中位收益2.2708%；1-3Y 772只/中位收益2.62%；3-5Y 362只/中位收益2.9995%；5-10Y 393只/中位收益2.52%；10Y+ 114只/中位收益2.67%。\n- 数据质量 42/100（low），共 3 类问题。\n\nRisk Notes:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\nLimitations:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 非投资建议，仅用于学习和研究。",
+  "final_answer": "Question: 当前样本收益率分布是什么样？\nIntent: market_overview\n\nTools Used:\n- describe_market\n- build_market_monitor\n- generate_bond_report\n\nData Evidence:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n- 数据质量: 84/100 (high)\n- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。\n\nRisk Explanation Layer:\n- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n- Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n- Trading volume is a liquidity proxy: Low trading volume can mean wider bid-ask spreads and harder execution. A bond can look attractive in sample data but still be difficult to trade.\n\nEvidence Quality:\n- Score: 67/100\n- Level: medium\n- Data Freshness: static_snapshot\n- Decision Confidence: low\n- Summary: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\nAnalysis:\n- 样本共 3365 条债券记录，收益率均值约 2.7709%。\n- 收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。\n- 成交量均值约 4.934 亿元，中位数约 1.0 亿元。\n- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。\n- 期限分桶：0-1Y 1476只/中位收益2.2708%；1-3Y 772只/中位收益2.62%；3-5Y 362只/中位收益2.9995%；5-10Y 393只/中位收益2.52%；10Y+ 114只/中位收益2.67%。\n- 数据质量 84/100（high），共 3 类问题。\n- 数据诊断：收益率缺失 263/3365（7.8%）。\n- 数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。\n- 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。\n\nRisk Notes:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\nLimitations:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。\n- 非投资建议，仅用于学习和研究。",
   "final_answer_source": "deterministic_fallback",
   "analysis": [
     "样本共 3365 条债券记录，收益率均值约 2.7709%。",
     "收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。",
     "成交量均值约 4.934 亿元，中位数约 1.0 亿元。",
-    "券种结构：国债 116只/中位收益2.1325%；政策性金融债 137只/中位收益2.25%；地方政府债 8只/中位收益3.8616%；同业存单 671只/中位收益2.1951%。",
+    "券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。",
     "期限分桶：0-1Y 1476只/中位收益2.2708%；1-3Y 772只/中位收益2.62%；3-5Y 362只/中位收益2.9995%；5-10Y 393只/中位收益2.52%；10Y+ 114只/中位收益2.67%。",
-    "数据质量 42/100（low），共 3 类问题。"
+    "数据质量 84/100（high），共 3 类问题。",
+    "数据诊断：收益率缺失 263/3365（7.8%）。",
+    "数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。",
+    "监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。"
   ],
   "risk_notes": [
     "收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。",
@@ -354,10 +359,12 @@
     "本报告仅基于当前 Agent 数据源的可用字段计算。",
     "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
     "未接入评级、主体财务、宏观利率曲线或新闻事件。",
+    "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",
-    "实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。"
+    "实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。",
+    "数据质量：收益率缺失 263/3365（7.8%）。"
   ],
   "limitations_template_en": [
     "Non-investment advice. For learning and research only.",
@@ -369,11 +376,11 @@
   "replay_id": null,
   "stress_view": {
     "severity": "medium",
-    "summary_zh": "运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（59/100）。",
-    "summary_en": "Runtime stress medium: Static or fallback sample in use; freshness is limited.; Trust score is medium (59/100).",
+    "summary_zh": "运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（61/100）。",
+    "summary_en": "Runtime stress medium: Static or fallback sample in use; freshness is limited.; Trust score is medium (61/100).",
     "runtime_mode": "static_sample",
     "fallback_reason": null,
-    "trust_score": 59,
+    "trust_score": 61,
     "trust_level": "medium",
     "guardrail_status": "not_run",
     "judge_status": "not_applicable",
@@ -388,8 +395,8 @@
       {
         "id": "trust_medium",
         "severity": "medium",
-        "message_zh": "信任分中等（59/100）。",
-        "message_en": "Trust score is medium (59/100)."
+        "message_zh": "信任分中等（61/100）。",
+        "message_en": "Trust score is medium (61/100)."
       },
       {
         "id": "deterministic_final",

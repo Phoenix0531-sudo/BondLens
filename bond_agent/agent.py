@@ -16,6 +16,7 @@ from .risk_profile import build_risk_profile
 from .schemas import AgentResponse
 from .stress_view import build_stress_view
 from .tools import (
+    build_market_monitor,
     compare_bond_to_market,
     describe_market,
     detect_yield_outliers,
@@ -75,7 +76,11 @@ class BondAnalystAgent:
                 tool_outputs.append(result)
                 tool_trace.append("-> compare_bond_to_market()")
             elif tool_name == "describe_market":
-                result = describe_market(data_frame=data_frame)
+                result = describe_market(
+                    data_frame=data_frame,
+                    maturity_coverage=data_source.get("maturity_coverage"),
+                    runtime_mode=data_source.get("runtime_mode"),
+                )
                 tool_outputs.append(result)
                 tool_trace.append("-> describe_market()")
             elif tool_name == "rank_bonds":
@@ -91,6 +96,10 @@ class BondAnalystAgent:
                 result = detect_yield_outliers(method="zscore", threshold=3.0, top_n=5, data_frame=data_frame)
                 tool_outputs.append(result)
                 tool_trace.append("-> detect_yield_outliers(method=zscore, threshold=3.0)")
+            elif tool_name == "build_market_monitor":
+                result = build_market_monitor(top_n=5, data_frame=data_frame)
+                tool_outputs.append(result)
+                tool_trace.append("-> build_market_monitor(top_n=5)")
             elif tool_name == "generate_bond_report":
                 report = generate_bond_report(question, tool_outputs, plan=plan)
                 tool_trace.append("-> generate_bond_report()")
@@ -136,6 +145,7 @@ class BondAnalystAgent:
             final_answer_source=final_answer_source,
         )
         limitations = self._merge_limitations(report.get("limitations") or [])
+        limitations = self._append_data_source_limitations(limitations, data_source, report)
         trust_score = compute_trust_score(
             data_source=data_source,
             evidence_quality=evidence_quality,
@@ -206,6 +216,25 @@ class BondAnalystAgent:
         for item in LIMITATIONS_TEMPLATE:
             if item not in merged:
                 merged.append(item)
+        return merged
+
+    def _append_data_source_limitations(self, limitations: list[str], data_source: dict, report: dict) -> list[str]:
+        merged = list(limitations)
+        coverage = data_source.get("maturity_coverage") or {}
+        ratio = float(coverage.get("coverage_ratio") or 0)
+        runtime = data_source.get("runtime_mode") or ""
+        if runtime in {"live", "live_snapshot"}:
+            note = (
+                f"实时/快照源原生无期限字段；当前期限补全覆盖率 {ratio:.1%}，"
+                "未匹配简称的债券同业分桶不可靠。"
+            )
+            if note not in merged:
+                merged.append(note)
+        quality = ((report.get("data_evidence") or {}).get("market") or {}).get("data_quality") or {}
+        for issue in quality.get("issues") or []:
+            msg = issue.get("message_zh")
+            if msg and msg not in merged and issue.get("severity") in {"high", "medium"}:
+                merged.append(f"数据质量：{msg}")
         return merged
 
     def _maybe_export_evidence_pack(self, response: dict) -> dict | None:
@@ -336,10 +365,16 @@ class BondAnalystAgent:
         if market:
             lines.append(f"- 样本数量: {market.get('sample_count', 0)}")
             lines.append(f"- 收益率摘要: {market.get('yield_summary', {})}")
+            quality = market.get("data_quality") or {}
+            if quality:
+                lines.append(f"- 数据质量: {quality.get('score')}/100 ({quality.get('level')})")
         if ranking:
             lines.append(f"- 排序字段: {ranking.get('rank_by')}")
         if outliers:
             lines.append(f"- 异常样本数量: {outliers.get('outlier_count', 0)}")
+        monitor = evidence.get("monitor") or {}
+        if monitor:
+            lines.append(f"- 监控面板: {monitor.get('summary_zh') or monitor.get('summary_en')}")
         search = evidence.get("search") or {}
         if search:
             lines.append(f"- 检索条件: {search.get('criteria', {})}")
@@ -355,6 +390,12 @@ class BondAnalystAgent:
                 f"volume_percentile={comparison.get('volume_percentile')}, "
                 f"is_yield_outlier={comparison.get('is_yield_outlier')}"
             )
+            peer = comparison.get("peer_comparison") or {}
+            if peer:
+                lines.append(
+                    f"- 同业可比: type={peer.get('bond_type')}, bucket={peer.get('maturity_bucket')}, "
+                    f"n={peer.get('peer_count')}, spread_bp={peer.get('spread_vs_peer_mean_bp')}"
+                )
 
         if risk_explanations:
             lines.extend(["", "Risk Explanation Layer:"])

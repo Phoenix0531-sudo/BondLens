@@ -366,6 +366,63 @@
     margin-top: 18px;
   }
 
+  details.audit-fold {
+    margin-top: 18px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  details.audit-fold > summary {
+    list-style: none;
+    cursor: pointer;
+    padding: 16px 20px;
+    border-bottom: 1px solid transparent;
+    color: var(--teal-dark);
+    font-weight: 720;
+    background: rgba(235, 230, 218, 0.55);
+  }
+
+  details.audit-fold[open] > summary {
+    border-bottom-color: var(--line);
+  }
+
+  details.audit-fold > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  details.audit-fold .fold-body {
+    padding: 18px 20px 20px;
+  }
+
+  .monitor-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+    margin-top: 18px;
+  }
+
+  .quality-issue-list {
+    display: grid;
+    gap: 8px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .quality-issue-list li {
+    padding: 10px 12px;
+    border-left: 3px solid var(--amber);
+    background: #f7f4ed;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .answer-first {
+    margin-bottom: 18px;
+  }
+
   details {
     border-top: 1px solid var(--line);
   }
@@ -621,7 +678,7 @@
       <button type="button" class="example-chip" data-fill-question="当前样本收益率分布是什么样？" data-lang-zh="当前样本收益率分布是什么样？" data-lang-en="What does the current yield distribution look like?">当前样本收益率分布是什么样？</button>
       <button type="button" class="example-chip" data-fill-question="按收益率列出最高的前5只债券" data-lang-zh="按收益率列出最高的前5只债券" data-lang-en="List the top 5 bonds by yield.">按收益率列出最高的前5只债券</button>
       <button type="button" class="example-chip" data-fill-question="搜索23附息国债26并给出收益率分析" data-lang-zh="搜索23附息国债26并给出收益率分析" data-lang-en="Search 23附息国债26 and analyze its yield.">搜索23附息国债26并给出收益率分析</button>
-      <button type="button" class="example-chip" data-fill-question="有没有收益率异常的债券？" data-lang-zh="有没有收益率异常的债券？" data-lang-en="Are there any yield outliers?">有没有收益率异常的债券？</button>
+      <button type="button" class="example-chip" data-fill-question="打开今日市场监控面板：高收益、低成交与异常" data-lang-zh="打开今日市场监控面板：高收益、低成交与异常" data-lang-en="Open today's market monitor board.">打开今日市场监控面板：高收益、低成交与异常</button>
     </div>
   </section>
 
@@ -815,7 +872,100 @@
     </section>
     {% endif %}
 
-    <div class="workbench">
+    {% if view.monitor and (view.monitor_high_yield or view.monitor_low_volume or view.monitor_outliers) %}
+    <section class="surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="截面监控面板" data-lang-en="Cross-section Monitor">截面监控面板</h2>
+          <p class="surface-subtitle" data-lang-zh="{{ view.monitor_summary_by_lang.zh }}" data-lang-en="{{ view.monitor_summary_by_lang.en }}">{{ view.monitor_summary }}</p>
+        </div>
+        <span class="badge" data-lang-zh="证据清单，非交易清单" data-lang-en="Evidence list, not a trade list">证据清单，非交易清单</span>
+      </div>
+      <div class="surface-body">
+        <div class="monitor-grid">
+          {% if view.monitor_high_yield %}
+          <div>
+            <h3 class="surface-title" style="font-size:16px" data-lang-zh="高收益观察" data-lang-en="High yield watch">高收益观察</h3>
+            <table class="data-table">
+              <thead><tr><th data-lang-zh="债券" data-lang-en="Bond">债券</th><th data-lang-zh="收益率" data-lang-en="Yield">收益率</th><th data-lang-zh="券种" data-lang-en="Type">券种</th></tr></thead>
+              <tbody>
+              {% for bond in view.monitor_high_yield %}
+                <tr>
+                  <td>{{ bond['债券简称'] }}</td>
+                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
+                  <td>{{ bond.get('券种') or '—' }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+          {% if view.monitor_low_volume %}
+          <div>
+            <h3 class="surface-title" style="font-size:16px" data-lang-zh="低成交观察" data-lang-en="Low volume watch">低成交观察</h3>
+            <table class="data-table">
+              <thead><tr><th data-lang-zh="债券" data-lang-en="Bond">债券</th><th data-lang-zh="成交量" data-lang-en="Volume">成交量</th><th data-lang-zh="收益率" data-lang-en="Yield">收益率</th></tr></thead>
+              <tbody>
+              {% for bond in view.monitor_low_volume %}
+                <tr>
+                  <td>{{ bond['债券简称'] }}</td>
+                  <td>{{ bond['交易量(亿元)'] }}</td>
+                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+          {% if view.monitor_outliers %}
+          <div>
+            <h3 class="surface-title" style="font-size:16px" data-lang-zh="收益异常" data-lang-en="Yield outliers">收益异常</h3>
+            <table class="data-table">
+              <thead><tr><th data-lang-zh="债券" data-lang-en="Bond">债券</th><th data-lang-zh="收益率" data-lang-en="Yield">收益率</th><th data-lang-zh="分数" data-lang-en="Score">分数</th></tr></thead>
+              <tbody>
+              {% for bond in view.monitor_outliers %}
+                <tr>
+                  <td>{{ bond['债券简称'] }}</td>
+                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
+                  <td>{{ bond.outlier_score }}</td>
+                </tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if view.data_quality %}
+    <section class="surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="数据质量诊断" data-lang-en="Data Quality Diagnostics">数据质量诊断</h2>
+          <p class="surface-subtitle" data-lang-zh="{{ view.data_quality.summary_zh }}" data-lang-en="{{ view.data_quality.summary_en }}">{{ view.data_quality.summary_zh }}</p>
+        </div>
+        <div class="badge-row" style="margin-top:0">
+          <span class="badge {% if view.data_quality.level == 'high' %}good{% elif view.data_quality.level == 'low' %}warn{% endif %}">{{ view.data_quality.score }}/100</span>
+          <span class="badge" data-lang-zh="{{ view.maturity_note_by_lang.zh }}" data-lang-en="{{ view.maturity_note_by_lang.en }}">{{ view.maturity_note }}</span>
+        </div>
+      </div>
+      <div class="surface-body">
+        {% if view.data_quality_issues %}
+        <ul class="quality-issue-list">
+          {% for issue in view.data_quality_issues %}
+            <li data-lang-zh="[{{ issue.severity }}] {{ issue.message_zh }}" data-lang-en="[{{ issue.severity }}] {{ issue.message_en }}">[{{ issue.severity }}] {{ issue.message_zh }}</li>
+          {% endfor %}
+        </ul>
+        {% else %}
+          <p class="surface-subtitle" data-lang-zh="未发现显著数据质量问题。" data-lang-en="No major data-quality issues detected.">未发现显著数据质量问题。</p>
+        {% endif %}
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="workbench answer-first">
       <section class="surface">
         <div class="surface-header">
           <div>
@@ -904,57 +1054,6 @@
       <section class="surface">
         <div class="surface-header">
           <div>
-            <h2 class="surface-title" data-lang-zh="LLM 护栏" data-lang-en="LLM Guardrail">LLM 护栏</h2>
-            <p class="surface-subtitle" data-lang-zh="数值一致性与不当投资建议语言检查。" data-lang-en="Numeric and unsafe investment-language checks.">数值一致性与不当投资建议语言检查。</p>
-          </div>
-        </div>
-        <div class="surface-body">
-          <div class="badge-row">
-            <span class="badge" data-lang-zh="状态 {{ view.guardrail_status_label }}" data-lang-en="Status {{ result.llm_guardrail.status }}">状态 {{ view.guardrail_status_label }}</span>
-            <span class="badge" data-lang-zh="数值 {{ view.guardrail_numeric_label }}" data-lang-en="Numeric {{ result.llm_guardrail.numeric_status }}">数值 {{ view.guardrail_numeric_label }}</span>
-            <span class="badge" data-lang-zh="语言 {{ view.guardrail_language_label }}" data-lang-en="Language {{ result.llm_guardrail.language_status }}">语言 {{ view.guardrail_language_label }}</span>
-          </div>
-          <p class="surface-subtitle" data-lang-zh="{{ view.llm_guardrail_summary_by_lang.zh }}" data-lang-en="{{ view.llm_guardrail_summary_by_lang.en }}">{{ view.llm_guardrail_summary }}</p>
-          <div class="judge-grid">
-            <article class="judge-card">
-              <h3 data-lang-zh="答案评审" data-lang-en="Answer Judge">答案评审</h3>
-              <p data-lang-zh="{{ view.answer_judge_summary_by_lang.zh }}" data-lang-en="{{ view.answer_judge_summary_by_lang.en }}">{{ view.answer_judge_summary }}</p>
-              <div class="badge-row">
-                <span class="badge" data-lang-zh="评审 {{ view.answer_judge_status_label }}" data-lang-en="Judge {{ result.answer_judge.status }}">评审 {{ view.answer_judge_status_label }}</span>
-                <span class="badge" data-lang-zh="分数 {{ result.answer_judge.score }}/100" data-lang-en="Score {{ result.answer_judge.score }}/100">分数 {{ result.answer_judge.score }}/100</span>
-              </div>
-            </article>
-            {% for check in view.answer_judge_checks %}
-              <article class="judge-card">
-                <h3 data-lang-zh="{{ check.label_zh }}" data-lang-en="{{ check.label_en }}">{{ check.label }}</h3>
-                <p data-lang-zh="{{ check.detail_zh }}" data-lang-en="{{ check.detail_en }}">{{ check.detail }}</p>
-                <div class="badge-row">
-                  <span class="badge" data-lang-zh="{{ check.status_label }}" data-lang-en="{{ check.status }}">{{ check.status_label }}</span>
-                </div>
-              </article>
-            {% endfor %}
-          </div>
-          {% if result.llm_error %}
-            <p class="surface-subtitle">{{ result.llm_error }}</p>
-          {% endif %}
-          {% if result.llm_guardrail.unsupported_numbers or result.llm_guardrail.unsafe_phrases %}
-            <ul class="finding-list">
-              {% for item in result.llm_guardrail.unsupported_numbers %}
-                <li data-lang-zh="未被证据支持的数字：{{ item.text }}" data-lang-en="Unsupported number: {{ item.text }}">未被证据支持的数字：{{ item.text }}</li>
-              {% endfor %}
-              {% for item in result.llm_guardrail.unsafe_phrases %}
-                <li data-lang-zh="不安全风险语言：{{ item.text }}" data-lang-en="Unsafe risk language: {{ item.text }}">不安全风险语言：{{ item.text }}</li>
-              {% endfor %}
-            </ul>
-          {% endif %}
-        </div>
-      </section>
-    </div>
-
-    <div class="insight-grid">
-      <section class="surface">
-        <div class="surface-header">
-          <div>
             <h2 class="surface-title" data-lang-zh="排序靠前债券" data-lang-en="Top Ranked Bonds">排序靠前债券</h2>
             <p class="surface-subtitle" data-lang-zh="表格是证据展示，不是买入清单。" data-lang-en="The table is evidence, not a buy list.">表格是证据展示，不是买入清单。</p>
           </div>
@@ -992,37 +1091,89 @@
           {% endif %}
         </div>
       </section>
-
-      <section class="surface">
-        <div class="surface-header">
-          <div>
-            <h2 class="surface-title" data-lang-zh="风险画像" data-lang-en="Risk Profile">风险画像</h2>
-            <p class="surface-subtitle" data-lang-zh="{{ view.risk_profile_summary_by_lang.zh }}" data-lang-en="{{ view.risk_profile_summary_by_lang.en }}">{{ view.risk_profile_summary }}</p>
-          </div>
-          <span class="severity {{ result.risk_profile.overall_level }}" data-lang-zh="总体 {{ view.risk_overall_label }}" data-lang-en="Overall {{ result.risk_profile.overall_level }}">总体 {{ view.risk_overall_label }}</span>
-        </div>
-        <div class="surface-body risk-profile-grid">
-          {% for item in view.risk_profile_cards %}
-            <article class="risk-profile-card">
-              <span class="severity {{ item.severity }}" data-lang-zh="{{ item.severity_label }}" data-lang-en="{{ item.severity }}">{{ item.severity_label }}</span>
-              <h3 data-lang-zh="{{ item.title_zh }}" data-lang-en="{{ item.title_en }}">{{ item.title }}</h3>
-              <p data-lang-zh="{{ item.signal_zh }}" data-lang-en="{{ item.signal_en }}">{{ item.signal }}</p>
-              <p data-lang-zh="{{ item.evidence_zh }}" data-lang-en="{{ item.evidence_en }}">{{ item.evidence }}</p>
-              <p data-lang-zh="{{ item.boundary_zh }}" data-lang-en="{{ item.boundary_en }}">{{ item.boundary }}</p>
-            </article>
-          {% endfor %}
-        </div>
-      </section>
     </div>
 
-    <section class="surface detail-panel">
-      <div class="surface-header">
-        <div>
-          <h2 class="surface-title" data-lang-zh="证据账本" data-lang-en="Evidence Ledger">证据账本</h2>
-          <p class="surface-subtitle" data-lang-zh="{{ view.evidence_quality_summary_by_lang.zh }}" data-lang-en="{{ view.evidence_quality_summary_by_lang.en }}">{{ view.evidence_quality_summary }}</p>
+    <details class="audit-fold">
+      <summary data-lang-zh="审计细节：护栏 / 评审 / 风险画像（默认折叠）" data-lang-en="Audit details: guardrail / judge / risk (collapsed)">审计细节：护栏 / 评审 / 风险画像（默认折叠）</summary>
+      <div class="fold-body">
+        <div class="insight-grid" style="margin-top:0">
+          <section class="surface" style="box-shadow:none">
+            <div class="surface-header">
+              <div>
+                <h2 class="surface-title" data-lang-zh="LLM 护栏" data-lang-en="LLM Guardrail">LLM 护栏</h2>
+                <p class="surface-subtitle" data-lang-zh="数值一致性与不当投资建议语言检查。" data-lang-en="Numeric and unsafe investment-language checks.">数值一致性与不当投资建议语言检查。</p>
+              </div>
+            </div>
+            <div class="surface-body">
+              <div class="badge-row">
+                <span class="badge" data-lang-zh="状态 {{ view.guardrail_status_label }}" data-lang-en="Status {{ result.llm_guardrail.status }}">状态 {{ view.guardrail_status_label }}</span>
+                <span class="badge" data-lang-zh="数值 {{ view.guardrail_numeric_label }}" data-lang-en="Numeric {{ result.llm_guardrail.numeric_status }}">数值 {{ view.guardrail_numeric_label }}</span>
+                <span class="badge" data-lang-zh="语言 {{ view.guardrail_language_label }}" data-lang-en="Language {{ result.llm_guardrail.language_status }}">语言 {{ view.guardrail_language_label }}</span>
+              </div>
+              <p class="surface-subtitle" data-lang-zh="{{ view.llm_guardrail_summary_by_lang.zh }}" data-lang-en="{{ view.llm_guardrail_summary_by_lang.en }}">{{ view.llm_guardrail_summary }}</p>
+              <div class="judge-grid">
+                <article class="judge-card">
+                  <h3 data-lang-zh="答案评审" data-lang-en="Answer Judge">答案评审</h3>
+                  <p data-lang-zh="{{ view.answer_judge_summary_by_lang.zh }}" data-lang-en="{{ view.answer_judge_summary_by_lang.en }}">{{ view.answer_judge_summary }}</p>
+                  <div class="badge-row">
+                    <span class="badge" data-lang-zh="评审 {{ view.answer_judge_status_label }}" data-lang-en="Judge {{ result.answer_judge.status }}">评审 {{ view.answer_judge_status_label }}</span>
+                    <span class="badge" data-lang-zh="分数 {{ result.answer_judge.score }}/100" data-lang-en="Score {{ result.answer_judge.score }}/100">分数 {{ result.answer_judge.score }}/100</span>
+                  </div>
+                </article>
+                {% for check in view.answer_judge_checks %}
+                  <article class="judge-card">
+                    <h3 data-lang-zh="{{ check.label_zh }}" data-lang-en="{{ check.label_en }}">{{ check.label }}</h3>
+                    <p data-lang-zh="{{ check.detail_zh }}" data-lang-en="{{ check.detail_en }}">{{ check.detail }}</p>
+                    <div class="badge-row">
+                      <span class="badge" data-lang-zh="{{ check.status_label }}" data-lang-en="{{ check.status }}">{{ check.status_label }}</span>
+                    </div>
+                  </article>
+                {% endfor %}
+              </div>
+              {% if result.llm_error %}
+                <p class="surface-subtitle">{{ result.llm_error }}</p>
+              {% endif %}
+              {% if result.llm_guardrail.unsupported_numbers or result.llm_guardrail.unsafe_phrases %}
+                <ul class="finding-list">
+                  {% for item in result.llm_guardrail.unsupported_numbers %}
+                    <li data-lang-zh="未被证据支持的数字：{{ item.text }}" data-lang-en="Unsupported number: {{ item.text }}">未被证据支持的数字：{{ item.text }}</li>
+                  {% endfor %}
+                  {% for item in result.llm_guardrail.unsafe_phrases %}
+                    <li data-lang-zh="不安全风险语言：{{ item.text }}" data-lang-en="Unsafe risk language: {{ item.text }}">不安全风险语言：{{ item.text }}</li>
+                  {% endfor %}
+                </ul>
+              {% endif %}
+            </div>
+          </section>
+
+          <section class="surface" style="box-shadow:none">
+            <div class="surface-header">
+              <div>
+                <h2 class="surface-title" data-lang-zh="风险画像" data-lang-en="Risk Profile">风险画像</h2>
+                <p class="surface-subtitle" data-lang-zh="{{ view.risk_profile_summary_by_lang.zh }}" data-lang-en="{{ view.risk_profile_summary_by_lang.en }}">{{ view.risk_profile_summary }}</p>
+              </div>
+              <span class="severity {{ result.risk_profile.overall_level }}" data-lang-zh="总体 {{ view.risk_overall_label }}" data-lang-en="Overall {{ result.risk_profile.overall_level }}">总体 {{ view.risk_overall_label }}</span>
+            </div>
+            <div class="surface-body risk-profile-grid">
+              {% for item in view.risk_profile_cards %}
+                <article class="risk-profile-card">
+                  <span class="severity {{ item.severity }}" data-lang-zh="{{ item.severity_label }}" data-lang-en="{{ item.severity }}">{{ item.severity_label }}</span>
+                  <h3 data-lang-zh="{{ item.title_zh }}" data-lang-en="{{ item.title_en }}">{{ item.title }}</h3>
+                  <p data-lang-zh="{{ item.signal_zh }}" data-lang-en="{{ item.signal_en }}">{{ item.signal }}</p>
+                  <p data-lang-zh="{{ item.evidence_zh }}" data-lang-en="{{ item.evidence_en }}">{{ item.evidence }}</p>
+                  <p data-lang-zh="{{ item.boundary_zh }}" data-lang-en="{{ item.boundary_en }}">{{ item.boundary }}</p>
+                </article>
+              {% endfor %}
+            </div>
+          </section>
         </div>
       </div>
-      <div class="surface-body">
+    </details>
+
+    <details class="audit-fold">
+      <summary data-lang-zh="审计细节：证据账本与异常样本（默认折叠）" data-lang-en="Audit details: ledger and outliers (collapsed)">审计细节：证据账本与异常样本（默认折叠）</summary>
+      <div class="fold-body">
+        <p class="surface-subtitle" data-lang-zh="{{ view.evidence_quality_summary_by_lang.zh }}" data-lang-en="{{ view.evidence_quality_summary_by_lang.en }}">{{ view.evidence_quality_summary }}</p>
         {% if view.evidence_ledger %}
           <div class="ledger-grid">
             {% for item in view.evidence_ledger %}
@@ -1063,7 +1214,7 @@
           </table>
         {% endif %}
       </div>
-    </section>
+    </details>
   </section>
 {% endif %}
 {% endblock %}

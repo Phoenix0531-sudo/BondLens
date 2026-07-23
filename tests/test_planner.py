@@ -3,11 +3,12 @@ from bond_agent.data_loader import BOND_NAME, MATURITY, PRICE, VOLUME, WEIGHTED_
 import pandas as pd
 
 
-def test_planner_market_overview_uses_market_tool_only():
+def test_planner_market_overview_uses_market_tools():
     plan = classify_intent("当前样本收益率分布是什么样？")
 
     assert plan["intent"] == "market_overview"
-    assert plan["requested_tools"] == ["describe_market"]
+    assert "describe_market" in plan["requested_tools"]
+    assert "build_market_monitor" in plan["requested_tools"]
     assert plan["rank_by"] is None
 
 
@@ -34,6 +35,31 @@ def test_planner_outlier_detection():
 
     assert plan["intent"] == "outlier_detection"
     assert plan["requested_tools"] == ["detect_yield_outliers"]
+
+
+def test_planner_composite_monitor():
+    plan = classify_intent("打开今日市场监控面板：高收益、低成交与异常")
+
+    assert plan["intent"] in {"market_monitor", "composite_market"}
+    assert "build_market_monitor" in plan["requested_tools"]
+    assert "describe_market" in plan["requested_tools"]
+    assert plan["flags"]["wants_monitor"] is True
+
+
+def test_planner_composite_ranking_and_outliers():
+    plan = classify_intent("按收益率排名前5并指出异常样本")
+
+    assert plan["intent"] in {"composite_market", "market_monitor", "bond_report"}
+    assert "rank_bonds" in plan["requested_tools"]
+    assert "detect_yield_outliers" in plan["requested_tools"]
+    assert plan["flags"]["composite"] is True
+
+
+def test_planner_bond_type_filter():
+    plan = classify_intent("筛选国债收益率大于 2.5 的债券")
+
+    assert plan["search_params"].get("bond_type") == "国债"
+    assert plan["search_params"].get("min_yield") == 2.5
 
 
 def test_planner_uses_custom_data_path_for_bond_name_lookup(tmp_path):

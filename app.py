@@ -22,6 +22,8 @@ INTENT_LABELS = {
     "bond_report": {"zh": "单券分析", "en": "Bond report"},
     "bond_search": {"zh": "债券筛选", "en": "Bond search"},
     "market_overview": {"zh": "市场概览", "en": "Market overview"},
+    "market_monitor": {"zh": "市场监控", "en": "Market monitor"},
+    "composite_market": {"zh": "组合市场分析", "en": "Composite market analysis"},
     "ranking": {"zh": "排序分析", "en": "Ranking"},
     "outlier_detection": {"zh": "异常检测", "en": "Outlier detection"},
 }
@@ -33,6 +35,7 @@ TOOL_LABELS = {
     "describe_market": {"zh": "市场概览", "en": "Market overview"},
     "rank_bonds": {"zh": "债券排序", "en": "Bond ranking"},
     "detect_yield_outliers": {"zh": "收益率异常检测", "en": "Yield outlier detection"},
+    "build_market_monitor": {"zh": "市场监控面板", "en": "Market monitor board"},
     "generate_bond_report": {"zh": "生成分析报告", "en": "Report composition"},
     "answer_selection": {"zh": "答案选择", "en": "Answer selection"},
 }
@@ -188,10 +191,12 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
     ranking = evidence.get("ranking") or {}
     outliers = evidence.get("outliers") or {}
     comparison = evidence.get("comparison") or {}
+    monitor = evidence.get("monitor") or {}
     summary = market.get("yield_summary") or {}
     volume = market.get("volume_summary") or {}
     data_source = result.get("data_source", {})
     maturity_coverage = data_source.get("maturity_coverage") or {}
+    data_quality = market.get("data_quality") or {}
 
     trust = result.get("trust_score") or {}
     stress = result.get("stress_view") or {}
@@ -249,8 +254,27 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
         "yield_bars": _distribution_bars(market.get("yield_distribution") or {}),
         "segment_type_rows": (market.get("segments") or {}).get("by_bond_type") or [],
         "segment_bucket_rows": (market.get("segments") or {}).get("by_maturity_bucket") or [],
-        "data_quality": market.get("data_quality") or {},
+        "data_quality": data_quality,
+        "data_quality_issues": data_quality.get("issues") or [],
+        "data_quality_diagnostics": data_quality.get("diagnostics") or {},
         "peer_comparison": (comparison.get("peer_comparison") if comparison else None) or {},
+        "monitor": monitor,
+        "monitor_high_yield": (monitor.get("high_yield") or [])[:5],
+        "monitor_low_volume": (monitor.get("low_volume") or [])[:5],
+        "monitor_outliers": (monitor.get("yield_outliers") or [])[:5],
+        "monitor_missing_maturity": (monitor.get("missing_maturity") or [])[:5],
+        "monitor_summary": monitor.get("summary_zh") if lang == "zh" else monitor.get("summary_en"),
+        "monitor_summary_by_lang": {
+            "zh": monitor.get("summary_zh") or "",
+            "en": monitor.get("summary_en") or "",
+        },
+        "maturity_coverage": maturity_coverage,
+        "maturity_coverage_text": _coverage_ratio_text(maturity_coverage),
+        "maturity_note": _maturity_honesty_note(data_source, lang),
+        "maturity_note_by_lang": {
+            "zh": _maturity_honesty_note(data_source, "zh"),
+            "en": _maturity_honesty_note(data_source, "en"),
+        },
         "ranking_records": (ranking.get("records") or [])[:5],
         "outlier_records": (outliers.get("records") or [])[:5],
         "market_summary": [
@@ -260,7 +284,7 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             _metric(
                 "Data Quality",
                 "数据质量",
-                (market.get("data_quality") or {}).get("score"),
+                data_quality.get("score"),
                 lang,
                 "/100",
             ),
@@ -616,6 +640,8 @@ def _localize_trace_item(item: str, lang: str) -> str:
         return "Bond ranking generated" if lang == "en" else "已生成债券排序"
     if item.startswith("-> detect_yield_outliers"):
         return "Yield outlier scan completed" if lang == "en" else "已完成收益率异常扫描"
+    if item.startswith("-> build_market_monitor"):
+        return "Market monitor board built" if lang == "en" else "已生成市场监控面板"
     if item.startswith("-> generate_bond_report"):
         return "Evidence-based report composed" if lang == "en" else "已组合证据报告"
     if item.startswith("-> llm_guardrail"):
@@ -813,6 +839,34 @@ def _coverage_ratio_text(coverage: dict) -> str:
     if ratio is None:
         return "N/A"
     return f"{round(float(ratio) * 100, 1)}%"
+
+
+def _maturity_honesty_note(data_source: dict, lang: str) -> str:
+    coverage = data_source.get("maturity_coverage") or {}
+    ratio = coverage.get("coverage_ratio")
+    ratio_text = _coverage_ratio_text(coverage)
+    runtime = data_source.get("runtime_mode") or ""
+    filled = coverage.get("filled_count")
+    missing = coverage.get("missing_count")
+    if runtime in {"live", "live_snapshot"}:
+        if lang == "en":
+            return (
+                f"Live/snapshot feed has no native maturity field. "
+                f"Enrichment coverage {ratio_text} ({filled} filled / {missing} missing). "
+                "Peer buckets are weaker for unmatched names."
+            )
+        return (
+            f"实时/快照源原生无期限字段。当前补全覆盖率 {ratio_text}"
+            f"（已补全 {filled}，缺失 {missing}）。"
+            "未匹配简称的债券同业分桶会变弱。"
+        )
+    if ratio is not None and float(ratio) < 0.95:
+        if lang == "en":
+            return f"Maturity coverage {ratio_text}; some peer and bucket analytics are incomplete."
+        return f"期限覆盖率 {ratio_text}；部分同业/分桶分析不完整。"
+    if lang == "en":
+        return f"Maturity coverage {ratio_text}."
+    return f"期限覆盖率 {ratio_text}。"
 
 
 def _display_maturity(record: dict) -> str:

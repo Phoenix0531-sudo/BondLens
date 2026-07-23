@@ -68,7 +68,7 @@
     <header class="hero">
       <p class="eyebrow">Bond Evidence Pack</p>
       <h1>搜索23附息国债26并给出收益率分析</h1>
-      <p class="muted">id=demo-bond-report · created=2026-07-23T01:10:36.895107+00:00 · intent=bond_report</p>
+      <p class="muted">id=demo-bond-report · created=2026-07-23T01:30:24.158307+00:00 · intent=bond_report</p>
       <div class="trust">
         <div class="trust-score">70<span style="font-size:16px">/100</span></div>
         <span class="badge warn">trust medium</span>
@@ -121,7 +121,7 @@
 
       <section class="section">
         <h2>工具轨迹 · Tool trace</h2>
-        <ul><li>User question: 搜索23附息国债26并给出收益率分析</li><li>-&gt; data_source(mode=static_sample, source=local_static_excel)</li><li>-&gt; planner(intent=bond_report)</li><li>-&gt; search_bonds(name=23附息国债26)</li><li>-&gt; compare_bond_to_market()</li><li>-&gt; describe_market()</li><li>-&gt; rank_bonds(by=yield, top_n=5)</li><li>-&gt; detect_yield_outliers(method=zscore, threshold=3.0)</li><li>-&gt; generate_bond_report()</li><li>-&gt; llm_guardrail(skipped: llm_disabled)</li><li>-&gt; final answer</li></ul>
+        <ul><li>User question: 搜索23附息国债26并给出收益率分析</li><li>-&gt; data_source(mode=static_sample, source=local_static_excel)</li><li>-&gt; planner(intent=bond_report)</li><li>-&gt; search_bonds(name=23附息国债26, bond_type=国债)</li><li>-&gt; compare_bond_to_market()</li><li>-&gt; describe_market()</li><li>-&gt; rank_bonds(by=yield, top_n=5)</li><li>-&gt; detect_yield_outliers(method=zscore, threshold=3.0)</li><li>-&gt; build_market_monitor(top_n=5)</li><li>-&gt; generate_bond_report()</li><li>-&gt; llm_guardrail(skipped: llm_disabled)</li><li>-&gt; final answer</li></ul>
       </section>
 
       <section class="section">
@@ -151,7 +151,7 @@
             <article class="card">
               <div class="badge">high</div>
               <h3>债券检索只使用当前数据源中的命中记录。</h3>
-              <p>检索条件 {&#x27;name&#x27;: &#x27;23附息国债26&#x27;, &#x27;min_maturity&#x27;: None, &#x27;max_maturity&#x27;: None, &#x27;min_yield&#x27;: None, &#x27;max_yield&#x27;: None, &#x27;limit&#x27;: 10}，命中 1 条。</p>
+              <p>检索条件 {&#x27;name&#x27;: &#x27;23附息国债26&#x27;, &#x27;bond_type&#x27;: &#x27;国债&#x27;, &#x27;min_maturity&#x27;: None, &#x27;max_maturity&#x27;: None, &#x27;min_yield&#x27;: None, &#x27;max_yield&#x27;: None, &#x27;limit&#x27;: 10}，命中 1 条。</p>
               <p class="muted">tool=search_bonds · source=data/testdata.xlsx</p>
             </article>
             
@@ -196,6 +196,7 @@ Tools Used:
 - describe_market
 - rank_bonds
 - detect_yield_outliers
+- build_market_monitor
 - generate_bond_report
 
 Data Evidence:
@@ -204,12 +205,15 @@ Data Evidence:
 - 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条
 - 样本数量: 3365
 - 收益率摘要: {&#x27;count&#x27;: 3102, &#x27;mean&#x27;: 2.7709, &#x27;std&#x27;: 2.2786, &#x27;min&#x27;: 0.1383, &#x27;p25&#x27;: 2.255, &#x27;median&#x27;: 2.45, &#x27;p75&#x27;: 2.7468, &#x27;max&#x27;: 57.0224}
+- 数据质量: 84/100 (high)
 - 排序字段: 收盘到期收益率(%)
 - 异常样本数量: 13
-- 检索条件: {&#x27;name&#x27;: &#x27;23附息国债26&#x27;, &#x27;min_maturity&#x27;: None, &#x27;max_maturity&#x27;: None, &#x27;min_yield&#x27;: None, &#x27;max_yield&#x27;: None, &#x27;limit&#x27;: 10}
+- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。
+- 检索条件: {&#x27;name&#x27;: &#x27;23附息国债26&#x27;, &#x27;bond_type&#x27;: &#x27;国债&#x27;, &#x27;min_maturity&#x27;: None, &#x27;max_maturity&#x27;: None, &#x27;min_yield&#x27;: None, &#x27;max_yield&#x27;: None, &#x27;limit&#x27;: 10}
 - 检索命中数量: 1
   1. 23附息国债26 | 待偿期 9.68Y | 收益率 2.3348% | 成交量 2142.05 亿元
 - 债券相对市场: yield_percentile=34.95, volume_percentile=100.0, is_yield_outlier=False
+- 同业可比: type=国债, bucket=5-10Y, n=25, spread_bp=-0.24
 
 Risk Explanation Layer:
 - Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.
@@ -231,8 +235,10 @@ Analysis:
 - 同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。
 - 按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。
 - 全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。
-- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 137只/中位收益2.25%；地方政府债 8只/中位收益3.8616%；同业存单 671只/中位收益2.1951%。
-- 数据质量 42/100（low），共 3 类问题。
+- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。
+- 数据质量 84/100（high），共 3 类问题。
+- 数据诊断：收益率缺失 263/3365（7.8%）。
+- 数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。
 
 Risk Notes:
 - 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。
@@ -242,12 +248,13 @@ Limitations:
 - 本报告仅基于当前 Agent 数据源的可用字段计算。
 - 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。
 - 未接入评级、主体财务、宏观利率曲线或新闻事件。
+- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。
 - 非投资建议，仅用于学习和研究。</pre>
       </section>
 
       <section class="section">
         <h2>分析 · Analysis</h2>
-        <ul><li>检索命中 1 条记录，优先分析 23附息国债26。</li><li>23附息国债26 的待偿期为 9.68Y，收盘净价 102.88 元，收益率 2.3348%，成交量 2142.05 亿元。</li><li>相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.57%。</li><li>同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。</li><li>按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。</li><li>全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。</li><li>券种结构：国债 116只/中位收益2.1325%；政策性金融债 137只/中位收益2.25%；地方政府债 8只/中位收益3.8616%；同业存单 671只/中位收益2.1951%。</li><li>数据质量 42/100（low），共 3 类问题。</li></ul>
+        <ul><li>检索命中 1 条记录，优先分析 23附息国债26。</li><li>23附息国债26 的待偿期为 9.68Y，收盘净价 102.88 元，收益率 2.3348%，成交量 2142.05 亿元。</li><li>相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.57%。</li><li>同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。</li><li>按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。</li><li>全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。</li><li>券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。</li><li>数据质量 84/100（high），共 3 类问题。</li><li>数据诊断：收益率缺失 263/3365（7.8%）。</li><li>数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。</li></ul>
       </section>
 
       <section class="section">
@@ -257,7 +264,7 @@ Limitations:
 
       <section class="section">
         <h2>局限性 · Limitations（强制）</h2>
-        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li></ul>
+        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li><li>数据质量：收益率缺失 263/3365（7.8%）。</li></ul>
         <p class="muted" style="margin-top:12px">非投资建议，仅用于学习和研究。</p>
       </section>
     </div>

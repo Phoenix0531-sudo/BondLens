@@ -39,7 +39,9 @@ def test_agent_tool_selection_for_market_overview(monkeypatch):
     result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
 
     assert result["plan"]["intent"] == "market_overview"
-    assert result["tools_used"] == ["describe_market", "generate_bond_report"]
+    assert "describe_market" in result["tools_used"]
+    assert "build_market_monitor" in result["tools_used"]
+    assert "generate_bond_report" in result["tools_used"]
     assert "rank_bonds" not in result["tools_used"]
     assert "detect_yield_outliers" not in result["tools_used"]
     assert "-> generate_bond_report()" in result["tool_trace"]
