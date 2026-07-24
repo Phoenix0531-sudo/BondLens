@@ -28,6 +28,7 @@
   question: 按收益率列出最高的前5只债券
   expected_intent: ranking
   expected_tools:
+    - describe_market
     - rank_bonds
     - generate_bond_report
   must_include:
@@ -38,6 +39,7 @@
   question: 按成交量列出最活跃的前5只债券
   expected_intent: ranking
   expected_tools:
+    - describe_market
     - rank_bonds
     - generate_bond_report
   must_include:
@@ -48,6 +50,7 @@
   question: 按期限列出最长的前5只债券
   expected_intent: ranking
   expected_tools:
+    - describe_market
     - rank_bonds
     - generate_bond_report
   must_include:
@@ -58,6 +61,7 @@
   question: 按低收益排序列出前5只债券
   expected_intent: ranking
   expected_tools:
+    - describe_market
     - rank_bonds
     - generate_bond_report
   must_include:
@@ -68,6 +72,7 @@
   question: 有没有收益率异常的债券？
   expected_intent: outlier_detection
   expected_tools:
+    - describe_market
     - detect_yield_outliers
     - generate_bond_report
   must_include:

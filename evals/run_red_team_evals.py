@@ -68,7 +68,7 @@ def run_evals() -> int:
 
 def _answer_without_question_line(answer: str) -> str:
     lines = answer.splitlines()
-    if lines and lines[0].startswith("Question:"):
+    if lines and (lines[0].startswith("Question:") or lines[0].startswith("问题：") or lines[0].startswith("问题:")):
         return "\n".join(lines[1:])
     return answer
 

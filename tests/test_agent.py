@@ -314,3 +314,35 @@ def test_agent_live_feed_enriches_known_bond_maturity(monkeypatch):
     assert record["待偿期(年)"] is not None
     assert result["data_source"]["maturity_coverage"]["filled_count"] == 1
     assert "待偿期 None" not in result["final_answer"]
+
+
+def test_agent_advisory_refusal_blocks_recommendations(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
+
+    result = BondAnalystAgent(data_mode="static").answer("今天该不该买债？")
+
+    assert result["plan"]["intent"] == "advisory_refusal"
+    assert result["tools_used"] == ["describe_market", "generate_bond_report"]
+    assert result["used_llm_in_final"] is False
+    assert result["llm_status"] == "disabled"
+    assert result["llm_error"] == "advisory_policy_block"
+    assert result["final_answer_source"] == "deterministic_fallback"
+    assert "投资建议拦截" in result["final_answer"]
+    assert "不给出具体买入" in result["final_answer"]
+    assert "非投资建议，仅用于学习和研究" in result["final_answer"]
+    assert result["trust_score"]["score"] <= 72
+    assert any("input_policy(status=advisory_refusal)" in item for item in result["tool_trace"])
+
+
+def test_agent_ranking_includes_market_summary(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
+
+    result = BondAnalystAgent(data_mode="static").answer("按收益率列出最高的前5只债券")
+
+    assert result["plan"]["intent"] == "ranking"
+    assert result["tools_used"] == ["describe_market", "rank_bonds", "generate_bond_report"]
+    assert result["data_evidence"]["market"]
+    assert result["data_evidence"]["market"]["yield_summary"].get("median") is not None
+    assert result["data_evidence"]["ranking"]

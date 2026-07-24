@@ -28,6 +28,7 @@ INTENT_LABELS = {
     "composite_market": {"zh": "组合市场分析", "en": "Composite market analysis"},
     "ranking": {"zh": "排序分析", "en": "Ranking"},
     "outlier_detection": {"zh": "异常检测", "en": "Outlier detection"},
+    "advisory_refusal": {"zh": "投资建议拦截", "en": "Advisory refusal"},
 }
 
 TOOL_LABELS = {

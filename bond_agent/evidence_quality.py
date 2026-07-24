@@ -29,7 +29,11 @@ def assess_evidence_quality(plan: dict, report: dict, data_source: dict, risk_ex
     comparison = evidence.get("comparison") or {}
     market = evidence.get("market") or {}
 
-    if intent in {"bond_report", "bond_search"}:
+    if intent == "advisory_refusal":
+        # Policy refusals intentionally avoid full recommendation tooling.
+        score += 10
+        checks.append("Advisory solicitation was intercepted before recommendation tooling.")
+    elif intent in {"bond_report", "bond_search"}:
         if search.get("match_count", 0) > 0:
             score += 15
             checks.append("Search criteria matched local bond records.")
@@ -63,6 +67,21 @@ def assess_evidence_quality(plan: dict, report: dict, data_source: dict, risk_ex
         penalties.append("No live crawler or market feed is active in the Agent path.")
     penalties.append("Issuer ratings, credit events, and macro curves are not attached.")
 
+    coverage = data_source.get("maturity_coverage") or {}
+    coverage_ratio = coverage.get("coverage_ratio")
+    if runtime_mode in {"live", "live_snapshot"} and coverage_ratio is not None:
+        ratio = float(coverage_ratio)
+        if ratio < 0.30:
+            score -= 12
+            penalties.append(
+                f"Live maturity enrichment coverage is only {ratio:.1%}; peer/duration context is weak."
+            )
+        elif ratio < 0.70:
+            score -= 6
+            penalties.append(
+                f"Live maturity enrichment coverage is incomplete ({ratio:.1%})."
+            )
+
     score = max(0, min(100, score))
     level = "high" if score >= 80 else "medium" if score >= 55 else "low"
 
@@ -79,6 +98,7 @@ def assess_evidence_quality(plan: dict, report: dict, data_source: dict, risk_ex
             "has_search_results": bool(search),
             "has_bond_comparison": bool(comparison.get("found")),
             "has_risk_explanations": bool(risk_explanations),
+            "maturity_coverage_ratio": coverage_ratio,
         },
         "checks": checks,
         "penalties": penalties,

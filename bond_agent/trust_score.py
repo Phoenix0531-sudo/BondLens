@@ -17,6 +17,7 @@ def compute_trust_score(
     answer_judge: dict[str, Any],
     final_answer_source: str,
     evidence_ledger: list[dict[str, Any]] | None = None,
+    plan: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return a reviewer-facing trust score.
 
@@ -24,9 +25,12 @@ def compute_trust_score(
     - Prefer deterministic evidence over model fluency.
     - Make every large adjustment explainable in Chinese and English.
     - Stay honest when live data degraded to snapshot / static sample.
+    - Trust Score is process/evidence trust, not trade confidence.
     """
     adjustments: list[dict[str, Any]] = []
     score = 55  # neutral baseline before evidence / data / trust layers
+    plan = plan or {}
+    intent = str(plan.get("intent") or "")
 
     eq_score = int(evidence_quality.get("score") or 0)
     evidence_boost = max(-15, min(25, round((eq_score - 55) * 0.5)))
@@ -44,6 +48,13 @@ def compute_trust_score(
     freshness_delta, freshness_zh, freshness_en = _freshness_delta(runtime_mode, data_source)
     score += freshness_delta
     adjustments.append(_adj("data_freshness", freshness_delta, freshness_zh, freshness_en))
+
+    maturity_delta, maturity_zh, maturity_en, maturity_ratio = _maturity_coverage_delta(
+        runtime_mode, data_source
+    )
+    if maturity_delta != 0 or maturity_ratio is not None:
+        score += maturity_delta
+        adjustments.append(_adj("maturity_coverage", maturity_delta, maturity_zh, maturity_en))
 
     ledger_count = len(evidence_ledger or [])
     if ledger_count >= 4:
@@ -124,6 +135,19 @@ def compute_trust_score(
         )
     )
 
+    # Policy refusals must not look like high investment confidence.
+    if intent == "advisory_refusal" and score > 72:
+        cap_delta = 72 - int(score)
+        score = 72
+        adjustments.append(
+            _adj(
+                "advisory_refusal_cap",
+                cap_delta,
+                "输入政策拦截：信任分封顶 72，避免被误读为买卖置信度。",
+                "Advisory refusal cap: trust score capped at 72 to avoid trade-confidence misread.",
+            )
+        )
+
     score = max(0, min(100, int(score)))
     level = "high" if score >= 75 else "medium" if score >= 50 else "low"
     reasons = [item for item in adjustments if item["delta"] != 0]
@@ -150,10 +174,69 @@ def compute_trust_score(
             "judge_status": judge_status,
             "final_answer_source": final_answer_source,
             "ledger_item_count": ledger_count,
+            "maturity_coverage_ratio": maturity_ratio,
+            "intent": intent or None,
         },
         "adjustments": adjustments,
         "headline_reasons": reasons_sorted[:4],
     }
+
+
+def _maturity_coverage_delta(
+    runtime_mode: str, data_source: dict[str, Any]
+) -> tuple[int, str, str, float | None]:
+    """Penalize incomplete live maturity enrichment.
+
+    Live feeds often lack native maturity fields. Low coverage after static-master
+    enrichment should reduce process trust, not be hidden behind high scores.
+    """
+    coverage = data_source.get("maturity_coverage") or {}
+    raw_ratio = coverage.get("coverage_ratio")
+    if raw_ratio is None:
+        return (
+            0,
+            "未提供期限覆盖率，未做 maturity 调整。",
+            "Maturity coverage unavailable; no maturity adjustment.",
+            None,
+        )
+
+    ratio = float(raw_ratio)
+    # Static samples are usually security-master complete; only penalize live paths.
+    if runtime_mode not in {"live", "live_snapshot"}:
+        return (
+            0,
+            f"非实时路径期限覆盖率 {ratio:.1%}，不额外惩罚。",
+            f"Non-live maturity coverage {ratio:.1%}; no extra penalty.",
+            ratio,
+        )
+
+    if ratio < 0.30:
+        return (
+            -18,
+            f"实时期限补全仅 {ratio:.1%}，同业/久期结论不可靠。",
+            f"Live maturity enrichment only {ratio:.1%}; peer/duration conclusions are unreliable.",
+            ratio,
+        )
+    if ratio < 0.70:
+        return (
+            -10,
+            f"实时期限补全 {ratio:.1%}，覆盖不足。",
+            f"Live maturity enrichment {ratio:.1%}; coverage is incomplete.",
+            ratio,
+        )
+    if ratio < 0.90:
+        return (
+            -4,
+            f"实时期限补全 {ratio:.1%}，仍有缺口。",
+            f"Live maturity enrichment {ratio:.1%}; residual gaps remain.",
+            ratio,
+        )
+    return (
+        0,
+        f"实时期限补全 {ratio:.1%}，覆盖较好。",
+        f"Live maturity enrichment {ratio:.1%}; coverage is healthy.",
+        ratio,
+    )
 
 
 def _freshness_delta(runtime_mode: str, data_source: dict[str, Any]) -> tuple[int, str, str]:

@@ -26,7 +26,7 @@ def test_planner_ranking_by_volume():
     plan = classify_intent("按成交量列出最活跃的前5只债券")
 
     assert plan["intent"] == "ranking"
-    assert plan["requested_tools"] == ["rank_bonds"]
+    assert plan["requested_tools"] == ["describe_market", "rank_bonds"]
     assert plan["rank_by"] == "volume"
 
 
@@ -34,7 +34,15 @@ def test_planner_outlier_detection():
     plan = classify_intent("有没有收益率异常的债券？")
 
     assert plan["intent"] == "outlier_detection"
-    assert plan["requested_tools"] == ["detect_yield_outliers"]
+    assert plan["requested_tools"] == ["describe_market", "detect_yield_outliers"]
+
+
+def test_planner_advisory_refusal():
+    plan = classify_intent("今天该不该买债？")
+
+    assert plan["intent"] == "advisory_refusal"
+    assert plan["requested_tools"] == ["describe_market"]
+    assert plan["flags"]["wants_advisory"] is True
 
 
 def test_planner_composite_monitor():

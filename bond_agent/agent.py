@@ -114,21 +114,33 @@ class BondAnalystAgent:
         report["risk_explanations"] = risk_explanations
         report["evidence_quality"] = evidence_quality
 
-        fallback_answer = self._format_report(report, plan)
-        llm_result = self._try_llm_answer(question, plan, report)
-        llm_guardrail = (
-            assess_llm_faithfulness(llm_result["text"], report)
-            if llm_result["status"] == "success"
-            else assess_llm_faithfulness(None, report)
-        )
-        if llm_result["status"] == "success":
-            tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
+        is_advisory_refusal = plan.get("intent") == "advisory_refusal"
+        if is_advisory_refusal:
+            fallback_answer = self._format_advisory_refusal(question, report, plan)
+            llm_result = {"text": None, "status": "disabled", "error": "advisory_policy_block"}
+            llm_guardrail = assess_llm_faithfulness(None, report)
+            tool_trace.append("-> input_policy(status=advisory_refusal)")
+            tool_trace.append("-> llm_guardrail(skipped: advisory_policy_block)")
+            use_llm_final = False
+            final_answer = fallback_answer
+            final_answer_source = "deterministic_fallback"
         else:
-            tool_trace.append(f"-> llm_guardrail(skipped: llm_{llm_result['status']})")
+            fallback_answer = self._format_report(report, plan)
+            llm_result = self._try_llm_answer(question, plan, report)
+            llm_guardrail = (
+                assess_llm_faithfulness(llm_result["text"], report)
+                if llm_result["status"] == "success"
+                else assess_llm_faithfulness(None, report)
+            )
+            if llm_result["status"] == "success":
+                tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
+            else:
+                tool_trace.append(f"-> llm_guardrail(skipped: llm_{llm_result['status']})")
 
-        use_llm_final = llm_result["status"] == "success" and llm_guardrail["status"] == "passed"
-        final_answer = llm_result["text"] if use_llm_final else fallback_answer
-        final_answer_source = "llm" if use_llm_final else "deterministic_fallback"
+            use_llm_final = llm_result["status"] == "success" and llm_guardrail["status"] == "passed"
+            final_answer = llm_result["text"] if use_llm_final else fallback_answer
+            final_answer_source = "llm" if use_llm_final else "deterministic_fallback"
+
         answer_judge = judge_answer(
             llm_status=llm_result["status"],
             llm_guardrail=llm_guardrail,
@@ -146,6 +158,10 @@ class BondAnalystAgent:
         )
         limitations = self._merge_limitations(report.get("limitations") or [])
         limitations = self._append_data_source_limitations(limitations, data_source, report)
+        if is_advisory_refusal:
+            policy_note = "输入政策：问题含买卖/保证收益等投资建议诉求，已拦截推荐路径。"
+            if policy_note not in limitations:
+                limitations.insert(0, policy_note)
         trust_score = compute_trust_score(
             data_source=data_source,
             evidence_quality=evidence_quality,
@@ -153,6 +169,7 @@ class BondAnalystAgent:
             answer_judge=answer_judge,
             final_answer_source=final_answer_source,
             evidence_ledger=evidence_ledger,
+            plan=plan,
         )
         stress_view = build_stress_view(
             data_source=data_source,
@@ -327,6 +344,57 @@ class BondAnalystAgent:
         if DISCLAIMER in text:
             return text
         return f"{text}\n\n{DISCLAIMER}"
+
+    def _format_advisory_refusal(self, question: str, report: dict, plan: dict) -> str:
+        """Deterministic non-advisory boundary response for buy/sell solicitations."""
+        evidence = report.get("data_evidence") or {}
+        market = evidence.get("market") or {}
+        data_source = report.get("data_source") or {}
+        yield_summary = market.get("yield_summary") or {}
+        median = yield_summary.get("median")
+        rows = data_source.get("row_count")
+        coverage = data_source.get("maturity_coverage") or {}
+        coverage_ratio = coverage.get("coverage_ratio")
+        coverage_text = (
+            f"{round(float(coverage_ratio) * 100, 1)}%" if coverage_ratio is not None else "未知"
+        )
+        quality = market.get("data_quality") or {}
+        quality_score = quality.get("score")
+
+        lines = [
+            f"问题：{question}",
+            "意图：投资建议拦截（advisory_refusal）",
+            "",
+            "输入政策判定：",
+            "- 该问题包含买卖建议、保证收益或安全承诺类诉求。",
+            "- BondLens 只提供可审查的市场证据与风险边界，不提供投资建议。",
+            "",
+            "可提供的事实上下文（非买卖依据）：",
+            f"- 数据源：{data_source.get('source_name')}（{data_source.get('runtime_mode')}）",
+            f"- 样本行数：{rows if rows is not None else '—'}",
+        ]
+        if median is not None:
+            lines.append(f"- 样本中位收益率：{median}%")
+        if quality_score is not None:
+            lines.append(f"- 数据质量：{quality_score}/100")
+        lines.append(f"- 期限覆盖率：{coverage_text}")
+        lines.extend(
+            [
+                "",
+                "明确边界：",
+                "- 不给出具体买入、卖出、加仓或配置标的。",
+                "- 不提供任何收益担保，也不对债券安全性作结论。",
+                "- 收益率高低是风险信号，不是买卖依据。",
+                "",
+                "如需研究支持，请改问：",
+                "- 当前样本收益率分布如何？",
+                "- 某只具体债券相对市场的分位数与可比同业如何？",
+                "- 哪些样本收益率异常、期限覆盖缺口在哪里？",
+                "",
+                f"{DISCLAIMER}",
+            ]
+        )
+        return "\n".join(lines)
 
     def _format_report(self, report: dict, plan: dict) -> str:
         evidence = report["data_evidence"]

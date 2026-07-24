@@ -33,6 +33,7 @@ def classify_intent(
     wants_monitor = _is_monitor_question(normalized)
     wants_report = _needs_report(normalized)
     wants_peers = _needs_peer_compare(normalized)
+    wants_advisory = _is_advisory_question(normalized)
 
     if not normalized:
         return {
@@ -50,6 +51,7 @@ def classify_intent(
                 "wants_monitor": True,
                 "wants_report": False,
                 "wants_peers": False,
+                "wants_advisory": False,
             },
             "explanation": "Empty question falls back to a market overview.",
         }
@@ -63,7 +65,23 @@ def classify_intent(
         "wants_monitor": wants_monitor,
         "wants_report": wants_report,
         "wants_peers": wants_peers,
+        "wants_advisory": wants_advisory,
     }
+
+    # Investment-advice / buy-sell solicitations are refused before normal analysis.
+    if wants_advisory:
+        return {
+            "intent": "advisory_refusal",
+            "requested_tools": ["describe_market"],
+            "rank_by": None,
+            "ascending": False,
+            "search_params": {},
+            "flags": flags,
+            "explanation": (
+                "Question solicits buy/sell/guarantee advice; "
+                "refuse with market context only, no investment recommendation."
+            ),
+        }
 
     # Named bond / filter + analysis → full evidence report (optionally + extras).
     if search_params and (wants_report or wants_peers or wants_ranking or wants_outliers or wants_overview):
@@ -133,7 +151,7 @@ def classify_intent(
     if wants_outliers:
         return {
             "intent": "outlier_detection",
-            "requested_tools": ["detect_yield_outliers"],
+            "requested_tools": ["describe_market", "detect_yield_outliers"],
             "rank_by": None,
             "ascending": False,
             "search_params": search_params,
@@ -144,7 +162,7 @@ def classify_intent(
     if wants_ranking:
         return {
             "intent": "ranking",
-            "requested_tools": ["rank_bonds"],
+            "requested_tools": ["describe_market", "rank_bonds"],
             "rank_by": rank_by or "yield",
             "ascending": ascending,
             "search_params": search_params,
@@ -338,3 +356,33 @@ def _needs_report(question: str) -> bool:
 
 def _needs_peer_compare(question: str) -> bool:
     return any(word in question for word in ["同业", "可比", "利差", "相对", "分位", "peer"])
+
+
+def _is_advisory_question(question: str) -> bool:
+    """Detect buy/sell/guarantee solicitations that must be refused."""
+    if not question:
+        return False
+    patterns = [
+        r"该不该买",
+        r"能不能买",
+        r"可以买吗",
+        r"要不要买",
+        r"值不值得买",
+        r"应[不该]*买[入]?哪",
+        r"应该买入",
+        r"推荐买入",
+        r"建议买入",
+        r"买哪只",
+        r"买哪支",
+        r"直接告诉我应该买入",
+        r"保证收益",
+        r"稳赚",
+        r"无风险",
+        r"非常安全",
+        r"放心买",
+        r"可以放心买",
+        r"\bbuy\b",
+        r"should i buy",
+        r"investment advice",
+    ]
+    return any(re.search(pat, question, flags=re.IGNORECASE) for pat in patterns)

@@ -60,7 +60,11 @@ def test_evidence_pack_html_contains_core_sections(monkeypatch, tmp_path):
 
 def test_compute_trust_score_guardrail_failure_hurts():
     base = {
-        "data_source": {"runtime_mode": "live", "fallback_reason": None},
+        "data_source": {
+            "runtime_mode": "live",
+            "fallback_reason": None,
+            "maturity_coverage": {"coverage_ratio": 0.95},
+        },
         "evidence_quality": {"score": 80, "level": "high"},
         "llm_guardrail": {"status": "failed"},
         "answer_judge": {"status": "failed_guardrail"},
@@ -73,6 +77,46 @@ def test_compute_trust_score_guardrail_failure_hurts():
     base["final_answer_source"] = "llm"
     passed = compute_trust_score(**base)
     assert failed["score"] < passed["score"]
+
+
+def test_compute_trust_score_penalizes_low_live_maturity_coverage():
+    base = {
+        "data_source": {
+            "runtime_mode": "live",
+            "fallback_reason": None,
+            "maturity_coverage": {"coverage_ratio": 0.13},
+        },
+        "evidence_quality": {"score": 80, "level": "high"},
+        "llm_guardrail": {"status": "not_run"},
+        "answer_judge": {"status": "not_applicable"},
+        "final_answer_source": "deterministic_fallback",
+        "evidence_ledger": [{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}],
+    }
+    low = compute_trust_score(**base)
+    base["data_source"]["maturity_coverage"] = {"coverage_ratio": 0.95}
+    high = compute_trust_score(**base)
+
+    assert low["score"] < high["score"]
+    assert any(item["id"] == "maturity_coverage" and item["delta"] < 0 for item in low["adjustments"])
+    assert low["components"]["maturity_coverage_ratio"] == 0.13
+
+
+def test_compute_trust_score_caps_advisory_refusal():
+    score = compute_trust_score(
+        data_source={
+            "runtime_mode": "static_sample",
+            "fallback_reason": None,
+            "maturity_coverage": {"coverage_ratio": 0.92},
+        },
+        evidence_quality={"score": 90, "level": "high"},
+        llm_guardrail={"status": "not_run"},
+        answer_judge={"status": "not_applicable"},
+        final_answer_source="deterministic_fallback",
+        evidence_ledger=[{"id": "1"}, {"id": "2"}, {"id": "3"}, {"id": "4"}],
+        plan={"intent": "advisory_refusal"},
+    )
+    assert score["score"] <= 72
+    assert any(item["id"] == "advisory_refusal_cap" for item in score["adjustments"])
 
 
 def test_stress_view_marks_static_as_review():
