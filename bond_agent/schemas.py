@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 DataMode = Literal["auto", "live", "static"]
 LLMStatus = Literal["disabled", "success", "failed"]
 GuardrailStatus = Literal["not_run", "passed", "failed"]

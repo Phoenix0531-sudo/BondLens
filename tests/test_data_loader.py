@@ -113,7 +113,7 @@ def test_maturity_coverage_lists_unmatched_records(tmp_path):
             }
         )
 
-    df, profile = resolve_bond_data(
+    _df, profile = resolve_bond_data(
         mode="live",
         live_fetcher=fake_fetcher,
         live_cache_path=tmp_path / "live_snapshot.csv",

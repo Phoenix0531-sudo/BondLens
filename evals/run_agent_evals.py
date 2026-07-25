@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import yaml
 
@@ -10,8 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from bond_agent import BondAnalystAgent  # noqa: E402
-
+from bond_agent import BondAnalystAgent
 
 CASES_PATH = Path(__file__).with_name("agent_eval_cases.yml")
 

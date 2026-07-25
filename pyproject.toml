@@ -1,0 +1,49 @@
+[project]
+name = "bondlens"
+version = "0.1.0"
+description = "BondLens — evidence-first Chinese bond market analysis agent"
+requires-python = ">=3.11"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["."]
+extend-exclude = [
+  ".venv",
+  ".tmp",
+  "data",
+  "templates",
+]
+
+[tool.ruff.lint]
+# Pin the rule set so local `ruff check .` matches CI.
+# Base: E/F (pycodestyle errors + pyflakes) + I (isort).
+# Extended to rules actually failing on CI run 30095547392:
+#   BLE001, RUF046/100/012/059, SIM102, FURB167, DTZ007.
+select = [
+  "E",
+  "F",
+  "I",
+  "BLE",
+  "SIM",
+  "RUF",
+  "FURB",
+  "DTZ",
+]
+ignore = [
+  # Long Chinese UI / report strings are intentional; do not force wraps.
+  "E501",
+  # Chinese prose legitimately uses full-width punctuation / lookalike chars.
+  "RUF001",
+  "RUF002",
+  "RUF003",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["bond_agent"]
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Scripts that must mutate sys.path before importing the package.
+"evals/*.py" = ["E402"]
+"scripts/*.py" = ["E402"]

@@ -4,7 +4,6 @@ import math
 import re
 from typing import Any
 
-
 NUMBER_RE = re.compile(r"(?<![\w.%％])-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
 UNSAFE_LANGUAGE_RULES = [
     ("buy_recommendation", re.compile(r"(建议|推荐|应该|可以|适合).{0,10}(买入|购买|配置|加仓|投资)")),

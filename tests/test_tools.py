@@ -1,5 +1,11 @@
 from bond_agent.data_loader import BOND_NAME, VOLUME, YIELD
-from bond_agent.tools import compare_bond_to_market, describe_market, detect_yield_outliers, rank_bonds, search_bonds
+from bond_agent.tools import (
+    compare_bond_to_market,
+    describe_market,
+    detect_yield_outliers,
+    rank_bonds,
+    search_bonds,
+)
 
 
 def test_describe_market_returns_core_statistics():

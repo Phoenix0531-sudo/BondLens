@@ -1,14 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
 import os
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from .data_loader import PROJECT_ROOT
-
 
 DEFAULT_REPLAY_DIR = PROJECT_ROOT / ".tmp" / "replays"
 

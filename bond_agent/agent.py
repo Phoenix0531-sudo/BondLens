@@ -26,7 +26,6 @@ from .tools import (
 )
 from .trust_score import compute_trust_score
 
-
 DISCLAIMER = "非投资建议，仅用于学习和研究。"
 LIMITATIONS_TEMPLATE = [
     "非投资建议，仅用于学习和研究。",
@@ -292,7 +291,7 @@ class BondAnalystAgent:
             if not text:
                 return {"text": None, "status": "failed", "error": "OpenAI request failed: empty_output"}
             return {"text": self._ensure_disclaimer(text.strip()), "status": "success", "error": None}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
             return {"text": None, "status": "failed", "error": f"OpenAI request failed: {type(exc).__name__}"}
 
     def _create_openai_client(self, api_key: str, base_url: str | None = None):

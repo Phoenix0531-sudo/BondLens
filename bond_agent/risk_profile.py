@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 SEVERITY_ORDER = {"low": 1, "medium": 2, "high": 3}
 
 

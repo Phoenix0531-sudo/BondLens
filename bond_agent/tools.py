@@ -24,7 +24,6 @@ from .taxonomy import (
     summarize_segments,
 )
 
-
 RANK_COLUMNS = {
     "yield": YIELD,
     "收益率": YIELD,
@@ -96,7 +95,7 @@ def search_bonds(
             "max_yield": max_yield,
             "limit": limit,
         },
-        "match_count": int(len(df)),
+        "match_count": len(df),
         "records": records_from_frame(df.sort_values(YIELD, ascending=False), limit),
     }
 
@@ -120,7 +119,7 @@ def describe_market(
 
     return {
         "tool": "describe_market",
-        "sample_count": int(len(annotated)),
+        "sample_count": len(annotated),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME],
         "yield_summary": _summary(annotated[YIELD]),
         "weighted_yield_summary": _summary(annotated[WEIGHTED_YIELD]),
@@ -254,7 +253,7 @@ def detect_yield_outliers(
 
     return {
         "tool": "detect_yield_outliers",
-        "outlier_count": int(len(outliers)),
+        "outlier_count": len(outliers),
         "metadata": metadata,
         "records": records,
     }
@@ -337,7 +336,7 @@ def compare_bond_to_market(
         "is_yield_outlier": is_yield_outlier,
         "nearest_market_context": _market_context(target_yield, target_volume, yield_series, volume_series),
         "peer_comparison": {
-            "peer_count": int(len(peers)),
+            "peer_count": len(peers),
             "bond_type": bond_type,
             "maturity_bucket": bucket,
             "peer_yield_median": None if peer_yield.empty else round(float(peer_yield.median()), 4),

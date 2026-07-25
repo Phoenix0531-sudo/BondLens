@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import contextlib
 import os
-from pathlib import Path
 import re
+from datetime import date, datetime, timezone
+from pathlib import Path
 
 import pandas as pd
-
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "testdata.xlsx"
@@ -43,13 +43,15 @@ def infer_static_sample_date(path: str | Path = DEFAULT_DATA_PATH):
     data_path = Path(path)
     try:
         header = pd.read_excel(data_path, header=None, nrows=1).astype(str).to_string()
-    except Exception:
+    except Exception:  # noqa: BLE001 - Excel/path failures should degrade to None
         return None
 
     match = STATIC_SAMPLE_DATE_RE.search(header)
     if not match:
         return None
-    return datetime.strptime(match.group(1), "%Y-%m-%d").date()
+    # Sample date is a calendar date from the workbook header (no timezone).
+    year, month, day = (int(part) for part in match.group(1).split("-"))
+    return date(year, month, day)
 
 
 def load_bond_data(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
@@ -123,7 +125,7 @@ def enrich_live_maturity_from_static_master(
     if security_master is None:
         try:
             security_master = load_bond_data()
-        except Exception:
+        except Exception:  # noqa: BLE001 - missing master must not break live path
             return df
 
     required = {BOND_NAME, MATURITY, MATURITY_YEARS}
@@ -203,7 +205,7 @@ def resolve_bond_data(
         try:
             df = load_live_bond_data(fetcher=live_fetcher, cache_path=live_cache_path)
             return df, _build_live_profile(df, requested_mode=normalized_mode)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - live network/provider failures must fall back
             live_error = f"{type(exc).__name__}: {exc}"
             try:
                 df, snapshot = load_live_snapshot(cache_path=live_cache_path, max_age_hours=cache_max_age)
@@ -214,7 +216,7 @@ def resolve_bond_data(
                     cached_at=snapshot["cached_at"],
                     fallback_reason=live_error,
                 )
-            except Exception as snapshot_exc:
+            except Exception as snapshot_exc:  # noqa: BLE001 - snapshot path also degrades honestly
                 fallback_reason = f"{live_error}; snapshot fallback failed: {type(snapshot_exc).__name__}: {snapshot_exc}"
             df = load_bond_data(data_path)
             return df, _build_static_profile(
@@ -243,10 +245,8 @@ def _build_static_profile(
 ) -> dict:
     data_path = Path(path)
     relative_path = data_path
-    try:
+    with contextlib.suppress(ValueError):
         relative_path = data_path.resolve().relative_to(PROJECT_ROOT)
-    except ValueError:
-        pass
 
     return {
         "source_id": "local_static_excel",
@@ -256,7 +256,7 @@ def _build_static_profile(
         "requested_mode": requested_mode,
         "fetched_at": None,
         "fallback_reason": fallback_reason,
-        "row_count": int(len(df)),
+        "row_count": len(df),
         "valid_yield_count": int(df[YIELD].notna().sum()),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, MATURITY_SOURCE],
         "maturity_coverage": _maturity_coverage(df),
@@ -296,7 +296,7 @@ def _build_live_profile(df: pd.DataFrame, requested_mode: str) -> dict:
         "requested_mode": requested_mode,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "fallback_reason": None,
-        "row_count": int(len(df)),
+        "row_count": len(df),
         "valid_yield_count": int(df[YIELD].notna().sum()),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE],
         "maturity_coverage": _maturity_coverage(df),
@@ -323,10 +323,8 @@ def _build_snapshot_profile(
     fallback_reason: str,
 ) -> dict:
     relative_path = snapshot_path
-    try:
+    with contextlib.suppress(ValueError):
         relative_path = snapshot_path.resolve().relative_to(PROJECT_ROOT)
-    except ValueError:
-        pass
 
     return {
         "source_id": "akshare_bond_spot_deal_snapshot",
@@ -338,7 +336,7 @@ def _build_snapshot_profile(
         "requested_mode": requested_mode,
         "fetched_at": cached_at.isoformat(),
         "fallback_reason": fallback_reason,
-        "row_count": int(len(df)),
+        "row_count": len(df),
         "valid_yield_count": int(df[YIELD].notna().sum()),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE],
         "maturity_coverage": _maturity_coverage(df),

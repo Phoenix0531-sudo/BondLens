@@ -94,7 +94,7 @@ def classify_bond_type(name: object) -> str:
         return "其他"
 
     # Order matters: more specific product types first.
-    if any(token in text for token in ("同业存单", "NCD")) or re.search(r"CD\d*", text, re.I):
+    if any(token in text for token in ("同业存单", "NCD")) or re.search(r"CD\d*", text, re.IGNORECASE):
         return "同业存单"
 
     if any(token in text for token in ("附息国债", "记账式国债", "国库券")) or (
@@ -125,11 +125,12 @@ def classify_bond_type(name: object) -> str:
         return "金融债"
 
     # Bank issuer bonds that are not CDs / policy banks (e.g. 24北京银行01, 22上海银行).
-    if any(token in text for token in _BANK_ISSUER) and any(
-        token in text for token in ("债", "资本", "永续", "小微")
+    if (
+        any(token in text for token in _BANK_ISSUER)
+        and any(token in text for token in ("债", "资本", "永续", "小微"))
+        and not any(token in text for token in ("地方债", "专项债", "一般债"))
     ):
-        if not any(token in text for token in ("地方债", "专项债", "一般债")):
-            return "金融债"
+        return "金融债"
     if re.search(r"(银行|农商行|农信)\d{2}", text) or re.search(
         r"(工行|农行|中行|建行|交行|邮储)\d{2}", text
     ):
@@ -150,11 +151,12 @@ def classify_bond_type(name: object) -> str:
         return "地方政府债"
 
     # Geo + 债 / bare numeric local-gov series (e.g. 23湖南101, 24江苏债05).
-    if any(geo in text for geo in _LOCAL_GOV_GEO) and (
-        "债" in text or re.search(r"\d{2,}$", text) or re.search(r"[省市]\d+", text)
+    if (
+        any(geo in text for geo in _LOCAL_GOV_GEO)
+        and ("债" in text or re.search(r"\d{2,}$", text) or re.search(r"[省市]\d+", text))
+        and not any(token in text for token in ("银行", "国债", "国开", "农发", "进出"))
     ):
-        if not any(token in text for token in ("银行", "国债", "国开", "农发", "进出")):
-            return "地方政府债"
+        return "地方政府债"
 
     if any(
         token in text
@@ -178,7 +180,7 @@ def classify_bond_type(name: object) -> str:
             "租赁",
             "经开",
         )
-    ) or re.search(r"CP\d*", text, re.I):
+    ) or re.search(r"CP\d*", text, re.IGNORECASE):
         return "信用债"
 
     # Bank short names without explicit 债/CD token (e.g. 22上海银行, 23星展银行).
@@ -188,13 +190,15 @@ def classify_bond_type(name: object) -> str:
         return "金融债"
 
     # Residual *债* without treasury/policy/bank markers → local-gov series heuristic.
-    if "债" in text and not any(
-        token in text for token in ("国债", "国开", "农发", "进出", "金融", "公司", "企业", "银行")
+    if (
+        "债" in text
+        and not any(token in text for token in ("国债", "国开", "农发", "进出", "金融", "公司", "企业", "银行"))
+        and (
+            any(token in text for token in ("省", "市", "专项", "一般"))
+            or (len(text) >= 4 and text[-1].isdigit())
+        )
     ):
-        if any(token in text for token in ("省", "市", "专项", "一般")) or (
-            len(text) >= 4 and text[-1].isdigit()
-        ):
-            return "地方政府债"
+        return "地方政府债"
 
     return "其他"
 
@@ -236,7 +240,7 @@ def summarize_segments(df: pd.DataFrame) -> dict[str, Any]:
         by_type.append(
             {
                 "bond_type": bond_type,
-                "count": int(len(subset)),
+                "count": len(subset),
                 "yield_median": _median(subset),
                 "yield_mean": _mean(subset),
             }
@@ -261,13 +265,13 @@ def summarize_segments(df: pd.DataFrame) -> dict[str, Any]:
         by_bucket.append(
             {
                 "bucket": label,
-                "count": int(len(subset)),
+                "count": len(subset),
                 "yield_median": _median(subset),
                 "yield_mean": _mean(subset),
             }
         )
     missing_maturity = (
-        int(frame["期限分桶"].isna().sum()) if "期限分桶" in frame.columns else int(len(frame))
+        int(frame["期限分桶"].isna().sum()) if "期限分桶" in frame.columns else len(frame)
     )
     other_count = int(type_counts.get("其他", 0))
     return {
@@ -301,7 +305,7 @@ def assess_data_quality(
     """Score data usability with ratio-based penalties and explicit diagnostics."""
     frame = annotate_frame(df)
     issues: list[dict[str, Any]] = []
-    total = int(len(frame))
+    total = len(frame)
     missing_yield = int(frame[YIELD].isna().sum()) if YIELD in frame.columns else total
     missing_maturity = (
         int(frame[MATURITY_YEARS].isna().sum()) if MATURITY_YEARS in frame.columns else total
@@ -426,7 +430,7 @@ def assess_data_quality(
         "row_count": total,
         "missing_yield_count": missing_yield,
         "missing_maturity_count": missing_maturity,
-        "extreme_yield_count": int(len(extreme)),
+        "extreme_yield_count": len(extreme),
         "duplicate_name_count": duplicates,
         "other_type_count": other_count,
         "diagnostics": diagnostics,

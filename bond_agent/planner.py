@@ -305,14 +305,14 @@ def _find_bond_name(
             else load_bond_data()
         )
         names = df[BOND_NAME].dropna().astype(str).unique()
-    except Exception:
+    except Exception:  # noqa: BLE001 - name extraction is best-effort for intent routing
         names = []
 
     for name in sorted(names, key=len, reverse=True):
         if name and name in question:
             return name
 
-    bond_like = re.search(r"(\d{2}[A-Za-z0-9\u4e00-\u9fff]+(?:CD\d+)?)", question)
+    bond_like = re.search(r"(\d{2}[A-Za-z0-9一-鿿]+(?:CD\d+)?)", question)
     return bond_like.group(1).strip() if bond_like else None
 
 

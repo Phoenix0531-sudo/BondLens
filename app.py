@@ -10,10 +10,9 @@ from flask import Flask, abort, jsonify, redirect, render_template, request, sen
 from pydantic import ValidationError
 
 from bond_agent import BondAnalystAgent
-from bond_agent.evidence_pack import DEMO_PACK_DIR, DEFAULT_PACK_DIR
+from bond_agent.evidence_pack import DEFAULT_PACK_DIR, DEMO_PACK_DIR
 from bond_agent.replay_store import list_replays
 from bond_agent.schemas import AgentQueryRequest, ApiError, HealthResponse, api_schema_bundle
-
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
@@ -914,9 +913,9 @@ def _maturity_export_url(fmt: str, data_source: dict) -> str:
         mode = requested
     else:
         runtime = (data_source.get("runtime_mode") or "").strip().lower()
-        if runtime in {"live"}:
+        if runtime == "live":
             mode = "live"
-        elif runtime in {"live_snapshot"}:
+        elif runtime == "live_snapshot":
             mode = "auto"
         else:
             mode = "static"

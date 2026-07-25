@@ -1,6 +1,7 @@
-from bond_agent.planner import classify_intent
-from bond_agent.data_loader import BOND_NAME, MATURITY, PRICE, VOLUME, WEIGHTED_YIELD, YIELD
 import pandas as pd
+
+from bond_agent.data_loader import BOND_NAME, MATURITY, PRICE, VOLUME, WEIGHTED_YIELD, YIELD
+from bond_agent.planner import classify_intent
 
 
 def test_planner_market_overview_uses_market_tools():

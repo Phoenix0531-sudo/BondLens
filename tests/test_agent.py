@@ -100,7 +100,8 @@ class _FakeChatChoice:
 
 
 class _FakeChatCompletion:
-    choices = [_FakeChatChoice()]
+    def __init__(self):
+        self.choices = [_FakeChatChoice()]
 
 
 class _FakeChatCompletions:
@@ -125,7 +126,8 @@ class _FakeBadChatChoice:
 
 
 class _FakeBadChatCompletion:
-    choices = [_FakeBadChatChoice()]
+    def __init__(self):
+        self.choices = [_FakeBadChatChoice()]
 
 
 class _FakeBadChatCompletions:
@@ -150,7 +152,8 @@ class _FakeAdviceChatChoice:
 
 
 class _FakeAdviceChatCompletion:
-    choices = [_FakeAdviceChatChoice()]
+    def __init__(self):
+        self.choices = [_FakeAdviceChatChoice()]
 
 
 class _FakeAdviceChatCompletions:
