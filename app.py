@@ -6,7 +6,17 @@ import json
 import os
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, redirect, render_template, request, send_file, url_for
+from flask import (
+    Flask,
+    abort,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    send_file,
+    url_for,
+)
 from pydantic import ValidationError
 
 from bond_agent import BondAnalystAgent
@@ -83,7 +93,7 @@ def index():
 
 @app.context_processor
 def inject_language_context():
-    return {"current_lang": _resolve_language(request.values.get("lang"))}
+    return {"current_lang": _resolve_language()}
 
 
 @app.route("/healthz")
@@ -98,13 +108,13 @@ def agent_page():
     view = None
     question = ""
     form_error = None
-    lang = _resolve_language(request.values.get("lang"))
+    lang = _resolve_language()
     data_mode, form_error = _resolve_page_data_mode(request.values.get("data_mode", os.environ.get("BOND_DATA_MODE", "auto")))
     if request.method == "POST":
         question = request.form.get("question", "").strip()
         result = BondAnalystAgent(data_mode=data_mode).answer(question)
         view = _build_agent_view_model(result, lang=lang)
-    return render_template(
+    html = render_template(
         "agent.html",
         result=result,
         view=view,
@@ -113,6 +123,7 @@ def agent_page():
         form_error=form_error,
         lang=lang,
     )
+    return _with_language_cookie(html, lang)
 
 
 @app.route("/api/agent/query", methods=["POST"])
@@ -139,9 +150,10 @@ def agent_schema():
 
 @app.route("/replay")
 def replay_page():
-    lang = _resolve_language(request.values.get("lang"))
+    lang = _resolve_language()
     replays = [_build_replay_view(record, lang) for record in list_replays()]
-    return render_template("replay.html", replays=replays, lang=lang)
+    html = render_template("replay.html", replays=replays, lang=lang)
+    return _with_language_cookie(html, lang)
 
 
 @app.route("/packs/<pack_id>.<ext>")
@@ -244,9 +256,29 @@ def _resolve_page_data_mode(value: str | None) -> tuple[str, str | None]:
         return "auto", str(exc)
 
 
-def _resolve_language(value: str | None) -> str:
-    lang = (value or "zh").strip().lower()
-    return lang if lang in LANGUAGES else "zh"
+def _resolve_language(value: str | None = None) -> str:
+    """Resolve UI language: explicit value > query/form > cookie > default zh."""
+    candidates = [
+        value,
+        request.values.get("lang") if request else None,
+        request.cookies.get("bondlens_lang") if request else None,
+    ]
+    for candidate in candidates:
+        lang = (candidate or "").strip().lower()
+        if lang in LANGUAGES:
+            return lang
+    return "zh"
+
+
+def _with_language_cookie(body: str, lang: str):
+    response = make_response(body)
+    response.set_cookie(
+        "bondlens_lang",
+        lang if lang in LANGUAGES else "zh",
+        max_age=60 * 60 * 24 * 365,
+        samesite="Lax",
+    )
+    return response
 
 
 def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:

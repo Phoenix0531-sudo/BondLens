@@ -249,9 +249,17 @@
                     button.setAttribute("aria-pressed", button.dataset.languageOption === activeLang ? "true" : "false");
                 });
 
+                document.querySelectorAll("[data-fill-question-zh],[data-fill-question-en],[data-fill-question]").forEach((chip) => {
+                    const zh = chip.dataset.fillQuestionZh || chip.dataset.fillQuestion || chip.dataset.langZh || "";
+                    const en = chip.dataset.fillQuestionEn || chip.dataset.fillQuestion || chip.dataset.langEn || zh;
+                    chip.dataset.fillQuestion = activeLang === "en" ? en : zh;
+                });
+
                 if (persist) {
                     window.localStorage.setItem(storageKey, activeLang);
                     setUrlLanguage(activeLang);
+                    // Mirror into cookie so server-rendered pages keep language after refresh.
+                    document.cookie = `bondlens_lang=${activeLang}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
                 }
             }
 
@@ -259,19 +267,34 @@
                 button.addEventListener("click", () => applyLanguage(button.dataset.languageOption));
             });
 
-            document.querySelectorAll("[data-fill-question]").forEach((chip) => {
+            document.querySelectorAll("[data-fill-question-zh],[data-fill-question-en],[data-fill-question]").forEach((chip) => {
                 chip.addEventListener("click", () => {
                     const question = document.getElementById("question");
                     if (question) {
-                        question.value = chip.dataset.fillQuestion || chip.textContent || "";
+                        const activeLang = normalize(document.documentElement.dataset.initialLang);
+                        const zh = chip.dataset.fillQuestionZh || chip.dataset.fillQuestion || chip.dataset.langZh || "";
+                        const en = chip.dataset.fillQuestionEn || chip.dataset.fillQuestion || chip.dataset.langEn || zh;
+                        question.value = activeLang === "en" ? en : zh;
                         question.focus();
                     }
                 });
             });
 
+            function readCookie(name) {
+                const prefix = `${name}=`;
+                return document.cookie
+                    .split(";")
+                    .map((part) => part.trim())
+                    .find((part) => part.startsWith(prefix))
+                    ?.slice(prefix.length);
+            }
+
             const urlLang = new URL(window.location.href).searchParams.get("lang");
-            const initialLang = normalize(urlLang || window.localStorage.getItem(storageKey) || document.documentElement.dataset.initialLang);
-            applyLanguage(initialLang, Boolean(urlLang));
+            const cookieLang = readCookie("bondlens_lang");
+            const initialLang = normalize(
+                urlLang || cookieLang || window.localStorage.getItem(storageKey) || document.documentElement.dataset.initialLang
+            );
+            applyLanguage(initialLang, Boolean(urlLang) || Boolean(cookieLang));
         })();
     </script>
 </body>

@@ -461,11 +461,50 @@ class BondAnalystAgent:
         rows = data_source.get("row_count")
         coverage = data_source.get("maturity_coverage") or {}
         coverage_ratio = coverage.get("coverage_ratio")
+        lang = self._detect_answer_lang(question)
         coverage_text = (
-            f"{round(float(coverage_ratio) * 100, 1)}%" if coverage_ratio is not None else "未知"
+            f"{round(float(coverage_ratio) * 100, 1)}%"
+            if coverage_ratio is not None
+            else ("unknown" if lang == "en" else "未知")
         )
         quality = market.get("data_quality") or {}
         quality_score = quality.get("score")
+
+        if lang == "en":
+            lines = [
+                f"Question: {question}",
+                "Intent: advisory_refusal (investment-advice blocked)",
+                "",
+                "Policy decision:",
+                "- The question asks for buy/sell advice, guaranteed returns, or safety promises.",
+                "- BondLens only provides auditable market evidence and risk boundaries, not investment advice.",
+                "",
+                "Factual context only (not a trading basis):",
+                f"- Data source: {data_source.get('source_name')} ({data_source.get('runtime_mode')})",
+                f"- Sample rows: {rows if rows is not None else '—'}",
+            ]
+            if median is not None:
+                lines.append(f"- Sample median yield: {median}%")
+            if quality_score is not None:
+                lines.append(f"- Data quality: {quality_score}/100")
+            lines.append(f"- Maturity coverage: {coverage_text}")
+            lines.extend(
+                [
+                    "",
+                    "Hard boundary:",
+                    "- No specific buy, sell, add-position, or allocation recommendation.",
+                    "- No return guarantee and no safety conclusion on any bond.",
+                    "- Higher or lower yield is a risk signal, not a trading basis.",
+                    "",
+                    "Ask research questions instead, for example:",
+                    "- What does the current sample yield distribution look like?",
+                    "- How does a specific bond compare with market percentiles and peers?",
+                    "- Which yields look like outliers, and where is maturity coverage missing?",
+                    "",
+                    f"{DISCLAIMER}",
+                ]
+            )
+            return "\n".join(lines)
 
         lines = [
             f"问题：{question}",
