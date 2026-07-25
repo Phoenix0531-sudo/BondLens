@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 
 from .answer_judge import judge_answer
 from .data_loader import resolve_bond_data
@@ -275,17 +276,35 @@ class BondAnalystAgent:
         try:
             client = self._create_openai_client(api_key, base_url=base_url)
             model = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
+            lang = self._detect_answer_lang(question)
+            lang_rule = (
+                "Write the entire answer in Chinese (简体中文)."
+                if lang == "zh"
+                else "Write the entire answer in English."
+            )
             instructions = (
                 "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
-                "Copy numeric evidence exactly when citing it. Do not create new percentages, ranges, "
-                "ratings, issuer details, market facts, or investment advice. "
+                "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
+                "present in the JSON (including percentiles, spreads, counts, and percentages). "
+                "When citing quartiles, prefer labels p25/p75 with their evidence values "
+                "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
+                "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
+                "2.5647% only when that exact value appears in evidence. "
+                "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
+                "verbatim if needed, never recompute shares. "
+                "Do not create new percentages, ranges, ratings, issuer details, market facts, "
+                "or investment advice. "
                 "Do not recommend buying, selling, adding position, guaranteed returns, risk-free status, "
                 "or very safe conclusions. "
                 "The yield_distribution values are counts, not percentages. "
+                "If a requested bond is present under data_evidence.search.records, focus on that bond "
+                "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
                 "If the evidence is insufficient, say so directly. "
+                f"{lang_rule} "
                 f"Always include this disclaimer in Chinese: {DISCLAIMER}"
             )
-            evidence_json = json.dumps({"question": question, "plan": plan, "report": report}, ensure_ascii=False)
+            evidence_payload = self._build_llm_evidence(question, plan, report)
+            evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
             api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
             text = self._call_llm(client, model, instructions, evidence_json, api_style, prefer_chat=bool(base_url))
             if not text:
@@ -293,6 +312,94 @@ class BondAnalystAgent:
             return {"text": self._ensure_disclaimer(text.strip()), "status": "success", "error": None}
         except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
             return {"text": None, "status": "failed", "error": f"OpenAI request failed: {type(exc).__name__}"}
+
+    def _detect_answer_lang(self, question: str) -> str:
+        if re.search(r"[\u4e00-\u9fff]", question or ""):
+            return "zh"
+        return "en"
+
+    def _build_llm_evidence(self, question: str, plan: dict, report: dict) -> dict:
+        """Compact evidence payload for the LLM to reduce hallucinated numbers."""
+        evidence = report.get("data_evidence") or {}
+        market = evidence.get("market") or {}
+        search = evidence.get("search") or {}
+        comparison = evidence.get("comparison") or {}
+        ranking = evidence.get("ranking") or {}
+        outliers = evidence.get("outliers") or {}
+        data_source = report.get("data_source") or {}
+        quality = market.get("data_quality") or {}
+        coverage = data_source.get("maturity_coverage") or {}
+        compact_market = {
+            "sample_count": market.get("sample_count"),
+            "yield_summary": market.get("yield_summary"),
+            "data_quality": {
+                "score": quality.get("score"),
+                "level": quality.get("level"),
+                "missing_yield_count": quality.get("missing_yield_count"),
+                "extreme_yield_count": quality.get("extreme_yield_count"),
+                # Keep issue messages: they already contain audited percent shares like 7.8%.
+                "issues": [
+                    {
+                        "id": issue.get("id"),
+                        "severity": issue.get("severity"),
+                        "message_zh": issue.get("message_zh"),
+                        "message_en": issue.get("message_en"),
+                    }
+                    for issue in (quality.get("issues") or [])[:4]
+                    if isinstance(issue, dict)
+                ],
+            },
+        }
+        compact_search = {
+            "criteria": search.get("criteria"),
+            "match_count": search.get("match_count"),
+            "records": (search.get("records") or [])[:3],
+        }
+        compact_comparison = comparison
+        if isinstance(comparison, dict):
+            compact_comparison = {
+                "bond_name": comparison.get("bond_name") or comparison.get("name"),
+                "record": comparison.get("record"),
+                "market_median": comparison.get("market_median") or comparison.get("median"),
+                "vs_market": comparison.get("vs_market") or comparison.get("comparison"),
+                "notes": comparison.get("notes") or comparison.get("analysis"),
+            }
+        return {
+            "question": question,
+            "plan": {
+                "intent": plan.get("intent"),
+                "search_params": plan.get("search_params"),
+                "requested_tools": plan.get("requested_tools"),
+            },
+            "data_source": {
+                "source_name": data_source.get("source_name"),
+                "runtime_mode": data_source.get("runtime_mode"),
+                "row_count": data_source.get("row_count"),
+                "valid_yield_count": data_source.get("valid_yield_count"),
+                "maturity_coverage": {
+                    "filled_count": coverage.get("filled_count"),
+                    "missing_count": coverage.get("missing_count"),
+                    "coverage_ratio": coverage.get("coverage_ratio"),
+                },
+            },
+            "data_evidence": {
+                "market": compact_market,
+                "search": compact_search,
+                "comparison": compact_comparison,
+                "ranking": {
+                    "rank_by": ranking.get("rank_by"),
+                    "items": (ranking.get("items") or ranking.get("records") or [])[:5],
+                },
+                "outliers": {
+                    "outlier_count": outliers.get("outlier_count"),
+                    "items": (outliers.get("items") or outliers.get("records") or [])[:5],
+                },
+            },
+            # Keep short analysis bullets; they already carry audited numbers.
+            "analysis": (report.get("analysis") or [])[:8],
+            "risk_notes": (report.get("risk_notes") or [])[:6],
+            "limitations": (report.get("limitations") or [])[:6],
+        }
 
     def _create_openai_client(self, api_key: str, base_url: str | None = None):
         from openai import OpenAI

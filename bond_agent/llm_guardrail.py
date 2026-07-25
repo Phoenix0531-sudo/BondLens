@@ -112,7 +112,12 @@ def _walk_evidence(value: Any, path: list[str], numbers: list[dict]) -> None:
 def _append_text_numbers(text: str, path: list[str], numbers: list[dict], source: str) -> None:
     for match in NUMBER_RE.finditer(text):
         token = match.group(0)
-        unit = "percent" if source == "key" and "yield_distribution" in ".".join(path).lower() else _unit_for_path(path)
+        end = match.end()
+        # Prefer explicit % / ％ suffix in the source string (e.g. quality notes "7.8%").
+        if (end < len(text) and text[end] in {"%", "％"}) or (source == "key" and "yield_distribution" in ".".join(path).lower()):
+            unit = "percent"
+        else:
+            unit = _unit_for_path(path)
         numbers.append(
             {
                 "value": _to_float(token),
@@ -127,6 +132,9 @@ def _extract_text_numbers(text: str) -> list[dict]:
     items = []
     for match in NUMBER_RE.finditer(text):
         if _is_list_marker(text, match):
+            continue
+        if _is_quantile_label(text, match):
+            # "25分位" / "p25" are labels for evidence keys, not free-standing claims.
             continue
 
         token = match.group(0)
@@ -145,9 +153,11 @@ def _extract_text_numbers(text: str) -> list[dict]:
 
 def _matches_evidence(item: dict, evidence_numbers: list[dict]) -> bool:
     if item["unit"] == "percent":
-        candidates = [number for number in evidence_numbers if number["unit"] == "percent"]
         if abs(item["value"]) > 100:
             return False
+        # Percent claims must match percent-tagged evidence only.
+        # (Yield fields and explicit "7.8%" notes are tagged percent by unit helpers.)
+        candidates = [number for number in evidence_numbers if number["unit"] == "percent"]
     else:
         candidates = evidence_numbers
 
@@ -164,16 +174,52 @@ def _values_match(claimed: float, evidence: float, decimal_places: int) -> bool:
     return math.isclose(claimed, round(evidence, decimal_places), rel_tol=0, abs_tol=10 ** (-decimal_places))
 
 
+_COUNT_LEAVES = {
+    "count",
+    "sample_count",
+    "row_count",
+    "match_count",
+    "filled_count",
+    "missing_count",
+    "unmatched_count",
+    "valid_yield_count",
+    "missing_yield_count",
+    "extreme_yield_count",
+    "outlier_count",
+    "ledger_item_count",
+}
+
+
 def _unit_for_path(path: list[str]) -> str:
-    lowered = ".".join(path).lower()
-    if any(word in lowered for word in ["yield", "percentile", "percent", "score", "zscore"]):
+    """Decide unit from the *leaf* field, not parent containers like high_yield."""
+    if not path:
+        return "number"
+    leaf = str(path[-1])
+    leaf_l = leaf.lower()
+
+    # Explicit percent markers on the field name (common in CN bond columns).
+    if "%" in leaf or "％" in leaf or "收益率" in leaf:
         return "percent"
+    if any(word in leaf_l for word in ["yield", "percentile", "percent", "zscore"]):
+        return "percent"
+    if leaf_l in {"score", "outlier_score"} or leaf_l.endswith("_score") or leaf_l.endswith("ratio"):
+        return "percent"
+    # yield_summary / weighted_yield_summary stats (except counts)
+    if len(path) >= 2 and str(path[-2]).lower() in {"yield_summary", "weighted_yield_summary"}:
+        if leaf_l in _COUNT_LEAVES:
+            return "number"
+        if leaf_l in {"mean", "std", "min", "max", "median", "p25", "p75"}:
+            return "percent"
     return "number"
 
 
 def _unit_for_numeric_path(path: list[str]) -> str:
     lowered = ".".join(path).lower()
+    leaf = str(path[-1]).lower() if path else ""
+    if leaf in _COUNT_LEAVES:
+        return "number"
     if "yield_distribution" in lowered:
+        # Bin *counts* are cardinalities, not percents; bin edges live in keys.
         return "number"
     return _unit_for_path(path)
 
@@ -185,6 +231,36 @@ def _is_list_marker(text: str, match: re.Match) -> bool:
     prefix = text[line_start:start].strip()
     next_char = text[end : end + 1]
     return not prefix and next_char in {".", "、"} and abs(_to_float(match.group(0))) <= 20
+
+
+def _is_quantile_label(text: str, match: re.Match) -> bool:
+    """Ignore harmless quantile label tokens like 25分位 / p25 / 75th.
+
+    Evidence stores keys such as p25/p75. Models often write "25分位" or "p25="
+    as labels; the bare 25/75 is not a fabricated market statistic.
+    Fabricated *values* after the label are still checked separately.
+    """
+    token = match.group(0)
+    if token.replace(",", "") not in {"25", "75"}:
+        return False
+
+    start = match.start()
+    end = match.end()
+    before = text[max(0, start - 2) : start].lower()
+    after = text[end : end + 8].lower()
+
+    # p25 / P75 as field labels
+    if before.endswith("p") or before.endswith("P"):
+        return True
+    # 25分位 / 75分位 / 25th percentile / 75th
+    # "25%" as a bare percentile-rank claim is NOT ignored (no label suffix)
+    return (
+        after.startswith("分位")
+        or after.startswith("th")
+        or after.startswith("st")
+        or after.startswith("nd")
+        or after.startswith("rd")
+    )
 
 
 def _to_float(token: str) -> float:

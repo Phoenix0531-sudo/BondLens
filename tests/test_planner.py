@@ -91,3 +91,23 @@ def test_planner_uses_custom_data_path_for_bond_name_lookup(tmp_path):
 
     assert plan["intent"] == "bond_report"
     assert plan["search_params"]["name"] == "99测试债01"
+
+
+def test_planner_first_bond_zh_resolves_stable_name():
+    plan = classify_intent("请对样本中第一只债券生成分析报告")
+    assert plan["intent"] == "bond_report"
+    assert plan["search_params"].get("name") == "06国开24"
+    assert "generate_bond_report" in plan["requested_tools"]
+    assert "search_bonds" in plan["requested_tools"]
+
+
+def test_planner_first_bond_en_resolves_stable_name():
+    plan = classify_intent("Generate an analysis report for the first bond in the sample.")
+    assert plan["intent"] == "bond_report"
+    assert plan["search_params"].get("name") == "06国开24"
+
+
+def test_planner_english_overview():
+    plan = classify_intent("Give an overview of the current bond market sample.")
+    assert plan["intent"] == "market_overview"
+    assert "describe_market" in plan["requested_tools"]

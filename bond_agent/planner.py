@@ -34,6 +34,14 @@ def classify_intent(
     wants_report = _needs_report(normalized)
     wants_peers = _needs_peer_compare(normalized)
     wants_advisory = _is_advisory_question(normalized)
+    wants_first_bond = _is_first_bond_question(normalized)
+
+    # "first bond in the sample" → resolve a stable bond name (bond_name ascending).
+    if wants_first_bond and not search_params.get("name"):
+        first_name = _resolve_first_bond_name(data_path=data_path, data_frame=data_frame)
+        if first_name:
+            search_params = {**search_params, "name": first_name, "limit": search_params.get("limit", 10)}
+            wants_report = True
 
     if not normalized:
         return {
@@ -327,10 +335,23 @@ def _is_ranking_question(question: str) -> bool:
 
 
 def _is_market_overview_question(question: str) -> bool:
-    return any(
+    lowered = question.lower()
+    chinese_hit = any(
         word in question
         for word in ["概览", "整体", "市场", "分布", "摘要", "样本", "统计", "全市场"]
     )
+    english_hit = any(
+        word in lowered
+        for word in [
+            "overview",
+            "market sample",
+            "bond market",
+            "sample statistics",
+            "distribution",
+            "summary of the",
+        ]
+    )
+    return chinese_hit or english_hit
 
 
 def _is_structure_question(question: str) -> bool:
@@ -348,10 +369,65 @@ def _is_monitor_question(question: str) -> bool:
 
 
 def _needs_report(question: str) -> bool:
-    return any(
+    lowered = question.lower()
+    chinese_hit = any(
         word in question
         for word in ["分析", "报告", "说明", "解释", "怎么看", "评价", "研报", "点评"]
     )
+    english_hit = any(
+        word in lowered
+        for word in ["analysis report", "analyze", "analysis", "generate a report", "bond report"]
+    )
+    return chinese_hit or english_hit
+
+
+def _is_first_bond_question(question: str) -> bool:
+    """Detect requests for the first bond in the sample (zh/en)."""
+    if not question:
+        return False
+    lowered = question.lower()
+    chinese = any(
+        phrase in question
+        for phrase in [
+            "第一只债",
+            "第一只债券",
+            "样本中第一",
+            "样本第一",
+            "首只债",
+            "首只债券",
+        ]
+    )
+    english = any(
+        phrase in lowered
+        for phrase in [
+            "first bond",
+            "the first bond",
+            "first bond in the sample",
+            "first bond in sample",
+        ]
+    )
+    return chinese or english
+
+
+def _resolve_first_bond_name(
+    data_path: str | None = None, data_frame: pd.DataFrame | None = None
+) -> str | None:
+    """Stable first bond: sort by bond name ascending (mergesort), take first non-null."""
+    try:
+        df = (
+            data_frame
+            if data_frame is not None
+            else load_bond_data(data_path)
+            if data_path
+            else load_bond_data()
+        )
+        names = df[BOND_NAME].dropna().astype(str)
+        if names.empty:
+            return None
+        sorted_names = names.sort_values(ascending=True, kind="mergesort")
+        return str(sorted_names.iloc[0])
+    except Exception:  # noqa: BLE001 - best-effort routing helper
+        return None
 
 
 def _needs_peer_compare(question: str) -> bool:
