@@ -808,7 +808,13 @@
           <span class="badge {% if view.trust_level == 'high' %}good{% elif view.trust_level == 'low' %}warn{% endif %}" data-lang-zh="等级 {{ view.trust_level_label }}" data-lang-en="Level {{ result.trust_score.level }}">等级 {{ view.trust_level_label }}</span>
           <span class="badge" data-lang-zh="评审 {{ view.answer_judge_status_label }}" data-lang-en="Judge {{ result.answer_judge.status }}">评审 {{ view.answer_judge_status_label }}</span>
           <span class="badge {% if result.llm_guardrail.status == 'passed' %}good{% elif result.llm_guardrail.status == 'failed' %}warn{% endif %}" data-lang-zh="护栏 {{ view.guardrail_status_label }}" data-lang-en="Guardrail {{ result.llm_guardrail.status }}">护栏 {{ view.guardrail_status_label }}</span>
-          <span class="badge" data-lang-zh="数据 {{ view.metrics[1].value if view.metrics|length > 1 else result.data_source.runtime_mode }}" data-lang-en="Data {{ result.data_source.runtime_mode }}">数据 {{ result.data_source.runtime_mode }}</span>
+          <span class="badge" data-lang-zh="数据 {{ view.data_lineage.runtime_label if view.data_lineage else result.data_source.runtime_mode }}" data-lang-en="Data {{ result.data_source.runtime_mode }}">数据 {{ view.data_lineage.runtime_label if view.data_lineage else result.data_source.runtime_mode }}</span>
+          {% if view.data_lineage and view.data_lineage.fetched_at_label %}
+            <span class="badge" data-lang-zh="获取 {{ view.data_lineage.fetched_at_label }}" data-lang-en="Fetched {{ view.data_lineage.fetched_at_label }}">获取 {{ view.data_lineage.fetched_at_label }}</span>
+          {% endif %}
+          {% if view.answer_provenance %}
+            <span class="badge {% if view.answer_provenance.tone == 'good' %}good{% elif view.answer_provenance.tone == 'warn' %}warn{% endif %}" data-lang-zh="{{ view.answer_provenance.headline }}" data-lang-en="{{ view.answer_provenance.headline }}">{{ view.answer_provenance.headline }}</span>
+          {% endif %}
         </div>
       </div>
       <div>
@@ -864,6 +870,50 @@
         </article>
       {% endfor %}
     </div>
+
+    {% if view.data_lineage or view.answer_provenance %}
+    <div class="insight-grid" style="margin-top:0; margin-bottom:18px">
+      {% if view.data_lineage %}
+      <section class="surface" style="margin:0">
+        <div class="surface-header">
+          <div>
+            <h2 class="surface-title" data-lang-zh="数据新鲜度" data-lang-en="Data freshness">数据新鲜度</h2>
+            <p class="surface-subtitle">{{ view.data_lineage.freshness }}</p>
+          </div>
+          <div class="badge-row" style="margin-top:0">
+            <span class="badge">{{ view.data_lineage.runtime_label }}</span>
+            <span class="badge" data-lang-zh="获取 {{ view.data_lineage.fetched_at_label }}" data-lang-en="Fetched {{ view.data_lineage.fetched_at_label }}">获取 {{ view.data_lineage.fetched_at_label }}</span>
+          </div>
+        </div>
+        <div class="surface-body">
+          <ul class="quality-issue-list">
+            {% for item in view.data_lineage.lines %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+      {% if view.answer_provenance %}
+      <section class="surface" style="margin:0">
+        <div class="surface-header">
+          <div>
+            <h2 class="surface-title" data-lang-zh="答案来源说明" data-lang-en="Answer provenance">答案来源说明</h2>
+            <p class="surface-subtitle">{{ view.answer_provenance.headline }}</p>
+          </div>
+          <span class="badge {% if view.answer_provenance.tone == 'good' %}good{% elif view.answer_provenance.tone == 'warn' %}warn{% endif %}">{{ view.final_source_label }}</span>
+        </div>
+        <div class="surface-body">
+          <ul class="quality-issue-list">
+            {% for item in view.answer_provenance.lines %}
+              <li>{{ item }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </section>
+      {% endif %}
+    </div>
+    {% endif %}
 
     {% if view.answer_summary %}
     <section class="answer-hero surface">
@@ -1212,7 +1262,7 @@
         <div class="surface-header">
           <div>
             <h2 class="surface-title" data-lang-zh="市场证据" data-lang-en="Market Evidence">市场证据</h2>
-            <p class="surface-subtitle" data-lang-zh="{{ view.data_source_subtitle }}" data-lang-en="{{ result.data_source.source_name }} · {{ result.data_source.runtime_mode }} · {{ result.data_source.row_count }} rows">{{ view.data_source_subtitle }}</p>
+            <p class="surface-subtitle" data-lang-zh="{{ view.data_source_subtitle }}" data-lang-en="{{ result.data_source.source_name }} · {{ result.data_source.runtime_mode }} · {{ result.data_source.row_count }} rows · fetched {{ view.data_lineage.fetched_at_label if view.data_lineage else 'N/A' }}">{{ view.data_source_subtitle }}</p>
           </div>
         </div>
         <div class="surface-body">
@@ -1240,9 +1290,11 @@
             <p class="surface-subtitle" data-lang-zh="本次计划未调用市场概览工具。" data-lang-en="The current plan did not call the market overview tool.">本次计划未调用市场概览工具。</p>
           {% endif %}
 
-          {% if result.data_source.fallback_reason or result.data_source.storage %}
-            <details class="detail-panel">
-              <summary data-lang-zh="数据源详情" data-lang-en="Data Source Detail">数据源详情</summary>
+          {% if result.data_source.fetched_at or result.data_source.fallback_reason or result.data_source.storage or result.data_source.runtime_mode %}
+            <details class="detail-panel" open>
+              <summary data-lang-zh="数据源详情（含获取时间）" data-lang-en="Data Source Detail (with fetched_at)">数据源详情（含获取时间）</summary>
+              <p class="surface-subtitle" data-lang-zh="运行模式：{{ view.data_lineage.runtime_label if view.data_lineage else result.data_source.runtime_mode }}" data-lang-en="Runtime mode: {{ result.data_source.runtime_mode }}">运行模式：{{ view.data_lineage.runtime_label if view.data_lineage else result.data_source.runtime_mode }}</p>
+              <p class="surface-subtitle" data-lang-zh="获取时间：{{ view.data_lineage.fetched_at_label if view.data_lineage else (result.data_source.fetched_at or '无（本地样本）') }}" data-lang-en="Fetched at: {{ result.data_source.fetched_at or 'N/A' }}">获取时间：{{ view.data_lineage.fetched_at_label if view.data_lineage else (result.data_source.fetched_at or '无（本地样本）') }}</p>
               {% if result.data_source.fallback_reason %}
                 <p class="surface-subtitle" data-lang-zh="实时数据降级原因：{{ result.data_source.fallback_reason }}" data-lang-en="Live-data fallback reason: {{ result.data_source.fallback_reason }}">实时数据降级原因：{{ result.data_source.fallback_reason }}</p>
               {% endif %}

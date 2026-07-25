@@ -159,6 +159,25 @@ def test_agent_page_shows_answer_summary_and_maturity_board():
     assert "期限补全看板" in html
     assert "导出未匹配 CSV" in html
     assert "/api/maturity/unmatched?format=csv" in html
+    assert "数据新鲜度" in html
+    assert "答案来源说明" in html
+    assert "获取时间" in html
+    assert "无（本地样本）" in html or "获取" in html
+
+
+def test_agent_page_explains_deterministic_fallback_provenance():
+    client = app.test_client()
+
+    response = client.post(
+        "/agent",
+        data={"question": "今天该不该买债？", "data_mode": "static", "lang": "zh"},
+    )
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "答案来源说明" in html
+    assert "投资建议类问题被政策拦截" in html or "advisory" in html.lower() or "政策拦截" in html
+    assert "数据新鲜度" in html
 
 
 def test_maturity_unmatched_export_csv_and_json():

@@ -34,6 +34,9 @@ def test_parse_maturity_to_years_handles_years_and_days():
     assert round(parse_maturity_to_years("364D"), 4) == round(364 / 365, 4)
     assert round(parse_maturity_to_years("177D+2Y"), 4) == round(177 / 365 + 2, 4)
     assert parse_maturity_to_years("bad-data") is None
+    # Perpetual-style ChinaMoney residual: keep first finite leg only.
+    assert parse_maturity_to_years("5Y+65.44Y+N") == 5.0
+    assert round(parse_maturity_to_years("258D+69.73Y+N"), 4) == round(258 / 365, 4)
 
 
 def test_describe_data_source_marks_static_excel_and_legacy_crawler():
@@ -79,6 +82,29 @@ def test_load_live_bond_data_normalizes_akshare_columns(tmp_path):
     assert snapshot["snapshot_path"] == cache_path
 
 
+def test_normalize_live_bond_data_uses_native_term_to_maturity(tmp_path):
+    raw = pd.DataFrame(
+        {
+            "债券简称": ["26国开05", "26超长特别国债02", "不存在的测试债XYZ"],
+            "成交净价": [101.15, 99.67, 100.0],
+            "最新收益率": [1.788, 2.215, 4.2],
+            "涨跌": [0.04, -0.9, 0.1],
+            "加权收益率": [1.7874, 2.2249, 4.1],
+            "交易量": [2361.0, 581.8, 0.5],
+            "待偿期": ["9.62Y", "29.75Y", None],
+        }
+    )
+    # Avoid network/static master dependence for the native path.
+    empty_master = pd.DataFrame(columns=[BOND_NAME, MATURITY, MATURITY_YEARS])
+    from bond_agent.data_loader import normalize_live_bond_data
+
+    df = normalize_live_bond_data(raw, security_master=empty_master)
+    assert df.iloc[0][MATURITY_SOURCE] == "chinamoney_term_to_maturity"
+    assert df.iloc[0][MATURITY_YEARS] == 9.62
+    assert df.iloc[1][MATURITY_YEARS] == 29.75
+    assert pd.isna(df.iloc[2][MATURITY_YEARS])
+
+
 def test_load_live_bond_data_enriches_matching_maturity_from_static_sample(tmp_path):
     def fake_fetcher():
         return pd.DataFrame(
@@ -98,6 +124,25 @@ def test_load_live_bond_data_enriches_matching_maturity_from_static_sample(tmp_p
     assert pd.notna(df.iloc[0][MATURITY])
     assert pd.notna(df.iloc[0][MATURITY_YEARS])
     assert str(df.iloc[0][MATURITY_SOURCE]).startswith("local_static_excel_adjusted_from_")
+
+
+def test_load_live_bond_data_prefers_native_maturity_over_static_master(tmp_path):
+    def fake_fetcher():
+        return pd.DataFrame(
+            {
+                "债券简称": ["23附息国债26"],
+                "成交净价": [107.51],
+                "最新收益率": [1.6025],
+                "涨跌": [-0.5],
+                "加权收益率": [1.608],
+                "交易量": [23.1214],
+                "待偿期": ["1.5Y"],
+            }
+        )
+
+    df = load_live_bond_data(fetcher=fake_fetcher, cache_path=tmp_path / "live_snapshot.csv")
+    assert df.iloc[0][MATURITY_YEARS] == 1.5
+    assert df.iloc[0][MATURITY_SOURCE] == "chinamoney_term_to_maturity"
 
 
 def test_maturity_coverage_lists_unmatched_records(tmp_path):

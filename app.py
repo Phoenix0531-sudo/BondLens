@@ -301,12 +301,15 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
         "metrics": [
             _metric("Trust Score", "信任分", trust.get("score"), lang, "/100"),
             _metric("Data Source", "数据源", _localized_status(data_source.get("runtime_mode", "unknown"), lang), lang),
+            _metric("Fetched At", "获取时间", _format_fetched_at(data_source.get("fetched_at"), lang), lang),
             _metric("Rows", "样本行数", data_source.get("row_count"), lang),
             _metric("Maturity Coverage", "期限覆盖率", _coverage_ratio_text(maturity_coverage), lang),
             _metric("Median Yield", "收益率中位数", summary.get("median"), lang, "%"),
             _metric("Evidence Score", "证据评分", result.get("evidence_quality", {}).get("score"), lang, "/100"),
             _metric("Final Source", "最终来源", _localized_status(result.get("final_answer_source", "unknown"), lang), lang),
         ],
+        "data_lineage": _build_data_lineage_view(data_source, lang),
+        "answer_provenance": _build_answer_provenance_view(result, lang),
         "trust_score": trust.get("score"),
         "trust_level": trust.get("level"),
         "trust_level_label": _localized_status(trust.get("level"), lang),
@@ -1199,15 +1202,29 @@ def _maturity_honesty_note(data_source: dict, lang: str) -> str:
     runtime = data_source.get("runtime_mode") or ""
     filled = coverage.get("filled_count")
     missing = coverage.get("missing_count")
+    source_counts = coverage.get("source_counts") or {}
+    native_count = int(source_counts.get("chinamoney_term_to_maturity") or 0)
     if runtime in {"live", "live_snapshot"}:
+        if native_count > 0:
+            if lang == "en":
+                return (
+                    f"Native ChinaMoney residual maturity covers most live rows. "
+                    f"Coverage {ratio_text} ({filled} filled / {missing} missing; "
+                    f"{native_count} native). Unmatched names still weaken peer buckets."
+                )
+            return (
+                f"中国货币网原生待偿期已覆盖大部分实时样本。"
+                f"当前覆盖率 {ratio_text}（已填 {filled}，缺失 {missing}；"
+                f"原生 {native_count}）。未匹配简称的同业分桶仍会变弱。"
+            )
         if lang == "en":
             return (
-                f"Live/snapshot feed has no native maturity field. "
+                f"Live/snapshot feed is missing residual maturity on many rows. "
                 f"Enrichment coverage {ratio_text} ({filled} filled / {missing} missing). "
                 "Peer buckets are weaker for unmatched names."
             )
         return (
-            f"实时/快照源原生无期限字段。当前补全覆盖率 {ratio_text}"
+            f"实时/快照源大量缺失待偿期。当前补全覆盖率 {ratio_text}"
             f"（已补全 {filled}，缺失 {missing}）。"
             "未匹配简称的债券同业分桶会变弱。"
         )
@@ -1227,14 +1244,195 @@ def _display_maturity(record: dict) -> str:
     return "当前数据源暂缺"
 
 
-def _data_source_subtitle(data_source: dict, lang: str) -> str:
+def _format_fetched_at(value: object, lang: str = "zh") -> str:
+    if value in (None, ""):
+        return "N/A" if lang == "en" else "无（本地样本）"
+    text = str(value).strip()
+    if text.endswith("+00:00"):
+        text = text[:-6] + "Z"
+    return text
+
+
+def _build_data_lineage_view(data_source: dict, lang: str = "zh") -> dict:
+    runtime = data_source.get("runtime_mode") or "unknown"
+    fetched_at = data_source.get("fetched_at")
+    fallback_reason = data_source.get("fallback_reason")
+    source_name = data_source.get("source_name") or "unknown"
+    storage = data_source.get("storage")
+    active_live = bool(data_source.get("active_live_feed"))
+    active_snapshot = bool(data_source.get("active_live_snapshot"))
+
     if lang == "en":
-        return f"{data_source.get('source_name')} · {data_source.get('runtime_mode')} · {data_source.get('row_count')} rows"
-    return (
+        if active_live:
+            freshness = "Fetched on this request (live)."
+        elif active_snapshot:
+            freshness = "Using cached live snapshot from the last successful fetch."
+        elif runtime in {"static_sample", "static_fallback"}:
+            freshness = "Repository static sample; not a live market clock."
+        else:
+            freshness = "Freshness depends on the active data mode."
+        mode_explain = {
+            "live": "Live ChinaMoney/AkShare-compatible spot deal feed.",
+            "live_snapshot": "Local snapshot because live fetch failed or timed out.",
+            "static_sample": "Committed Excel sample for reproducible demos.",
+            "static_fallback": "Static Excel used after live and snapshot both failed.",
+        }.get(str(runtime), f"Runtime mode: {runtime}")
+        lines = [
+            f"Mode: {_localized_status(runtime, 'en')}",
+            f"Source: {source_name}",
+            f"Fetched at: {_format_fetched_at(fetched_at, 'en')}",
+            f"Rows: {data_source.get('row_count')}",
+            freshness,
+            mode_explain,
+        ]
+        if fallback_reason:
+            lines.append(f"Fallback reason: {fallback_reason}")
+        if storage:
+            lines.append(f"Storage: {storage}")
+        return {
+            "title": "Data freshness",
+            "runtime_label": _localized_status(runtime, "en"),
+            "fetched_at_label": _format_fetched_at(fetched_at, "en"),
+            "freshness": freshness,
+            "lines": lines,
+            "fallback_reason": fallback_reason,
+        }
+
+    if active_live:
+        freshness = "本次请求实时拉取（live）。"
+    elif active_snapshot:
+        freshness = "实时拉取失败，使用最近一次成功缓存的 live 快照。"
+    elif runtime in {"static_sample", "static_fallback"}:
+        freshness = "仓库内静态样本，不是实时行情时钟。"
+    else:
+        freshness = "新鲜度取决于当前数据模式。"
+    mode_explain = {
+        "live": "中国货币网现券成交（保留原生待偿期）。",
+        "live_snapshot": "本地 live 快照（因实时失败或超时）。",
+        "static_sample": "仓库 Excel 样本，便于复现演示。",
+        "static_fallback": "实时与快照都失败后的静态兜底。",
+    }.get(str(runtime), f"运行模式：{runtime}")
+    lines = [
+        f"模式：{_localized_status(runtime, 'zh')}",
+        f"来源：{source_name}",
+        f"获取时间：{_format_fetched_at(fetched_at, 'zh')}",
+        f"样本行数：{data_source.get('row_count')}",
+        freshness,
+        mode_explain,
+    ]
+    if fallback_reason:
+        lines.append(f"降级原因：{fallback_reason}")
+    if storage:
+        lines.append(f"存储：{storage}")
+    return {
+        "title": "数据新鲜度",
+        "runtime_label": _localized_status(runtime, "zh"),
+        "fetched_at_label": _format_fetched_at(fetched_at, "zh"),
+        "freshness": freshness,
+        "lines": lines,
+        "fallback_reason": fallback_reason,
+    }
+
+
+def _build_answer_provenance_view(result: dict, lang: str = "zh") -> dict:
+    """Explain why the final answer is LLM or deterministic fallback."""
+    final_source = result.get("final_answer_source") or "unknown"
+    llm_status = result.get("llm_status")
+    llm_error = result.get("llm_error")
+    guardrail = result.get("llm_guardrail") or {}
+    unsupported = guardrail.get("unsupported_numbers") or []
+    unsafe = guardrail.get("unsafe_phrases") or []
+    used_final = bool(result.get("used_llm_in_final"))
+
+    if lang == "en":
+        if used_final and final_source == "llm":
+            headline = "Final answer uses the LLM narrative (guardrail passed)."
+        elif llm_status == "disabled" and llm_error == "advisory_policy_block":
+            headline = "Investment-advice request blocked by policy; deterministic refusal only."
+        elif llm_status in {None, "disabled"} and not llm_error:
+            headline = "LLM not enabled for this run; deterministic report is the final answer."
+        elif guardrail.get("status") == "failed":
+            headline = "LLM drafted text but guardrail rejected it; page fell back to the rule report."
+        elif llm_status == "failed":
+            headline = "LLM call failed; page fell back to the deterministic report."
+        else:
+            headline = "Final answer comes from the deterministic path."
+        lines = [
+            f"Final source: {_localized_status(final_source, 'en')}",
+            f"LLM status: {_localized_status(llm_status, 'en')}",
+            f"Guardrail: {_localized_status(guardrail.get('status'), 'en')}",
+        ]
+        if llm_error:
+            lines.append(f"LLM error / block reason: {llm_error}")
+        for item in unsupported[:8]:
+            text_item = item.get("text") if isinstance(item, dict) else item
+            lines.append(f"Unsupported number: {text_item}")
+        for item in unsafe[:8]:
+            text_item = item.get("text") if isinstance(item, dict) else item
+            lines.append(f"Unsafe phrase: {text_item}")
+        if guardrail.get("summary"):
+            lines.append(guardrail.get("summary"))
+        return {
+            "title": "Answer provenance",
+            "headline": headline,
+            "lines": lines,
+            "tone": "good" if used_final else "warn" if final_source == "deterministic_fallback" else "",
+        }
+
+    if used_final and final_source == "llm":
+        headline = "最终答案采用 LLM 叙述（护栏已通过）。"
+    elif llm_status == "disabled" and llm_error == "advisory_policy_block":
+        headline = "投资建议类问题被政策拦截；仅返回确定性拒绝说明，不调用 LLM。"
+    elif llm_status in {None, "disabled"} and not llm_error:
+        headline = "本次未启用 LLM；最终答案来自确定性报告。"
+    elif guardrail.get("status") == "failed":
+        headline = "LLM 已生成文本，但护栏未通过；页面回退到规则报告。"
+    elif llm_status == "failed":
+        headline = "LLM 调用失败；页面回退到确定性报告。"
+    else:
+        headline = "最终答案来自确定性路径。"
+    lines = [
+        f"最终来源：{_localized_status(final_source, 'zh')}",
+        f"LLM 状态：{_localized_status(llm_status, 'zh')}",
+        f"护栏：{_localized_status(guardrail.get('status'), 'zh')}",
+    ]
+    if llm_error:
+        lines.append(f"LLM 错误/拦截原因：{llm_error}")
+    for item in unsupported[:8]:
+        text_item = item.get("text") if isinstance(item, dict) else item
+        lines.append(f"未被证据支持的数字：{text_item}")
+    for item in unsafe[:8]:
+        text_item = item.get("text") if isinstance(item, dict) else item
+        lines.append(f"不安全风险语言：{text_item}")
+    summary = _llm_guardrail_summary(guardrail, "zh")
+    if summary:
+        lines.append(summary)
+    return {
+        "title": "答案来源说明",
+        "headline": headline,
+        "lines": lines,
+        "tone": "good" if used_final else "warn" if final_source == "deterministic_fallback" else "",
+    }
+
+
+def _data_source_subtitle(data_source: dict, lang: str) -> str:
+    fetched = _format_fetched_at(data_source.get("fetched_at"), lang)
+    if lang == "en":
+        base = (
+            f"{data_source.get('source_name')} · {data_source.get('runtime_mode')} · "
+            f"{data_source.get('row_count')} rows · fetched {fetched}"
+        )
+        if data_source.get("fallback_reason"):
+            return f"{base} · fallback active"
+        return base
+    base = (
         f"{data_source.get('source_name')} · "
         f"{_localized_status(data_source.get('runtime_mode'), 'zh')} · "
-        f"{data_source.get('row_count')} 行"
+        f"{data_source.get('row_count')} 行 · 获取 {fetched}"
     )
+    if data_source.get("fallback_reason"):
+        return f"{base} · 已降级"
+    return base
 
 
 if __name__ == "__main__":

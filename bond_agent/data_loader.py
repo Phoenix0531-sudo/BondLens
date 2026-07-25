@@ -32,8 +32,21 @@ STATIC_SAMPLE_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 def parse_maturity_to_years(value: object) -> float | None:
     if pd.isna(value):
         return None
-    text = str(value).strip().upper()
-    parts = text.split("+")
+    original = str(value).strip().upper().replace(" ", "")
+    if not original or original in {"N", "NA", "NULL", "-"}:
+        return None
+    # ChinaMoney perpetual-style residuals look like "5Y+65.44Y+N".
+    # Prefer the first finite leg (often time-to-call / next window) instead of
+    # summing a synthetic multi-century residual.
+    has_perpetual_marker = bool(re.search(r"(?:\+N\b|\bN\b)$", original)) or "+N" in original
+    text = re.sub(r"\+N\b", "", original).strip("+").strip()
+    if not text or text == "N":
+        return None
+    parts = [part for part in text.split("+") if part and part != "N"]
+    if not parts:
+        return None
+    if has_perpetual_marker:
+        return _parse_maturity_part(parts[0])
     parsed = [_parse_maturity_part(part) for part in parts]
     if any(part is None for part in parsed):
         return None
@@ -78,6 +91,59 @@ def load_bond_data(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
     return df
 
 
+def fetch_chinamoney_bond_spot_deal() -> pd.DataFrame:
+    """Fetch ChinaMoney spot deals and keep native residual maturity.
+
+    AkShare ``bond_spot_deal`` hits the same endpoint but drops ``termToMaturity``.
+    BondLens keeps that field so live peer/maturity buckets are usable.
+    """
+    import requests
+
+    url = "https://www.chinamoney.com.cn/ags/ms/cm-u-md-bond/CbtPri"
+    payload = {"flag": "1", "lang": "cn", "bondName": ""}
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (compatible; BondLens/1.0; +https://github.com/Phoenix0531-sudo/BondLens)"
+        ),
+        "Referer": "https://www.chinamoney.com.cn/chinese/mkdatabond/",
+    }
+    response = requests.post(url, data=payload, headers=headers, timeout=20)
+    response.raise_for_status()
+    payload_json = response.json()
+    records = payload_json.get("records") or []
+    if not records:
+        raise ValueError("ChinaMoney bond spot deal returned no records")
+
+    rows: list[dict] = []
+    for record in records:
+        if not isinstance(record, dict):
+            continue
+        name = (
+            record.get("abdAssetEncdShrtDesc")
+            or record.get("abdAssetEncdShrtDescByRmb")
+            or record.get("abdAssetEncdFullDescByRmb")
+            or ""
+        )
+        rows.append(
+            {
+                "债券简称": str(name).strip(),
+                "成交净价": record.get("dmiLatestRate"),
+                "最新收益率": record.get("dmiLatestContraRate"),
+                "涨跌": record.get("bp"),
+                "加权收益率": record.get("dmiWghtdContraRate"),
+                "交易量": record.get("dmiTtlTradedAmnt"),
+                "待偿期": record.get("termToMaturity"),
+                "债券代码": record.get("bondcode"),
+                "行情时间": record.get("showDate"),
+            }
+        )
+
+    raw_df = pd.DataFrame(rows)
+    if raw_df.empty or "债券简称" not in raw_df.columns:
+        raise ValueError("ChinaMoney bond spot deal payload could not be normalized")
+    return raw_df
+
+
 def load_live_bond_data(
     fetcher=None,
     cache_path: str | Path | None = None,
@@ -86,9 +152,7 @@ def load_live_bond_data(
     timeout_seconds: float | None = None,
 ) -> pd.DataFrame:
     if fetcher is None:
-        import akshare as ak
-
-        fetcher = ak.bond_spot_deal
+        fetcher = fetch_chinamoney_bond_spot_deal
 
     timeout = _live_fetch_timeout_seconds(timeout_seconds)
     raw_df = _call_with_timeout(fetcher, timeout_seconds=timeout, label="live bond fetch")
@@ -106,15 +170,20 @@ def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame
 
     df = pd.DataFrame()
     df[BOND_NAME] = raw_df["债券简称"].where(raw_df["债券简称"].notna(), "").astype(str).str.strip()
-    df[MATURITY] = None
+    native_maturity = _extract_native_maturity_series(raw_df)
+    df[MATURITY] = native_maturity
     df[PRICE] = pd.to_numeric(raw_df["成交净价"], errors="coerce")
     df[YIELD] = pd.to_numeric(raw_df["最新收益率"], errors="coerce")
     df[WEIGHTED_YIELD] = pd.to_numeric(raw_df["加权收益率"], errors="coerce")
     df[VOLUME] = pd.to_numeric(raw_df["交易量"], errors="coerce")
     if "涨跌" in raw_df.columns:
         df[LIVE_CHANGE_BP] = pd.to_numeric(raw_df["涨跌"], errors="coerce")
-    df[MATURITY_YEARS] = None
+    df[MATURITY_YEARS] = df[MATURITY].map(parse_maturity_to_years)
     df[MATURITY_SOURCE] = None
+    native_mask = df[MATURITY_YEARS].notna()
+    df.loc[native_mask, MATURITY_SOURCE] = "chinamoney_term_to_maturity"
+    # Keep a canonical residual label even when the feed used day counts.
+    df.loc[native_mask, MATURITY] = df.loc[native_mask, MATURITY_YEARS].map(_format_maturity)
     df = df[df[BOND_NAME] != ""].copy()
     return enrich_live_maturity_from_static_master(df, security_master=security_master)
 
@@ -125,6 +194,11 @@ def enrich_live_maturity_from_static_master(
     reference_date=None,
     current_date=None,
 ) -> pd.DataFrame:
+    """Fill residual maturity gaps from the local static master.
+
+    Native ChinaMoney ``termToMaturity`` always wins. Static matching is only a
+    secondary backfill for rows the live feed left blank or unparsable.
+    """
     if security_master is None:
         try:
             security_master = load_bond_data()
@@ -145,7 +219,16 @@ def enrich_live_maturity_from_static_master(
     )
 
     enriched = df.copy()
+    if MATURITY_YEARS not in enriched.columns:
+        enriched[MATURITY_YEARS] = None
+    if MATURITY not in enriched.columns:
+        enriched[MATURITY] = None
+    if MATURITY_SOURCE not in enriched.columns:
+        enriched[MATURITY_SOURCE] = None
+
     for index, row in enriched.iterrows():
+        if pd.notna(row.get(MATURITY_YEARS)):
+            continue
         name = row.get(BOND_NAME)
         if not name or name not in maturity_by_name.index:
             continue
@@ -311,8 +394,9 @@ def _build_live_profile(df: pd.DataFrame, requested_mode: str) -> dict:
         },
         "limitations": [
             "Public live endpoint availability depends on third-party source stability and trading session.",
-            "bond_spot_deal does not provide native maturity, issuer rating, credit events, or macro curve fields.",
-            "Maturity may be enriched from the local static sample when a bond name can be matched.",
+            "Native residual maturity comes from ChinaMoney termToMaturity when present; perpetual-style +N legs are only partially parsed.",
+            "Issuer rating, credit events, and macro curve fields are still not attached.",
+            "Rows without native maturity may fall back to the local static sample by exact bond name.",
             "Use live results as market monitoring evidence, not investment advice.",
         ],
     }
@@ -351,8 +435,9 @@ def _build_snapshot_profile(
         },
         "limitations": [
             "Live fetch failed, so this answer uses the most recent local live-data snapshot.",
-            "Snapshot freshness depends on the last successful AkShare request.",
+            "Snapshot freshness depends on the last successful ChinaMoney/AkShare-compatible request.",
             "Issuer rating, credit events, macro curve, and full security master fields are still not attached.",
+            "Maturity coverage in the snapshot reflects whatever was saved on the last successful live fetch.",
         ],
     }
 
@@ -394,6 +479,14 @@ def _call_with_timeout(func, *, timeout_seconds: float, label: str = "operation"
         except FuturesTimeoutError as exc:
             future.cancel()
             raise TimeoutError(f"{label} timed out after {timeout_seconds:.1f}s") from exc
+
+
+def _extract_native_maturity_series(raw_df: pd.DataFrame) -> pd.Series:
+    """Pick residual maturity from common live-feed column names."""
+    for column in ("待偿期", "termToMaturity", "term_to_maturity", "剩余期限"):
+        if column in raw_df.columns:
+            return raw_df[column]
+    return pd.Series([None] * len(raw_df), index=raw_df.index)
 
 
 def _parse_maturity_part(text: str) -> float | None:
@@ -460,11 +553,16 @@ def _maturity_coverage(df: pd.DataFrame, unmatched_limit: int = 50) -> dict:
         "unmatched_limit": unmatched_limit,
         "unmatched_records": unmatched_records,
         "enrichment_note": (
-            "Live/snapshot feeds have no native maturity; unmatched names cannot join "
+            "Native ChinaMoney residual maturity is preferred; unmatched rows still cannot join "
             "peer/maturity buckets reliably."
-            if any(str(source).startswith("local_static_excel") for source in source_counts)
+            if any(str(source).startswith("chinamoney") for source in source_counts)
+            or any(str(source).startswith("local_static_excel") for source in source_counts)
             or (missing > 0 and filled > 0)
-            else None
+            else (
+                "Live/snapshot residual maturity is incomplete; peer and maturity-bucket analysis stays limited."
+                if missing > 0
+                else None
+            )
         ),
     }
 
