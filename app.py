@@ -1238,8 +1238,12 @@ def _data_source_subtitle(data_source: dict, lang: str) -> str:
 
 
 if __name__ == "__main__":
+    # threaded=True is required for local demos: the agent form is synchronous and
+    # LLM/live fetches can take tens of seconds. Without threading, a single query
+    # freezes health checks and other page loads, which looks like a hard hang.
     app.run(
         host=os.environ.get("FLASK_RUN_HOST", "127.0.0.1"),
         port=int(os.environ.get("PORT", "5000")),
         debug=os.environ.get("FLASK_ENV") == "development",
+        threaded=os.environ.get("FLASK_THREADED", "1").lower() not in {"0", "false", "no"},
     )

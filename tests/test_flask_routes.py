@@ -26,6 +26,19 @@ def test_agent_page_exposes_language_switch():
     assert "Agent Console" in html
 
 
+def test_agent_page_shows_submit_busy_state_hooks():
+    client = app.test_client()
+
+    response = client.get("/agent?data_mode=static&lang=zh")
+    html = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'id="agent-query-form"' in html
+    assert 'id="run-agent-button"' in html
+    assert "分析中，请稍候" in html
+    assert "请勿重复点击" in html
+
+
 def test_agent_page_localizes_result_for_chinese():
     client = app.test_client()
 

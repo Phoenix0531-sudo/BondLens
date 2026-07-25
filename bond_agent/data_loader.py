@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -82,13 +83,15 @@ def load_live_bond_data(
     cache_path: str | Path | None = None,
     write_cache: bool = True,
     security_master: pd.DataFrame | None = None,
+    timeout_seconds: float | None = None,
 ) -> pd.DataFrame:
     if fetcher is None:
         import akshare as ak
 
         fetcher = ak.bond_spot_deal
 
-    raw_df = fetcher()
+    timeout = _live_fetch_timeout_seconds(timeout_seconds)
+    raw_df = _call_with_timeout(fetcher, timeout_seconds=timeout, label="live bond fetch")
     df = normalize_live_bond_data(raw_df, security_master=security_master)
     if write_cache:
         save_live_snapshot(df, cache_path=cache_path)
@@ -364,6 +367,33 @@ def _cache_max_age_hours(value: float | None) -> float | None:
         return value
     configured = os.environ.get("BOND_LIVE_CACHE_MAX_AGE_HOURS")
     return float(configured) if configured else 24.0
+
+
+def _live_fetch_timeout_seconds(value: float | None = None) -> float:
+    if value is not None:
+        return float(value)
+    configured = os.environ.get("BOND_LIVE_FETCH_TIMEOUT_SECONDS")
+    if configured:
+        return float(configured)
+    return 12.0
+
+
+def _call_with_timeout(func, *, timeout_seconds: float, label: str = "operation"):
+    """Run a blocking call with a hard wall-clock timeout.
+
+    Live market fetchers (AkShare/network) can hang far longer than a demo page
+    should wait. Timing out here lets auto/live modes fall back to snapshot/static
+    instead of freezing the Flask request forever.
+    """
+    if timeout_seconds <= 0:
+        return func()
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(func)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except FuturesTimeoutError as exc:
+            future.cancel()
+            raise TimeoutError(f"{label} timed out after {timeout_seconds:.1f}s") from exc
 
 
 def _parse_maturity_part(text: str) -> float | None:

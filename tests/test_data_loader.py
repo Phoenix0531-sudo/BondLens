@@ -203,3 +203,34 @@ def test_resolve_bond_data_falls_back_to_static_sample_when_live_and_snapshot_fa
     assert profile["active_live_snapshot"] is False
     assert "network down" in profile["fallback_reason"]
     assert "snapshot fallback failed" in profile["fallback_reason"]
+
+
+def test_resolve_bond_data_times_out_slow_live_fetch_and_uses_snapshot(tmp_path, monkeypatch):
+    import time
+
+    cache_path = tmp_path / "live_snapshot.csv"
+
+    def fast_fetcher():
+        return pd.DataFrame(
+            {
+                "债券简称": ["25国开20"],
+                "成交净价": [101.23],
+                "最新收益率": [2.12],
+                "涨跌": [-0.3],
+                "加权收益率": [2.11],
+                "交易量": [4.5],
+            }
+        )
+
+    resolve_bond_data(mode="live", live_fetcher=fast_fetcher, live_cache_path=cache_path)
+
+    def slow_fetcher():
+        time.sleep(2.0)
+        return fast_fetcher()
+
+    monkeypatch.setenv("BOND_LIVE_FETCH_TIMEOUT_SECONDS", "0.2")
+    df, profile = resolve_bond_data(mode="auto", live_fetcher=slow_fetcher, live_cache_path=cache_path)
+
+    assert list(df[BOND_NAME]) == ["25国开20"]
+    assert profile["runtime_mode"] == "live_snapshot"
+    assert "timed out" in (profile.get("fallback_reason") or "").lower()

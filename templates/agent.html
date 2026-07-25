@@ -136,6 +136,18 @@
     background: #d6933d;
   }
 
+  .run-button:disabled {
+    cursor: wait;
+    opacity: 0.78;
+  }
+
+  .form-wait-note {
+    margin: 12px 0 0;
+    color: #c7d4cf;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
   .form-error {
     margin: 0 0 14px;
     padding: 10px 12px;
@@ -742,7 +754,7 @@
     {% if form_error %}
       <p class="form-error">{{ form_error }}</p>
     {% endif %}
-    <form method="post">
+    <form method="post" id="agent-query-form" data-agent-form>
       <input type="hidden" name="lang" value="{{ lang }}">
       <div class="form-field">
         <label for="question" data-lang-zh="自然语言问题" data-lang-en="Natural-language question">自然语言问题</label>
@@ -756,10 +768,35 @@
           <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
         </select>
       </div>
-      <button class="run-button" type="submit" data-lang-zh="运行 Agent" data-lang-en="Run Agent">运行 Agent</button>
+      <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>
+      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="页面会整页刷新；开启 LLM 时通常需要 20–90 秒。请勿重复点击。期间可另开标签页访问健康检查。" data-lang-en="This page reloads when done. With LLM enabled it often takes 20–90s. Do not click again. You can open /healthz in another tab.">页面会整页刷新；开启 LLM 时通常需要 20–90 秒。请勿重复点击。期间可另开标签页访问健康检查。</p>
     </form>
   </section>
 </div>
+<script>
+  (function () {
+    const form = document.getElementById("agent-query-form");
+    const button = document.getElementById("run-agent-button");
+    const note = document.getElementById("agent-wait-note");
+    if (!form || !button) {
+      return;
+    }
+    form.addEventListener("submit", () => {
+      const lang = (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
+        ? "en"
+        : "zh";
+      const busyText = lang === "en"
+        ? (button.dataset.busyEn || "Analyzing, please wait…")
+        : (button.dataset.busyZh || "分析中，请稍候…");
+      button.disabled = true;
+      button.textContent = busyText;
+      button.setAttribute("aria-busy", "true");
+      if (note) {
+        note.hidden = false;
+      }
+    });
+  })();
+</script>
 
 {% if result %}
   <section class="dashboard">
