@@ -337,8 +337,10 @@ def compare_bond_to_market(
         dv01 = round(float(target[DV01]), 6)
     if IS_PERPETUAL in target.index:
         is_perpetual = bool(target.get(IS_PERPETUAL))
-    if MATURITY_PARSE_NOTE in target.index and target.get(MATURITY_PARSE_NOTE):
-        maturity_note = str(target.get(MATURITY_PARSE_NOTE))
+    if MATURITY_PARSE_NOTE in target.index:
+        raw_note = target.get(MATURITY_PARSE_NOTE)
+        if raw_note is not None and not (isinstance(raw_note, float) and pd.isna(raw_note)) and str(raw_note).strip() not in {"", "nan", "None"}:
+            maturity_note = str(raw_note).strip()
 
     return {
         "tool": "compare_bond_to_market",
