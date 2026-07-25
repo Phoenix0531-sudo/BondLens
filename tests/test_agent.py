@@ -291,7 +291,7 @@ def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):
 
     result = BondAnalystAgent(data_mode="live", live_fetcher=fake_fetcher).answer("搜索25国开20并给出收益率分析")
 
-    assert result["data_source"]["source_id"] == "akshare_bond_spot_deal"
+    assert result["data_source"]["source_id"] == "chinamoney_bond_spot_deal"
     assert result["data_source"]["runtime_mode"] == "live"
     assert result["data_source"]["active_live_feed"] is True
     assert result["evidence_quality"]["data_freshness"] == "live_fetch"

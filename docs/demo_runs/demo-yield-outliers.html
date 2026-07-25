@@ -68,9 +68,9 @@
     <header class="hero">
       <p class="eyebrow">Bond Evidence Pack</p>
       <h1>有没有收益率异常的债券？</h1>
-      <p class="muted">id=demo-yield-outliers · created=2026-07-23T02:11:08.281953+00:00 · intent=outlier_detection</p>
+      <p class="muted">id=demo-yield-outliers · created=2026-07-25T15:37:04.790941+00:00 · intent=outlier_detection</p>
       <div class="trust">
-        <div class="trust-score">51<span style="font-size:16px">/100</span></div>
+        <div class="trust-score">61<span style="font-size:16px">/100</span></div>
         <span class="badge warn">trust medium</span>
         <span class="badge medium">stress medium</span>
         <span class="badge">judge not_applicable</span>
@@ -78,14 +78,14 @@
         <span class="badge">final deterministic_fallback</span>
         <span class="badge">data static_sample</span>
       </div>
-      <p class="muted" style="margin-top:12px">信任分 51/100（medium）。 主要因素：使用静态样本，新鲜度受限。；证据账本覆盖 4 条 claim。；未使用 LLM；最终答案完全来自确定性工具链。</p>
+      <p class="muted" style="margin-top:12px">信任分 61/100（medium）。 主要因素：使用静态样本，新鲜度受限。；证据账本覆盖 5 条 claim。；证据质量 67/100（等级 medium）。</p>
     </header>
 
     <div class="grid">
       <section class="section">
         <h2>运行压力 · Stress view</h2>
-        <p>运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（51/100）。；证据质量偏弱（48/100）。</p>
-        <ul><li><span class='badge medium'>medium</span> 数据为静态/备用样本，新鲜度受限。</li><li><span class='badge medium'>medium</span> 信任分中等（51/100）。</li><li><span class='badge low'>low</span> 最终答案来自确定性工具链（未采用 LLM 叙述，或已回退）。</li><li><span class='badge medium'>medium</span> 证据质量偏弱（48/100）。</li></ul>
+        <p>运行压力 medium：数据为静态/备用样本，新鲜度受限。；信任分中等（61/100）。</p>
+        <ul><li><span class='badge medium'>medium</span> 数据为静态/备用样本，新鲜度受限。</li><li><span class='badge medium'>medium</span> 信任分中等（61/100）。</li><li><span class='badge low'>low</span> 最终答案来自确定性工具链（未采用 LLM 叙述，或已回退）。</li></ul>
       </section>
 
       <section class="section">
@@ -98,7 +98,7 @@
 
       <section class="section">
         <h2>信任分调整 · Trust adjustments</h2>
-        <ul><li><strong>-12</strong> 使用静态样本，新鲜度受限。</li><li><strong>+8</strong> 证据账本覆盖 4 条 claim。</li><li><strong>+6</strong> 未使用 LLM；最终答案完全来自确定性工具链。</li><li><strong>-4</strong> 证据质量 48/100（等级 low）。</li></ul>
+        <ul><li><strong>-12</strong> 使用静态样本，新鲜度受限。</li><li><strong>+8</strong> 证据账本覆盖 5 条 claim。</li><li><strong>+6</strong> 证据质量 67/100（等级 medium）。</li><li><strong>+6</strong> 未使用 LLM；最终答案完全来自确定性工具链。</li></ul>
       </section>
 
       <section class="section">
@@ -115,13 +115,13 @@
 
       <section class="section">
         <h2>风险画像 · Risk profile</h2>
-        <p>本次分析存在高优先级风险信号，应先补充数据或复核异常。</p>
-        <p class="muted">overall=high</p>
+        <p>本次分析适合研究展示，但仍缺少信用和曲线上下文。</p>
+        <p class="muted">overall=medium</p>
       </section>
 
       <section class="section">
         <h2>工具轨迹 · Tool trace</h2>
-        <ul><li>User question: 有没有收益率异常的债券？</li><li>-&gt; data_source(mode=static_sample, source=local_static_excel)</li><li>-&gt; planner(intent=outlier_detection)</li><li>-&gt; detect_yield_outliers(method=zscore, threshold=3.0)</li><li>-&gt; generate_bond_report()</li><li>-&gt; llm_guardrail(skipped: llm_disabled)</li><li>-&gt; final answer</li></ul>
+        <ul><li>User question: 有没有收益率异常的债券？</li><li>-&gt; data_source(mode=static_sample, source=local_static_excel)</li><li>-&gt; planner(intent=outlier_detection)</li><li>-&gt; describe_market()</li><li>-&gt; detect_yield_outliers(method=zscore, threshold=3.0)</li><li>-&gt; generate_bond_report()</li><li>-&gt; llm_guardrail(skipped: llm_disabled)</li><li>-&gt; final answer</li></ul>
       </section>
 
       <section class="section">
@@ -137,8 +137,15 @@
             <article class="card">
               <div class="badge">medium</div>
               <h3>待偿期字段有覆盖率记录，补全来源可追踪。</h3>
-              <p>覆盖率 92.6%，已填充 3117 条，缺失 248 条。</p>
+              <p>覆盖率 99.9%，已填充 3363 条，缺失 2 条。</p>
               <p class="muted">tool=data_source · source=data/testdata.xlsx</p>
+            </article>
+            
+            <article class="card">
+              <div class="badge">medium</div>
+              <h3>市场概览来自当前样本的收益率统计。</h3>
+              <p>样本 3365 条；收益率中位数 2.45%，均值 2.7709%，区间 0.1383%-57.0224%。</p>
+              <p class="muted">tool=describe_market · source=data/testdata.xlsx</p>
             </article>
             
             <article class="card">
@@ -149,9 +156,9 @@
             </article>
             
             <article class="card">
-              <div class="badge">low</div>
+              <div class="badge">medium</div>
               <h3>最终答案经过安全边界选择。</h3>
-              <p>最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 48/100。</p>
+              <p>最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 67/100。</p>
               <p class="muted">tool=answer_selection · source=BondLens AI response contract</p>
             </article>
             </div>
@@ -159,46 +166,51 @@
 
       <section class="section">
         <h2>最终回答 · Final answer</h2>
-        <pre>Question: 有没有收益率异常的债券？
-Intent: outlier_detection
+        <pre>问题: 有没有收益率异常的债券？
+意图: outlier_detection
 
-Tools Used:
+使用的工具:
+- describe_market
 - detect_yield_outliers
 - generate_bond_report
 
-Data Evidence:
+数据证据:
 - 数据源: data/testdata.xlsx (static_sample)
 - 样本行数: 3365，有效收益率记录: 3102
-- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条
+- 期限覆盖率: 99.9%，已补全 3363 条，缺失 2
+- 样本数量: 3365
+- 收益率摘要: {&#x27;count&#x27;: 3102, &#x27;mean&#x27;: 2.7709, &#x27;std&#x27;: 2.2786, &#x27;min&#x27;: 0.1383, &#x27;p25&#x27;: 2.255, &#x27;median&#x27;: 2.45, &#x27;p75&#x27;: 2.7468, &#x27;max&#x27;: 57.0224}
+- 数据质量: 90/100 (high)
 - 异常样本数量: 13
 
-Risk Explanation Layer:
+风险解释层:
 - Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.
 - Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.
 - Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.
 - Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.
 
-Evidence Quality:
-- Score: 48/100
-- Level: low
-- Data Freshness: static_snapshot
-- Decision Confidence: low
-- Summary: Evidence quality is low for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.
+证据质量:
+- 评分: 67/100
+- 等级: medium
+- 数据新鲜度: static_snapshot
+- 决策置信度: low
+- 摘要: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.
 
-Analysis:
+分析:
 - 异常检测使用 zscore 方法，共发现 13 条收益率异常样本。
 - 异常分数最高的是 21金地MTN004，收益率 57.0224%，异常分数 23.8091。
 - 异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。
 
-Risk Notes:
+风险提示:
 - 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。
 - 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。
 
-Limitations:
+局限:
 - 本报告仅基于当前 Agent 数据源的可用字段计算。
 - 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。
 - 未接入评级、主体财务、宏观利率曲线或新闻事件。
 - 券种与期限分桶由名称/字段规则推断，不做信用评级结论。
+- 修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。
 - 非投资建议，仅用于学习和研究。</pre>
       </section>
 
@@ -214,7 +226,7 @@ Limitations:
 
       <section class="section">
         <h2>局限性 · Limitations（强制）</h2>
-        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li></ul>
+        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li><li>数据质量：收益率缺失 263/3365（7.8%）。</li></ul>
         <p class="muted" style="margin-top:12px">非投资建议，仅用于学习和研究。</p>
       </section>
     </div>

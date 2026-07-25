@@ -6,8 +6,13 @@ import pandas as pd
 
 from .data_loader import (
     BOND_NAME,
+    DV01,
+    IS_PERPETUAL,
     MATURITY,
+    MATURITY_PARSE_NOTE,
+    MATURITY_RAW,
     MATURITY_YEARS,
+    MODIFIED_DURATION,
     PRICE,
     VOLUME,
     WEIGHTED_YIELD,
@@ -322,6 +327,19 @@ def compare_bond_to_market(
     if target_yield is not None and peer_mean is not None:
         peer_spread_bp = round((target_yield - float(peer_mean)) * 100, 2)
 
+    modified_duration = None
+    dv01 = None
+    is_perpetual = False
+    maturity_note = None
+    if MODIFIED_DURATION in target.index and pd.notna(target.get(MODIFIED_DURATION)):
+        modified_duration = round(float(target[MODIFIED_DURATION]), 4)
+    if DV01 in target.index and pd.notna(target.get(DV01)):
+        dv01 = round(float(target[DV01]), 6)
+    if IS_PERPETUAL in target.index:
+        is_perpetual = bool(target.get(IS_PERPETUAL))
+    if MATURITY_PARSE_NOTE in target.index and target.get(MATURITY_PARSE_NOTE):
+        maturity_note = str(target.get(MATURITY_PARSE_NOTE))
+
     return {
         "tool": "compare_bond_to_market",
         "bond_name": target[BOND_NAME],
@@ -335,6 +353,27 @@ def compare_bond_to_market(
         "yield_zscore": None if yield_zscore is None else round(float(yield_zscore), 4),
         "is_yield_outlier": is_yield_outlier,
         "nearest_market_context": _market_context(target_yield, target_volume, yield_series, volume_series),
+        "rate_sensitivity": {
+            "modified_duration_approx": modified_duration,
+            "dv01_approx": dv01,
+            "is_perpetual_style": is_perpetual,
+            "method": "residual_maturity_proxy",
+            "note_zh": (
+                "修正久期/DV01 为残期+收益率近似，非现金流 Macauley/OAS；"
+                + ("永续风格样本不给数值。" if is_perpetual else "仅供教学对照。")
+            ),
+            "note_en": (
+                "Modified duration/DV01 are residual-maturity proxies, not cashflow Macauley/OAS; "
+                + ("blank for perpetual-style rows." if is_perpetual else "for teaching comparison only.")
+            ),
+            "maturity_parse_note": maturity_note,
+        },
+        "credit_context": {
+            "issuer_rating": None,
+            "available": False,
+            "note_zh": "当前行情源不包含主体/债项评级，不作信用评级推断。",
+            "note_en": "Active feed has no issuer/issue rating; no credit-rating inference is made.",
+        },
         "peer_comparison": {
             "peer_count": len(peers),
             "bond_type": bond_type,
@@ -393,6 +432,7 @@ def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict
             "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
             "未接入评级、主体财务、宏观利率曲线或新闻事件。",
             "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
+            "修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。",
             "非投资建议，仅用于学习和研究。",
         ],
     }
@@ -584,5 +624,11 @@ def _build_analysis(
 def _display_maturity(record: dict) -> str:
     maturity = record.get(MATURITY)
     if maturity is not None and str(maturity).strip():
-        return str(maturity)
+        label = str(maturity)
+        if record.get(IS_PERPETUAL) and "永续" not in label:
+            return f"{label} (永续风格)"
+        return label
+    raw = record.get(MATURITY_RAW)
+    if raw:
+        return str(raw)
     return "当前数据源暂缺"

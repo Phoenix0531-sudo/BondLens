@@ -14,6 +14,7 @@ from bond_agent.data_loader import (
     load_bond_data,
     load_live_bond_data,
     load_live_snapshot,
+    parse_maturity_details,
     parse_maturity_to_years,
     resolve_bond_data,
 )
@@ -189,7 +190,7 @@ def test_resolve_bond_data_uses_live_profile_when_available(tmp_path):
     df, profile = resolve_bond_data(mode="live", live_fetcher=fake_fetcher, live_cache_path=cache_path)
 
     assert df.iloc[0][BOND_NAME] == "25国开20"
-    assert profile["source_id"] == "akshare_bond_spot_deal"
+    assert profile["source_id"] == "chinamoney_bond_spot_deal"
     assert profile["runtime_mode"] == "live"
     assert profile["requested_mode"] == "live"
     assert profile["active_live_feed"] is True
@@ -221,7 +222,7 @@ def test_resolve_bond_data_uses_cached_live_snapshot_before_static_sample(tmp_pa
     df, profile = resolve_bond_data(mode="auto", live_fetcher=failing_fetcher, live_cache_path=cache_path)
 
     assert list(df[BOND_NAME]) == ["25国开20", "26超长特别国债02"]
-    assert profile["source_id"] == "akshare_bond_spot_deal_snapshot"
+    assert profile["source_id"] == "chinamoney_bond_spot_deal_snapshot"
     assert profile["runtime_mode"] == "live_snapshot"
     assert profile["requested_mode"] == "auto"
     assert profile["active_live_feed"] is False
@@ -279,3 +280,20 @@ def test_resolve_bond_data_times_out_slow_live_fetch_and_uses_snapshot(tmp_path,
     assert list(df[BOND_NAME]) == ["25国开20"]
     assert profile["runtime_mode"] == "live_snapshot"
     assert "timed out" in (profile.get("fallback_reason") or "").lower()
+
+
+def test_parse_maturity_details_marks_perpetual_style():
+    details = parse_maturity_details("5Y+65.44Y+N")
+    assert details["years"] == 5.0
+    assert details["is_perpetual"] is True
+    assert details["raw"] == "5Y+65.44Y+N"
+    assert "永续" in (details["display"] or "")
+    assert details["note_zh"]
+
+
+def test_static_load_attaches_duration_proxy():
+    df = load_bond_data()
+    assert "修正久期(近似)" in df.columns
+    assert "DV01(近似)" in df.columns
+    # Ordinary finite-maturity rows should usually get a duration proxy.
+    assert df["修正久期(近似)"].notna().sum() > 1000

@@ -241,12 +241,23 @@ class BondAnalystAgent:
         ratio = float(coverage.get("coverage_ratio") or 0)
         runtime = data_source.get("runtime_mode") or ""
         if runtime in {"live", "live_snapshot"}:
-            note = (
-                f"实时/快照源原生无期限字段；当前期限补全覆盖率 {ratio:.1%}，"
-                "未匹配简称的债券同业分桶不可靠。"
-            )
+            source_counts = coverage.get("source_counts") or {}
+            native = sum(int(v) for k, v in source_counts.items() if str(k).startswith("chinamoney"))
+            if native > 0 and ratio >= 0.9:
+                note = (
+                    f"实时/快照源已保留 ChinaMoney 原生待偿期（覆盖率 {ratio:.1%}）；"
+                    "永续风格 +N 仅取首段有限期限作分析代理，不是完整永续定价。"
+                )
+            else:
+                note = (
+                    f"实时/快照源期限覆盖率 {ratio:.1%}；"
+                    "未匹配或不可解析残期的债券同业分桶不可靠。"
+                )
             if note not in merged:
                 merged.append(note)
+            perpetual_note = "永续风格残期（如 5Y+…+N）只取首段有限期限，DV01/久期近似对其留空。"
+            if perpetual_note not in merged:
+                merged.append(perpetual_note)
         quality = ((report.get("data_evidence") or {}).get("market") or {}).get("data_quality") or {}
         for issue in quality.get("issues") or []:
             msg = issue.get("message_zh")
@@ -273,66 +284,126 @@ class BondAnalystAgent:
         if not api_key:
             return {"text": None, "status": "disabled", "error": None}
 
-        last_error: Exception | None = None
+        models = self._llm_model_candidates()
         attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "2")))
-        for attempt in range(attempts):
-            try:
-                client = self._create_openai_client(api_key, base_url=base_url)
-                model = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
-                lang = self._detect_answer_lang(question)
-                lang_rule = (
-                    "Write the entire answer in Chinese (简体中文)."
-                    if lang == "zh"
-                    else "Write the entire answer in English."
-                )
-                instructions = (
-                    "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
-                    "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
-                    "present in the JSON (including percentiles, spreads, counts, and percentages). "
-                    "When citing quartiles, prefer labels p25/p75 with their evidence values "
-                    "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
-                    "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
-                    "2.5647% only when that exact value appears in evidence. "
-                    "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
-                    "verbatim if needed, never recompute shares. "
-                    "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
-                    "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
-                    "Do not create new percentages, ranges, ratings, issuer details, market facts, "
-                    "or investment advice. "
-                    "Do not recommend buying, selling, adding position, guaranteed returns, "
-                    "or very safe conclusions. "
-                    "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
-                    "or 'no investment advice' instead of 'not risk-free'. "
-                    "The yield_distribution values are counts, not percentages. "
-                    "If a requested bond is present under data_evidence.search.records, focus on that bond "
-                    "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
-                    "If the evidence is insufficient, say so directly. "
-                    f"{lang_rule} "
-                    f"Always include this disclaimer in Chinese: {DISCLAIMER}"
-                )
-                evidence_payload = self._build_llm_evidence(question, plan, report)
-                evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
-                api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
-                text = self._call_llm(client, model, instructions, evidence_json, api_style, prefer_chat=bool(base_url))
-                if not text:
-                    return {"text": None, "status": "failed", "error": "OpenAI request failed: empty_output"}
-                return {"text": self._ensure_disclaimer(text.strip()), "status": "success", "error": None}
-            except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
-                last_error = exc
-                # One quick retry only for transient transport failures.
-                if attempt + 1 < attempts and type(exc).__name__ in {
-                    "APIConnectionError",
-                    "APITimeoutError",
-                    "RateLimitError",
-                    "InternalServerError",
-                    "TimeoutError",
-                    "ConnectTimeout",
-                    "ReadTimeout",
-                }:
-                    continue
-                return {"text": None, "status": "failed", "error": f"OpenAI request failed: {type(exc).__name__}"}
-        err_name = type(last_error).__name__ if last_error else "UnknownError"
-        return {"text": None, "status": "failed", "error": f"OpenAI request failed: {err_name}"}
+        last_error: Exception | None = None
+        last_error_name = "UnknownError"
+        for model in models:
+            for attempt in range(attempts):
+                try:
+                    client = self._create_openai_client(api_key, base_url=base_url)
+                    lang = self._detect_answer_lang(question)
+                    lang_rule = (
+                        "Write the entire answer in Chinese (简体中文)."
+                        if lang == "zh"
+                        else "Write the entire answer in English."
+                    )
+                    instructions = (
+                        "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
+                        "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
+                        "present in the JSON (including percentiles, spreads, counts, and percentages). "
+                        "When citing quartiles, prefer labels p25/p75 with their evidence values "
+                        "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
+                        "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
+                        "2.5647% only when that exact value appears in evidence. "
+                        "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
+                        "verbatim if needed, never recompute shares. "
+                        "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
+                        "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
+                        "Do not create new percentages, ranges, ratings, issuer details, market facts, "
+                        "or investment advice. "
+                        "Do not recommend buying, selling, adding position, guaranteed returns, "
+                        "or very safe conclusions. "
+                        "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
+                        "or 'no investment advice' instead of 'not risk-free'. "
+                        "If evidence includes modified_duration_approx or dv01_approx, quote them only "
+                        "as approximate residual-maturity proxies and say they are not cashflow durations. "
+                        "The yield_distribution values are counts, not percentages. "
+                        "If a requested bond is present under data_evidence.search.records, focus on that bond "
+                        "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
+                        "If the evidence is insufficient, say so directly. "
+                        f"{lang_rule} "
+                        f"Always include this disclaimer in Chinese: {DISCLAIMER}"
+                    )
+                    evidence_payload = self._build_llm_evidence(question, plan, report)
+                    evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
+                    api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
+                    text_out = self._call_llm(
+                        client, model, instructions, evidence_json, api_style, prefer_chat=bool(base_url)
+                    )
+                    if not text_out:
+                        last_error_name = "empty_output"
+                        continue
+                    return {
+                        "text": self._ensure_disclaimer(text_out.strip()),
+                        "status": "success",
+                        "error": None,
+                        "model": model,
+                    }
+                except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
+                    last_error = exc
+                    last_error_name = type(exc).__name__
+                    # Retry transport failures; advance to fallback model on hard channel/auth errors.
+                    if attempt + 1 < attempts and last_error_name in {
+                        "APIConnectionError",
+                        "APITimeoutError",
+                        "RateLimitError",
+                        "InternalServerError",
+                        "TimeoutError",
+                        "ConnectTimeout",
+                        "ReadTimeout",
+                    }:
+                        continue
+                    message = str(exc).lower()
+                    hard_channel = last_error_name in {
+                        "AuthenticationError",
+                        "PermissionDeniedError",
+                        "NotFoundError",
+                        "BadRequestError",
+                    } or any(
+                        token in message
+                        for token in (
+                            "no available channel",
+                            "model not found",
+                            "does not exist",
+                            "invalid model",
+                            "403",
+                            "401",
+                        )
+                    )
+                    if hard_channel:
+                        break
+                    return {
+                        "text": None,
+                        "status": "failed",
+                        "error": f"OpenAI request failed: {last_error_name}",
+                        "model": model,
+                    }
+        err_name = type(last_error).__name__ if last_error else last_error_name
+        return {
+            "text": None,
+            "status": "failed",
+            "error": f"OpenAI request failed: {err_name}",
+            "model": models[-1] if models else None,
+        }
+
+    def _llm_model_candidates(self) -> list[str]:
+        primary = (os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini").strip()
+        fallback_raw = os.environ.get("OPENAI_MODEL_FALLBACKS") or os.environ.get("OPENAI_FALLBACK_MODEL") or ""
+        fallbacks = [part.strip() for part in fallback_raw.split(",") if part.strip()]
+        # Sensible local defaults when only one model is configured.
+        if not fallbacks:
+            if primary == "gpt-5.4":
+                fallbacks = ["gpt-5.4-mini", "grok-4.5"]
+            elif primary == "gpt-5.4-mini":
+                fallbacks = ["grok-4.5"]
+            elif primary == "grok-4.5":
+                fallbacks = ["gpt-5.4-mini"]
+        ordered: list[str] = []
+        for model in [primary, *fallbacks]:
+            if model and model not in ordered:
+                ordered.append(model)
+        return ordered or [primary]
 
     def _detect_answer_lang(self, question: str) -> str:
         if re.search(r"[\u4e00-\u9fff]", question or ""):

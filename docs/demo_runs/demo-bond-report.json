@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-bond-report",
-  "created_at": "2026-07-23T02:11:08.135953+00:00",
+  "created_at": "2026-07-25T15:37:04.533942+00:00",
   "agent": "BondLens AI",
   "question": "搜索23附息国债26并给出收益率分析",
   "intent": "bond_report",
@@ -54,7 +54,9 @@
       "guardrail_status": "not_run",
       "judge_status": "not_applicable",
       "final_answer_source": "deterministic_fallback",
-      "ledger_item_count": 8
+      "ledger_item_count": 8,
+      "maturity_coverage_ratio": 0.9994,
+      "intent": "bond_report"
     },
     "adjustments": [
       {
@@ -68,6 +70,12 @@
         "delta": -12,
         "reason_zh": "使用静态样本，新鲜度受限。",
         "reason_en": "Static sample in use; freshness is limited."
+      },
+      {
+        "id": "maturity_coverage",
+        "delta": 0,
+        "reason_zh": "非实时路径期限覆盖率 99.9%，不额外惩罚。",
+        "reason_en": "Non-live maturity coverage 99.9%; no extra penalty."
       },
       {
         "id": "ledger_coverage",
@@ -133,7 +141,8 @@
       "has_market_summary": true,
       "has_search_results": true,
       "has_bond_comparison": true,
-      "has_risk_explanations": true
+      "has_risk_explanations": true,
+      "maturity_coverage_ratio": 0.9994
     },
     "checks": [
       "Local Excel sample loaded successfully.",
@@ -199,8 +208,8 @@
         "severity": "medium",
         "signal_zh": "当前数据源 data/testdata.xlsx，运行模式 static_sample，证据评分 85/100。",
         "signal_en": "Active source data/testdata.xlsx, runtime mode static_sample, evidence score 85/100.",
-        "evidence_zh": "待偿期覆盖率 92.6%；有效收益率 3102 条。",
-        "evidence_en": "Maturity coverage 92.6%; 3102 valid yield records.",
+        "evidence_zh": "待偿期覆盖率 99.9%；有效收益率 3102 条。",
+        "evidence_en": "Maturity coverage 99.9%; 3102 valid yield records.",
         "action_boundary_zh": "需要更完整的证券主数据、评级、发行人信息和曲线数据。",
         "action_boundary_en": "Full security master data, ratings, issuer information, and curve data are still needed."
       },
@@ -233,8 +242,8 @@
         "title_zh": "久期/利率敏感性风险",
         "title_en": "Duration and Rate-Sensitivity Risk",
         "severity": "medium",
-        "signal_zh": "期限分位数：95.57%；期限覆盖率 92.6%。",
-        "signal_en": "Maturity percentile: 95.57%; maturity coverage 92.6%.",
+        "signal_zh": "期限分位数：95.87%；期限覆盖率 99.9%。",
+        "signal_en": "Maturity percentile: 95.87%; maturity coverage 99.9%.",
         "evidence_zh": "长期债券通常对利率变化更敏感，收益率比较应放在相近期限区间内。",
         "evidence_en": "Longer bonds are usually more sensitive to rate changes; yield comparisons are cleaner within similar maturity buckets.",
         "action_boundary_zh": "下一步可接入收益率曲线或久期字段，让利率风险解释更精确。",
@@ -294,8 +303,8 @@
       "id": "maturity_coverage",
       "claim_zh": "待偿期字段有覆盖率记录，补全来源可追踪。",
       "claim_en": "Maturity coverage is tracked and enrichment sources are visible.",
-      "evidence_zh": "覆盖率 92.6%，已填充 3117 条，缺失 248 条。",
-      "evidence_en": "Coverage 92.6%, 3117 filled, 248 missing.",
+      "evidence_zh": "覆盖率 99.9%，已填充 3363 条，缺失 2 条。",
+      "evidence_en": "Coverage 99.9%, 3363 filled, 2 missing.",
       "source": "data/testdata.xlsx",
       "tool": "data_source",
       "confidence": "medium",
@@ -348,8 +357,8 @@
       "id": "bond_vs_market",
       "claim_zh": "命中债券已与当前市场样本做相对位置比较。",
       "claim_en": "The matched bond was compared against the active market sample.",
-      "evidence_zh": "23附息国债26：收益率分位 34.95%，成交量分位 100.0%，期限分位 95.57%，收益率异常=False。",
-      "evidence_en": "23附息国债26: yield percentile 34.95%, volume percentile 100.0%, maturity percentile 95.57%, yield outlier=False.",
+      "evidence_zh": "23附息国债26：收益率分位 34.95%，成交量分位 100.0%，期限分位 95.87%，收益率异常=False。",
+      "evidence_en": "23附息国债26: yield percentile 34.95%, volume percentile 100.0%, maturity percentile 95.87%, yield outlier=False.",
       "source": "data/testdata.xlsx",
       "tool": "compare_bond_to_market",
       "confidence": "high",
@@ -419,19 +428,19 @@
       ]
     }
   ],
-  "final_answer": "Question: 搜索23附息国债26并给出收益率分析\nIntent: bond_report\n\nTools Used:\n- search_bonds\n- compare_bond_to_market\n- describe_market\n- rank_bonds\n- detect_yield_outliers\n- build_market_monitor\n- generate_bond_report\n\nData Evidence:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n- 数据质量: 84/100 (high)\n- 排序字段: 收盘到期收益率(%)\n- 异常样本数量: 13\n- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。\n- 检索条件: {'name': '23附息国债26', 'bond_type': '国债', 'min_maturity': None, 'max_maturity': None, 'min_yield': None, 'max_yield': None, 'limit': 10}\n- 检索命中数量: 1\n  1. 23附息国债26 | 待偿期 9.68Y | 收益率 2.3348% | 成交量 2142.05 亿元\n- 债券相对市场: yield_percentile=34.95, volume_percentile=100.0, is_yield_outlier=False\n- 同业可比: type=国债, bucket=5-10Y, n=25, spread_bp=-0.24\n\nRisk Explanation Layer:\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n- Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.\n- Yield is a risk signal, not a recommendation: Higher yield usually reflects compensation for one or more risks, such as credit risk, liquidity risk, duration exposure, or pricing uncertainty.\n- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n\nEvidence Quality:\n- Score: 85/100\n- Level: high\n- Data Freshness: static_snapshot\n- Decision Confidence: low\n- Summary: Evidence quality is high for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\nAnalysis:\n- 检索命中 1 条记录，优先分析 23附息国债26。\n- 23附息国债26 的待偿期为 9.68Y，收盘净价 102.88 元，收益率 2.3348%，成交量 2142.05 亿元。\n- 相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.57%。\n- 同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。\n- 按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。\n- 全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。\n- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。\n- 数据质量 84/100（high），共 3 类问题。\n- 数据诊断：收益率缺失 263/3365（7.8%）。\n- 数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。\n\nRisk Notes:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\nLimitations:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。\n- 非投资建议，仅用于学习和研究。",
+  "final_answer": "问题: 搜索23附息国债26并给出收益率分析\n意图: bond_report\n\n使用的工具:\n- search_bonds\n- compare_bond_to_market\n- describe_market\n- rank_bonds\n- detect_yield_outliers\n- build_market_monitor\n- generate_bond_report\n\n数据证据:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 99.9%，已补全 3363 条，缺失 2\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n- 数据质量: 90/100 (high)\n- 排序字段: 收盘到期收益率(%)\n- 异常样本数量: 13\n- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 2 条。\n- 检索条件: {'name': '23附息国债26', 'bond_type': '国债', 'min_maturity': None, 'max_maturity': None, 'min_yield': None, 'max_yield': None, 'limit': 10}\n- 检索命中数量: 1\n  1. 23附息国债26 | 待偿期 9.68Y | 收益率 2.3348% | 成交量 2142.05 亿元\n- 债券相对市场: yield_percentile=34.95, volume_percentile=100.0, is_yield_outlier=False\n- 同业可比: type=国债, bucket=5-10Y, n=25, spread_bp=-0.24\n\n风险解释层:\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n- Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.\n- Yield is a risk signal, not a recommendation: Higher yield usually reflects compensation for one or more risks, such as credit risk, liquidity risk, duration exposure, or pricing uncertainty.\n- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n\n证据质量:\n- 评分: 85/100\n- 等级: high\n- 数据新鲜度: static_snapshot\n- 决策置信度: low\n- 摘要: Evidence quality is high for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\n分析:\n- 检索命中 1 条记录，优先分析 23附息国债26。\n- 23附息国债26 的待偿期为 9.68Y，收盘净价 102.88 元，收益率 2.3348%，成交量 2142.05 亿元。\n- 相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.87%。\n- 同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。\n- 按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。\n- 全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。\n- 券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。\n- 数据质量 90/100（high），共 3 类问题。\n- 数据诊断：收益率缺失 263/3365（7.8%）。\n- 数据诊断：期限缺失 2/3365（0.1%），分桶与同业可比会变弱。\n\n风险提示:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\n局限:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。\n- 修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。\n- 非投资建议，仅用于学习和研究。",
   "final_answer_source": "deterministic_fallback",
   "analysis": [
     "检索命中 1 条记录，优先分析 23附息国债26。",
     "23附息国债26 的待偿期为 9.68Y，收盘净价 102.88 元，收益率 2.3348%，成交量 2142.05 亿元。",
-    "相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.57%。",
+    "相对全市场样本，它的收益率分位数为 34.95%，成交量分位数为 100.0%，期限分位数为 95.87%。",
     "同业可比（国债/5-10Y，n=25）：相对同业均值利差 -0.24 bp，同业收益率分位数 48.0%。",
     "按 z-score 阈值判断，该债券不属于收益率异常样本。收益率低于样本中位数 2.45%。成交量高于样本中位数 1.0 亿元。",
     "全市场背景：样本收益率中位数约 2.45%，均值约 2.7709%。",
     "券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。",
-    "数据质量 84/100（high），共 3 类问题。",
+    "数据质量 90/100（high），共 3 类问题。",
     "数据诊断：收益率缺失 263/3365（7.8%）。",
-    "数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。"
+    "数据诊断：期限缺失 2/3365（0.1%），分桶与同业可比会变弱。"
   ],
   "risk_notes": [
     "收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。",
@@ -442,6 +451,7 @@
     "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
     "未接入评级、主体财务、宏观利率曲线或新闻事件。",
     "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
+    "修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。",
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",

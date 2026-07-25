@@ -7,3 +7,7 @@ __pycache__/
 .env
 db.db
 instance/
+.tmp_ocr/
+agent_page.html
+*.ocr.txt
+.DS_Store

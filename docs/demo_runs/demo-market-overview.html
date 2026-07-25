@@ -68,7 +68,7 @@
     <header class="hero">
       <p class="eyebrow">Bond Evidence Pack</p>
       <h1>当前样本收益率分布是什么样？</h1>
-      <p class="muted">id=demo-market-overview · created=2026-07-23T02:11:07.848953+00:00 · intent=market_overview</p>
+      <p class="muted">id=demo-market-overview · created=2026-07-25T15:37:04.218940+00:00 · intent=market_overview</p>
       <div class="trust">
         <div class="trust-score">61<span style="font-size:16px">/100</span></div>
         <span class="badge warn">trust medium</span>
@@ -137,7 +137,7 @@
             <article class="card">
               <div class="badge">medium</div>
               <h3>待偿期字段有覆盖率记录，补全来源可追踪。</h3>
-              <p>覆盖率 92.6%，已填充 3117 条，缺失 248 条。</p>
+              <p>覆盖率 99.9%，已填充 3363 条，缺失 2 条。</p>
               <p class="muted">tool=data_source · source=data/testdata.xlsx</p>
             </article>
             
@@ -159,62 +159,63 @@
 
       <section class="section">
         <h2>最终回答 · Final answer</h2>
-        <pre>Question: 当前样本收益率分布是什么样？
-Intent: market_overview
+        <pre>问题: 当前样本收益率分布是什么样？
+意图: market_overview
 
-Tools Used:
+使用的工具:
 - describe_market
 - build_market_monitor
 - generate_bond_report
 
-Data Evidence:
+数据证据:
 - 数据源: data/testdata.xlsx (static_sample)
 - 样本行数: 3365，有效收益率记录: 3102
-- 期限覆盖率: 92.6%，已补全 3117 条，缺失 248 条
+- 期限覆盖率: 99.9%，已补全 3363 条，缺失 2
 - 样本数量: 3365
 - 收益率摘要: {&#x27;count&#x27;: 3102, &#x27;mean&#x27;: 2.7709, &#x27;std&#x27;: 2.2786, &#x27;min&#x27;: 0.1383, &#x27;p25&#x27;: 2.255, &#x27;median&#x27;: 2.45, &#x27;p75&#x27;: 2.7468, &#x27;max&#x27;: 57.0224}
-- 数据质量: 84/100 (high)
-- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。
+- 数据质量: 90/100 (high)
+- 监控面板: 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 2 条。
 
-Risk Explanation Layer:
+风险解释层:
 - Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.
 - Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.
 - Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.
 - Trading volume is a liquidity proxy: Low trading volume can mean wider bid-ask spreads and harder execution. A bond can look attractive in sample data but still be difficult to trade.
 
-Evidence Quality:
-- Score: 67/100
-- Level: medium
-- Data Freshness: static_snapshot
-- Decision Confidence: low
-- Summary: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.
+证据质量:
+- 评分: 67/100
+- 等级: medium
+- 数据新鲜度: static_snapshot
+- 决策置信度: low
+- 摘要: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.
 
-Analysis:
+分析:
 - 样本共 3365 条债券记录，收益率均值约 2.7709%。
 - 收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。
 - 成交量均值约 4.934 亿元，中位数约 1.0 亿元。
 - 券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。
-- 期限分桶：0-1Y 1476只/中位收益2.2708%；1-3Y 772只/中位收益2.62%；3-5Y 362只/中位收益2.9995%；5-10Y 393只/中位收益2.52%；10Y+ 114只/中位收益2.67%。
-- 数据质量 84/100（high），共 3 类问题。
+- 期限分桶：0-1Y 1536只/中位收益2.2708%；1-3Y 923只/中位收益2.62%；3-5Y 395只/中位收益2.9997%；5-10Y 395只/中位收益2.52%；10Y+ 114只/中位收益2.67%。
+- 数据质量 90/100（high），共 3 类问题。
 - 数据诊断：收益率缺失 263/3365（7.8%）。
-- 数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。
-- 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。
+- 数据诊断：期限缺失 2/3365（0.1%），分桶与同业可比会变弱。
+- 监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 2 条。
 
-Risk Notes:
+风险提示:
 - 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。
 - 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。
 
-Limitations:
+局限:
 - 本报告仅基于当前 Agent 数据源的可用字段计算。
 - 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。
 - 未接入评级、主体财务、宏观利率曲线或新闻事件。
 - 券种与期限分桶由名称/字段规则推断，不做信用评级结论。
+- 修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。
 - 非投资建议，仅用于学习和研究。</pre>
       </section>
 
       <section class="section">
         <h2>分析 · Analysis</h2>
-        <ul><li>样本共 3365 条债券记录，收益率均值约 2.7709%。</li><li>收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。</li><li>成交量均值约 4.934 亿元，中位数约 1.0 亿元。</li><li>券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。</li><li>期限分桶：0-1Y 1476只/中位收益2.2708%；1-3Y 772只/中位收益2.62%；3-5Y 362只/中位收益2.9995%；5-10Y 393只/中位收益2.52%；10Y+ 114只/中位收益2.67%。</li><li>数据质量 84/100（high），共 3 类问题。</li><li>数据诊断：收益率缺失 263/3365（7.8%）。</li><li>数据诊断：期限缺失 248/3365（7.4%），分桶与同业可比会变弱。</li><li>监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 248 条。</li></ul>
+        <ul><li>样本共 3365 条债券记录，收益率均值约 2.7709%。</li><li>收益率中位数约 2.45%，区间约为 0.1383% 到 57.0224%。</li><li>成交量均值约 4.934 亿元，中位数约 1.0 亿元。</li><li>券种结构：国债 116只/中位收益2.1325%；政策性金融债 176只/中位收益2.24%；地方政府债 614只/中位收益2.5175%；同业存单 671只/中位收益2.1951%。</li><li>期限分桶：0-1Y 1536只/中位收益2.2708%；1-3Y 923只/中位收益2.62%；3-5Y 395只/中位收益2.9997%；5-10Y 395只/中位收益2.52%；10Y+ 114只/中位收益2.67%。</li><li>数据质量 90/100（high），共 3 类问题。</li><li>数据诊断：收益率缺失 263/3365（7.8%）。</li><li>数据诊断：期限缺失 2/3365（0.1%），分桶与同业可比会变弱。</li><li>监控面板：高收益 5 条、低成交 5 条、收益异常 5 条、缺期限 2 条。</li></ul>
       </section>
 
       <section class="section">
@@ -224,7 +225,7 @@ Limitations:
 
       <section class="section">
         <h2>局限性 · Limitations（强制）</h2>
-        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li><li>数据质量：收益率缺失 263/3365（7.8%）。</li></ul>
+        <ul><li>本报告仅基于当前 Agent 数据源的可用字段计算。</li><li>公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。</li><li>未接入评级、主体财务、宏观利率曲线或新闻事件。</li><li>券种与期限分桶由名称/字段规则推断，不做信用评级结论。</li><li>修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。</li><li>非投资建议，仅用于学习和研究。</li><li>当前行情源不包含主体评级、财务报表、担保与信用事件。</li><li>收益率高低是风险信号，不是买卖依据。</li><li>实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。</li><li>数据质量：收益率缺失 263/3365（7.8%）。</li></ul>
         <p class="muted" style="margin-top:12px">非投资建议，仅用于学习和研究。</p>
       </section>
     </div>

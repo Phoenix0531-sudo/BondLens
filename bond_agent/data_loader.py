@@ -25,32 +25,85 @@ NUMERIC_COLUMNS = [PRICE, YIELD, WEIGHTED_YIELD, VOLUME]
 REQUIRED_COLUMNS = [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME]
 LIVE_CHANGE_BP = "涨跌(BP)"
 MATURITY_SOURCE = "待偿期来源"
+MATURITY_RAW = "待偿期原文"
+IS_PERPETUAL = "是否永续风格"
+MATURITY_PARSE_NOTE = "待偿期解析说明"
+MODIFIED_DURATION = "修正久期(近似)"
+DV01 = "DV01(近似)"
 DATA_MODES = {"auto", "live", "static"}
 STATIC_SAMPLE_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
-def parse_maturity_to_years(value: object) -> float | None:
+def parse_maturity_details(value: object) -> dict:
+    """Parse residual maturity with honest perpetual handling.
+
+    ChinaMoney perpetual-style residuals look like ``5Y+65.44Y+N``.
+    We keep the first finite leg as an analytics proxy (often nearer to the
+    next call/window) and flag the row as perpetual-style instead of summing a
+    synthetic multi-century residual.
+    """
+    empty = {
+        "years": None,
+        "is_perpetual": False,
+        "raw": None,
+        "display": None,
+        "note_zh": None,
+        "note_en": None,
+        "legs": [],
+    }
     if pd.isna(value):
-        return None
-    original = str(value).strip().upper().replace(" ", "")
+        return empty
+    raw = str(value).strip()
+    original = raw.upper().replace(" ", "")
     if not original or original in {"N", "NA", "NULL", "-"}:
-        return None
-    # ChinaMoney perpetual-style residuals look like "5Y+65.44Y+N".
-    # Prefer the first finite leg (often time-to-call / next window) instead of
-    # summing a synthetic multi-century residual.
+        return {**empty, "raw": raw or None}
     has_perpetual_marker = bool(re.search(r"(?:\+N\b|\bN\b)$", original)) or "+N" in original
-    text = re.sub(r"\+N\b", "", original).strip("+").strip()
-    if not text or text == "N":
-        return None
-    parts = [part for part in text.split("+") if part and part != "N"]
+    cleaned = re.sub(r"\+N\b", "", original).strip("+").strip()
+    if not cleaned or cleaned == "N":
+        return {
+            **empty,
+            "raw": raw,
+            "is_perpetual": has_perpetual_marker,
+            "note_zh": "永续风格残期无法解析为有限年限。" if has_perpetual_marker else None,
+            "note_en": "Perpetual-style residual could not be parsed to a finite tenor." if has_perpetual_marker else None,
+        }
+    parts = [part for part in cleaned.split("+") if part and part != "N"]
     if not parts:
-        return None
+        return {**empty, "raw": raw, "is_perpetual": has_perpetual_marker}
     if has_perpetual_marker:
-        return _parse_maturity_part(parts[0])
+        years = _parse_maturity_part(parts[0])
+        if years is None:
+            return {**empty, "raw": raw, "is_perpetual": True}
+        display = f"{_format_maturity(years)} (至行权/首段; 永续+N)"
+        return {
+            "years": years,
+            "is_perpetual": True,
+            "raw": raw,
+            "display": display,
+            "note_zh": f"永续风格残期原文 {raw}；分析仅取首段有限期限 {_format_maturity(years)}，不做完整永续定价。",
+            "note_en": (
+                f"Perpetual-style residual raw={raw}; analytics uses first finite leg "
+                f"{_format_maturity(years)} only, not a full perpetual model."
+            ),
+            "legs": parts,
+        }
     parsed = [_parse_maturity_part(part) for part in parts]
     if any(part is None for part in parsed):
-        return None
-    return sum(float(part) for part in parsed)
+        return {**empty, "raw": raw}
+    years = sum(float(part) for part in parsed)
+    return {
+        "years": years,
+        "is_perpetual": False,
+        "raw": raw,
+        "display": _format_maturity(years),
+        "note_zh": None,
+        "note_en": None,
+        "legs": parts,
+    }
+
+
+def parse_maturity_to_years(value: object) -> float | None:
+    return parse_maturity_details(value)["years"]
 
 
 def infer_static_sample_date(path: str | Path = DEFAULT_DATA_PATH):
@@ -82,13 +135,10 @@ def load_bond_data(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
 
     df = df.dropna(subset=[BOND_NAME]).copy()
     df[BOND_NAME] = df[BOND_NAME].astype(str).str.strip()
-    df[MATURITY_YEARS] = df[MATURITY].map(parse_maturity_to_years)
-    df[MATURITY_SOURCE] = "source_field"
-
+    df = _apply_maturity_details(df, source_label="source_field")
     for column in NUMERIC_COLUMNS:
         df[column] = pd.to_numeric(df[column], errors="coerce")
-
-    return df
+    return _attach_rate_sensitivity(df)
 
 
 def fetch_chinamoney_bond_spot_deal() -> pd.DataFrame:
@@ -178,14 +228,10 @@ def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame
     df[VOLUME] = pd.to_numeric(raw_df["交易量"], errors="coerce")
     if "涨跌" in raw_df.columns:
         df[LIVE_CHANGE_BP] = pd.to_numeric(raw_df["涨跌"], errors="coerce")
-    df[MATURITY_YEARS] = df[MATURITY].map(parse_maturity_to_years)
-    df[MATURITY_SOURCE] = None
-    native_mask = df[MATURITY_YEARS].notna()
-    df.loc[native_mask, MATURITY_SOURCE] = "chinamoney_term_to_maturity"
-    # Keep a canonical residual label even when the feed used day counts.
-    df.loc[native_mask, MATURITY] = df.loc[native_mask, MATURITY_YEARS].map(_format_maturity)
+    df = _apply_maturity_details(df, source_label="chinamoney_term_to_maturity")
     df = df[df[BOND_NAME] != ""].copy()
-    return enrich_live_maturity_from_static_master(df, security_master=security_master)
+    df = enrich_live_maturity_from_static_master(df, security_master=security_master)
+    return _attach_rate_sensitivity(df)
 
 
 def enrich_live_maturity_from_static_master(
@@ -373,9 +419,9 @@ def _build_static_profile(
 
 def _build_live_profile(df: pd.DataFrame, requested_mode: str) -> dict:
     return {
-        "source_id": "akshare_bond_spot_deal",
-        "source_name": "AkShare bond_spot_deal",
-        "provider": "AKShare public financial data interface",
+        "source_id": "chinamoney_bond_spot_deal",
+        "source_name": "ChinaMoney bond spot deal (CbtPri)",
+        "provider": "ChinaMoney public bond market data",
         "target_url": "https://www.chinamoney.com.cn/chinese/mkdatabond/",
         "storage": "Fetched at request time; not persisted",
         "runtime_mode": "live",
@@ -414,9 +460,9 @@ def _build_snapshot_profile(
         relative_path = snapshot_path.resolve().relative_to(PROJECT_ROOT)
 
     return {
-        "source_id": "akshare_bond_spot_deal_snapshot",
-        "source_name": "Cached AkShare bond_spot_deal snapshot",
-        "provider": "AKShare public financial data interface",
+        "source_id": "chinamoney_bond_spot_deal_snapshot",
+        "source_name": "Cached ChinaMoney bond spot deal snapshot",
+        "provider": "ChinaMoney public bond market data",
         "target_url": "https://www.chinamoney.com.cn/chinese/mkdatabond/",
         "storage": str(relative_path).replace("\\", "/"),
         "runtime_mode": "live_snapshot",
@@ -479,6 +525,48 @@ def _call_with_timeout(func, *, timeout_seconds: float, label: str = "operation"
         except FuturesTimeoutError as exc:
             future.cancel()
             raise TimeoutError(f"{label} timed out after {timeout_seconds:.1f}s") from exc
+
+
+
+def _apply_maturity_details(df: pd.DataFrame, source_label: str | None = None) -> pd.DataFrame:
+    """Attach parsed residual maturity fields from the MATURITY column."""
+    out = df.copy()
+    details = out[MATURITY].map(parse_maturity_details) if MATURITY in out.columns else pd.Series([{}] * len(out), index=out.index)
+    out[MATURITY_RAW] = details.map(lambda item: (item or {}).get("raw"))
+    out[IS_PERPETUAL] = details.map(lambda item: bool((item or {}).get("is_perpetual")))
+    out[MATURITY_PARSE_NOTE] = details.map(lambda item: (item or {}).get("note_zh"))
+    out[MATURITY_YEARS] = details.map(lambda item: (item or {}).get("years"))
+    if source_label:
+        out[MATURITY_SOURCE] = None
+        native_mask = out[MATURITY_YEARS].notna()
+        out.loc[native_mask, MATURITY_SOURCE] = source_label
+    display = details.map(lambda item: (item or {}).get("display"))
+    mask = display.notna()
+    out.loc[mask, MATURITY] = display[mask]
+    return out
+
+
+def _attach_rate_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
+    """Attach honest modified-duration / DV01 proxies from residual maturity + yield.
+
+    This is a teaching approximation for zero/bullet-like exposure using residual
+    maturity as a tenor proxy. It is not a cashflow-based Macaulay duration and
+    is left blank for perpetual-style rows.
+    """
+    out = df.copy()
+    years = pd.to_numeric(out.get(MATURITY_YEARS), errors="coerce")
+    yld = pd.to_numeric(out.get(YIELD), errors="coerce")
+    price = pd.to_numeric(out.get(PRICE), errors="coerce")
+    perpetual = out[IS_PERPETUAL].fillna(False) if IS_PERPETUAL in out.columns else False
+    # Modified duration proxy: T / (1 + y), y as decimal percent/100.
+    duration = years / (1.0 + (yld / 100.0))
+    duration = duration.where(years.notna() & yld.notna() & ~perpetual)
+    # DV01 proxy per 100 face using price if present, else par 100.
+    px = price.fillna(100.0)
+    dv01 = duration * px / 10000.0
+    out[MODIFIED_DURATION] = duration.round(4)
+    out[DV01] = dv01.round(6)
+    return out
 
 
 def _extract_native_maturity_series(raw_df: pd.DataFrame) -> pd.Series:

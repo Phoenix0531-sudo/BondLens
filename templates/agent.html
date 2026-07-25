@@ -726,6 +726,66 @@
       gap: 6px;
     }
   }
+
+  .form-wait-note {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .async-progress {
+    margin-top: 14px;
+    padding: 14px 16px;
+    border: 1px solid rgba(15, 107, 95, 0.18);
+    background: rgba(15, 107, 95, 0.06);
+    border-radius: 12px;
+  }
+
+  .async-progress[hidden] {
+    display: none !important;
+  }
+
+  .async-progress-title {
+    margin: 0 0 6px;
+    font-weight: 700;
+    color: var(--teal);
+  }
+
+  .async-progress-meta {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .async-progress-bar {
+    margin-top: 12px;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(15, 107, 95, 0.12);
+    overflow: hidden;
+  }
+
+  .async-progress-bar > span {
+    display: block;
+    height: 100%;
+    width: 35%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, rgba(15, 107, 95, 0.35), var(--teal), rgba(15, 107, 95, 0.35));
+    background-size: 200% 100%;
+    animation: bondlens-progress 1.4s linear infinite;
+  }
+
+  @keyframes bondlens-progress {
+    0% { transform: translateX(-120%); }
+    100% { transform: translateX(320%); }
+  }
+
+  .async-error {
+    margin-top: 12px;
+    color: #8a2f1f;
+    font-size: 13px;
+  }
 </style>
 
 <div class="agent-hero">
@@ -754,7 +814,7 @@
     {% if form_error %}
       <p class="form-error">{{ form_error }}</p>
     {% endif %}
-    <form method="post" id="agent-query-form" data-agent-form>
+    <form method="post" id="agent-query-form" data-agent-form data-async-endpoint="/api/agent/query">
       <input type="hidden" name="lang" value="{{ lang }}">
       <div class="form-field">
         <label for="question" data-lang-zh="自然语言问题" data-lang-en="Natural-language question">自然语言问题</label>
@@ -764,12 +824,18 @@
         <label for="data_mode" data-lang-zh="数据源模式" data-lang-en="Data source mode">数据源模式</label>
         <select id="data_mode" name="data_mode">
           <option value="auto" {% if data_mode == 'auto' %}selected{% endif %} data-lang-zh="Auto：实时优先，失败后使用快照/本地备用" data-lang-en="Auto: live first, then snapshot/local fallback">Auto：实时优先，失败后使用快照/本地备用</option>
-          <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="Live：AkShare 实时债券行情" data-lang-en="Live: AkShare live bond feed">Live：AkShare 实时债券行情</option>
+          <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="Live：中国货币网现券成交（原生待偿期）" data-lang-en="Live: ChinaMoney spot deals (native residual maturity)">Live：中国货币网现券成交（原生待偿期）</option>
           <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
         </select>
       </div>
       <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>
-      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="页面会整页刷新；开启 LLM 时通常需要 20–90 秒。请勿重复点击。期间可另开标签页访问健康检查。" data-lang-en="This page reloads when done. With LLM enabled it often takes 20–90s. Do not click again. You can open /healthz in another tab.">页面会整页刷新；开启 LLM 时通常需要 20–90 秒。请勿重复点击。期间可另开标签页访问健康检查。</p>
+      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="请求在后台执行，本页显示进度；开启 LLM 时通常 20–90 秒。请勿重复点击。期间可另开标签页访问 /healthz。" data-lang-en="The request runs in the background with on-page progress. With LLM enabled it often takes 20–90s. Do not click again. You can open /healthz in another tab.">请求在后台执行，本页显示进度；开启 LLM 时通常 20–90 秒。请勿重复点击。期间可另开标签页访问 /healthz。</p>
+      <div class="async-progress" id="agent-async-progress" hidden>
+        <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
+        <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
+        <div class="async-progress-bar" aria-hidden="true"><span></span></div>
+        <p class="async-error" id="agent-async-error" hidden></p>
+      </div>
     </form>
   </section>
 </div>
@@ -778,21 +844,116 @@
     const form = document.getElementById("agent-query-form");
     const button = document.getElementById("run-agent-button");
     const note = document.getElementById("agent-wait-note");
+    const progress = document.getElementById("agent-async-progress");
+    const meta = document.getElementById("agent-async-meta");
+    const errorBox = document.getElementById("agent-async-error");
     if (!form || !button) {
       return;
     }
-    form.addEventListener("submit", () => {
-      const lang = (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
+
+    function currentLang() {
+      return (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
         ? "en"
         : "zh";
+    }
+
+    function setBusy(isBusy) {
+      const lang = currentLang();
       const busyText = lang === "en"
         ? (button.dataset.busyEn || "Analyzing, please wait…")
         : (button.dataset.busyZh || "分析中，请稍候…");
-      button.disabled = true;
-      button.textContent = busyText;
-      button.setAttribute("aria-busy", "true");
-      if (note) {
-        note.hidden = false;
+      const idleText = lang === "en"
+        ? (button.dataset.langEn || "Run Agent")
+        : (button.dataset.langZh || "运行 Agent");
+      button.disabled = isBusy;
+      button.textContent = isBusy ? busyText : idleText;
+      button.setAttribute("aria-busy", isBusy ? "true" : "false");
+      if (note) note.hidden = !isBusy;
+      if (progress) progress.hidden = !isBusy;
+      if (!isBusy && errorBox) {
+        errorBox.hidden = true;
+        errorBox.textContent = "";
+      }
+    }
+
+    let timer = null;
+    function startTimer() {
+      const started = Date.now();
+      if (timer) clearInterval(timer);
+      timer = setInterval(() => {
+        if (!meta) return;
+        const sec = Math.floor((Date.now() - started) / 1000);
+        meta.textContent = currentLang() === "en"
+          ? (`Elapsed ${sec}s · tools first, then optional LLM`)
+          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM`);
+      }, 500);
+    }
+    function stopTimer() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+
+    form.addEventListener("submit", async (event) => {
+      // Prefer async JSON path so the page can show progress without a frozen full reload.
+      // Fallback to native POST if fetch is unavailable.
+      if (!window.fetch) {
+        setBusy(true);
+        return;
+      }
+      event.preventDefault();
+      if (button.disabled) return;
+
+      const endpoint = form.dataset.asyncEndpoint || "/api/agent/query";
+      const lang = currentLang();
+      const question = (form.question && form.question.value || "").trim();
+      const dataMode = (form.data_mode && form.data_mode.value) || "auto";
+      if (!question) {
+        if (errorBox) {
+          errorBox.hidden = false;
+          errorBox.textContent = lang === "en" ? "Please enter a question." : "请先输入问题。";
+        }
+        return;
+      }
+
+      setBusy(true);
+      startTimer();
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: JSON.stringify({
+            question,
+            data_mode: dataMode,
+            lang,
+            include_view: false,
+          }),
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(payload.error || (`HTTP ${response.status}`));
+        }
+        const resultId = payload.result_id;
+        if (!resultId) {
+          throw new Error(lang === "en" ? "Missing result_id from API." : "接口未返回 result_id。");
+        }
+        const url = new URL(window.location.href);
+        url.pathname = "/agent";
+        url.searchParams.set("result_id", resultId);
+        url.searchParams.set("lang", lang);
+        url.searchParams.set("data_mode", dataMode);
+        window.location.assign(url.toString());
+      } catch (err) {
+        stopTimer();
+        setBusy(false);
+        if (errorBox) {
+          errorBox.hidden = false;
+          errorBox.textContent = (lang === "en" ? "Request failed: " : "请求失败：") + (err && err.message ? err.message : String(err));
+        }
       }
     });
   })();
@@ -1048,6 +1209,41 @@
     </section>
     {% endif %}
 
+
+    {% if view.rate_sensitivity and (view.rate_sensitivity.modified_duration_approx is not none or view.rate_sensitivity.is_perpetual_style or view.credit_context) %}
+    <section class="surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="利率敏感度与信用边界" data-lang-en="Rate sensitivity & credit boundary">利率敏感度与信用边界</h2>
+          <p class="surface-subtitle" data-lang-zh="久期/DV01 为残期近似；评级字段当前源中不存在。" data-lang-en="Duration/DV01 are residual-maturity proxies; ratings are unavailable in the active feed.">久期/DV01 为残期近似；评级字段当前源中不存在。</p>
+        </div>
+      </div>
+      <div class="surface-body metric-grid">
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="修正久期(近似)" data-lang-en="Mod. duration (approx)">修正久期(近似)</p>
+          <p class="metric-value">{% if view.rate_sensitivity.modified_duration_approx is not none %}{{ view.rate_sensitivity.modified_duration_approx }}{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="DV01(近似)" data-lang-en="DV01 (approx)">DV01(近似)</p>
+          <p class="metric-value">{% if view.rate_sensitivity.dv01_approx is not none %}{{ view.rate_sensitivity.dv01_approx }}{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="永续风格" data-lang-en="Perpetual-style">永续风格</p>
+          <p class="metric-value">{% if view.rate_sensitivity.is_perpetual_style %}{% if lang == 'en' %}Yes{% else %}是{% endif %}{% else %}{% if lang == 'en' %}No{% else %}否{% endif %}{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="主体评级" data-lang-en="Issuer rating">主体评级</p>
+          <p class="metric-value" data-lang-zh="源中无此字段" data-lang-en="Not in feed">源中无此字段</p>
+        </article>
+      </div>
+      {% if view.rate_sensitivity.note_zh or view.credit_context.note_zh %}
+      <div class="surface-body">
+        <p class="surface-subtitle" data-lang-zh="{{ view.rate_sensitivity.note_zh or '' }} {{ view.credit_context.note_zh or '' }}" data-lang-en="{{ view.rate_sensitivity.note_en or '' }} {{ view.credit_context.note_en or '' }}">{{ view.rate_sensitivity.note_zh or '' }} {{ view.credit_context.note_zh or '' }}</p>
+      </div>
+      {% endif %}
+    </section>
+    {% endif %}
+
     {% if view.monitor and (view.monitor_high_yield or view.monitor_low_volume or view.monitor_outliers) %}
     <section class="surface">
       <div class="surface-header">
@@ -1067,9 +1263,9 @@
               <tbody>
               {% for bond in view.monitor_high_yield %}
                 <tr>
-                  <td>{{ bond['债券简称'] }}</td>
-                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
-                  <td>{{ bond.get('券种') or '—' }}</td>
+                  <td>{{ bond.name or bond.get('债券简称') }}</td>
+                  <td>{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}%</td>
+                  <td>{{ bond.type_value or bond.get('券种') or '—' }}</td>
                 </tr>
               {% endfor %}
               </tbody>
@@ -1084,9 +1280,9 @@
               <tbody>
               {% for bond in view.monitor_low_volume %}
                 <tr>
-                  <td>{{ bond['债券简称'] }}</td>
-                  <td>{{ bond['交易量(亿元)'] }}</td>
-                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
+                  <td>{{ bond.name or bond.get('债券简称') }}</td>
+                  <td>{{ bond.volume_value if bond.volume_value is not none else bond.get('交易量(亿元)') }}</td>
+                  <td>{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}%</td>
                 </tr>
               {% endfor %}
               </tbody>
@@ -1101,8 +1297,8 @@
               <tbody>
               {% for bond in view.monitor_outliers %}
                 <tr>
-                  <td>{{ bond['债券简称'] }}</td>
-                  <td>{{ bond['收盘到期收益率(%)'] }}%</td>
+                  <td>{{ bond.name or bond.get('债券简称') }}</td>
+                  <td>{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}%</td>
                   <td>{{ bond.outlier_score }}</td>
                 </tr>
               {% endfor %}
@@ -1202,9 +1398,9 @@
           <tbody>
             {% for bond in view.maturity_board.unmatched_preview %}
             <tr>
-              <td>{{ bond['债券简称'] }}</td>
-              <td>{% if bond.get('收盘到期收益率(%)') is not none %}{{ bond['收盘到期收益率(%)'] }}%{% else %}—{% endif %}</td>
-              <td>{{ bond.get('交易量(亿元)') if bond.get('交易量(亿元)') is not none else '—' }}</td>
+              <td>{{ bond.name or bond.get('债券简称') }}</td>
+              <td>{% if bond.get('收盘到期收益率(%)') is not none %}{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}%{% else %}—{% endif %}</td>
+              <td>{{ bond.volume_value if bond.volume_value is not none else (bond.get('交易量(亿元)') if bond.get('交易量(亿元)') is not none else '—') }}</td>
             </tr>
             {% endfor %}
           </tbody>
@@ -1327,7 +1523,7 @@
               <tbody>
                 {% for bond in view.ranking_records %}
                   <tr>
-                    <td>{{ bond['债券简称'] }}</td>
+                    <td>{{ bond.name or bond.get('债券简称') }}</td>
                     <td>
                       {% if bond['待偿期'] %}
                         {{ bond['待偿期'] }}
@@ -1335,8 +1531,8 @@
                         <span data-lang-zh="暂缺" data-lang-en="N/A">暂缺</span>
                       {% endif %}
                     </td>
-                    <td>{{ bond['收盘到期收益率(%)'] }}</td>
-                    <td>{{ bond['交易量(亿元)'] }}</td>
+                    <td>{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}</td>
+                    <td>{{ bond.volume_value if bond.volume_value is not none else bond.get('交易量(亿元)') }}</td>
                   </tr>
                 {% endfor %}
               </tbody>
@@ -1459,10 +1655,10 @@
             <tbody>
               {% for bond in view.outlier_records %}
                 <tr>
-                  <td>{{ bond['债券简称'] }}</td>
-                  <td>{{ bond['收盘到期收益率(%)'] }}</td>
+                  <td>{{ bond.name or bond.get('债券简称') }}</td>
+                  <td>{{ bond.yield_value if bond.yield_value is not none else bond.get('收盘到期收益率(%)') }}</td>
                   <td>{{ bond.outlier_score }}</td>
-                  <td>{{ bond['交易量(亿元)'] }}</td>
+                  <td>{{ bond.volume_value if bond.volume_value is not none else bond.get('交易量(亿元)') }}</td>
                 </tr>
               {% endfor %}
             </tbody>

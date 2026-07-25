@@ -5,6 +5,7 @@ import io
 import json
 import os
 from pathlib import Path
+from uuid import uuid4
 
 from flask import (
     Flask,
@@ -28,6 +29,26 @@ app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
 DATA_MODES = {"auto", "live", "static"}
 LANGUAGES = {"zh", "en"}
+# Short-lived in-memory cache so the async agent form can re-render HTML without a second LLM call.
+_RESULT_CACHE: dict[str, dict] = {}
+_RESULT_CACHE_LIMIT = 32
+
+FIELD_LABELS = {
+    "债券简称": {"zh": "债券简称", "en": "Bond"},
+    "收盘到期收益率(%)": {"zh": "收益率", "en": "Yield (%)"},
+    "加权收益率(%)": {"zh": "加权收益率", "en": "Weighted yield (%)"},
+    "交易量(亿元)": {"zh": "成交量(亿元)", "en": "Volume (bn CNY)"},
+    "收盘净价(元)": {"zh": "净价(元)", "en": "Clean price"},
+    "待偿期": {"zh": "待偿期", "en": "Residual maturity"},
+    "待偿期(年)": {"zh": "待偿期(年)", "en": "Maturity (years)"},
+    "待偿期原文": {"zh": "待偿期原文", "en": "Maturity raw"},
+    "是否永续风格": {"zh": "永续风格", "en": "Perpetual-style"},
+    "修正久期(近似)": {"zh": "修正久期(近似)", "en": "Mod. duration (approx)"},
+    "DV01(近似)": {"zh": "DV01(近似)", "en": "DV01 (approx)"},
+    "券种": {"zh": "券种", "en": "Type"},
+    "涨跌(BP)": {"zh": "涨跌(BP)", "en": "Change (bp)"},
+    "分数": {"zh": "分数", "en": "Score"},
+}
 
 INTENT_LABELS = {
     "bond_report": {"zh": "单券分析", "en": "Bond report"},
@@ -108,12 +129,24 @@ def agent_page():
     view = None
     question = ""
     form_error = None
+    result_id = None
     lang = _resolve_language()
     data_mode, form_error = _resolve_page_data_mode(request.values.get("data_mode", os.environ.get("BOND_DATA_MODE", "auto")))
     if request.method == "POST":
         question = request.form.get("question", "").strip()
         result = BondAnalystAgent(data_mode=data_mode).answer(question)
+        result_id = _store_result(result, question=question, data_mode=data_mode)
         view = _build_agent_view_model(result, lang=lang)
+    else:
+        # Async form path: after /api/agent/query, browser reloads with result_id to render full HTML once.
+        cached_id = (request.args.get("result_id") or "").strip()
+        cached = _load_result(cached_id) if cached_id else None
+        if cached:
+            result = cached.get("result")
+            question = cached.get("question") or ""
+            data_mode = cached.get("data_mode") or data_mode
+            result_id = cached_id
+            view = _build_agent_view_model(result, lang=lang)
     html = render_template(
         "agent.html",
         result=result,
@@ -122,6 +155,7 @@ def agent_page():
         data_mode=data_mode,
         form_error=form_error,
         lang=lang,
+        result_id=result_id,
     )
     return _with_language_cookie(html, lang)
 
@@ -139,8 +173,16 @@ def agent_query():
     except ValueError as exc:
         error = ApiError(error=str(exc), allowed_data_modes=sorted(DATA_MODES))
         return jsonify(error.model_dump(mode="json", exclude_none=True)), 400
+    lang = _resolve_language(payload.get("lang") if isinstance(payload, dict) else None)
     result = BondAnalystAgent(data_mode=data_mode).answer(question)
-    return jsonify(result)
+    result_id = _store_result(result, question=question, data_mode=data_mode)
+    include_view = bool(payload.get("include_view")) if isinstance(payload, dict) else False
+    body = dict(result)
+    body["result_id"] = result_id
+    body["result_url"] = url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode)
+    if include_view:
+        body["view"] = _build_agent_view_model(result, lang=lang)
+    return jsonify(body)
 
 
 @app.route("/api/agent/schema")
@@ -239,6 +281,70 @@ def export_unmatched_maturity():
         download_name="maturity-unmatched.csv",
         as_attachment=True,
     )
+
+
+
+def _store_result(result: dict, question: str = "", data_mode: str = "auto") -> str:
+    result_id = uuid4().hex
+    _RESULT_CACHE[result_id] = {
+        "result": result,
+        "question": question,
+        "data_mode": data_mode,
+    }
+    # Bound memory for local demos.
+    while len(_RESULT_CACHE) > _RESULT_CACHE_LIMIT:
+        oldest = next(iter(_RESULT_CACHE))
+        _RESULT_CACHE.pop(oldest, None)
+    return result_id
+
+
+def _load_result(result_id: str | None) -> dict | None:
+    if not result_id:
+        return None
+    return _RESULT_CACHE.get(result_id)
+
+
+def _field_label(key: str, lang: str = "zh") -> str:
+    entry = FIELD_LABELS.get(key)
+    if not entry:
+        return key
+    return entry.get(lang) or entry.get("zh") or key
+
+
+def _localize_bond_records(records: list | None, lang: str = "zh") -> list[dict]:
+    """Project raw bond dicts into UI-friendly bilingual display fields."""
+    localized: list[dict] = []
+    for record in records or []:
+        if not isinstance(record, dict):
+            continue
+        item = dict(record)
+        name = record.get("债券简称")
+        yld = record.get("收盘到期收益率(%)")
+        vol = record.get("交易量(亿元)")
+        maturity = record.get("待偿期")
+        bond_type = record.get("券种") or record.get("bond_type")
+        item.update(
+            {
+                "name": name,
+                "name_label": _field_label("债券简称", lang),
+                "yield_value": yld,
+                "yield_label": _field_label("收盘到期收益率(%)", lang),
+                "volume_value": vol,
+                "volume_label": _field_label("交易量(亿元)", lang),
+                "maturity_value": maturity,
+                "maturity_label": _field_label("待偿期", lang),
+                "type_value": bond_type,
+                "type_label": _field_label("券种", lang),
+                "duration_value": record.get("修正久期(近似)"),
+                "duration_label": _field_label("修正久期(近似)", lang),
+                "dv01_value": record.get("DV01(近似)"),
+                "dv01_label": _field_label("DV01(近似)", lang),
+                "is_perpetual": bool(record.get("是否永续风格")),
+                "score_value": record.get("分数") or record.get("score") or record.get("zscore"),
+            }
+        )
+        localized.append(item)
+    return localized
 
 
 def _normalize_data_mode(value: str | None) -> str:
@@ -357,11 +463,13 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
         "data_quality_issues": data_quality.get("issues") or [],
         "data_quality_diagnostics": data_quality.get("diagnostics") or {},
         "peer_comparison": (comparison.get("peer_comparison") if comparison else None) or {},
+        "rate_sensitivity": (comparison.get("rate_sensitivity") if comparison else None) or {},
+        "credit_context": (comparison.get("credit_context") if comparison else None) or {},
         "monitor": monitor,
-        "monitor_high_yield": (monitor.get("high_yield") or [])[:5],
-        "monitor_low_volume": (monitor.get("low_volume") or [])[:5],
-        "monitor_outliers": (monitor.get("yield_outliers") or [])[:5],
-        "monitor_missing_maturity": (monitor.get("missing_maturity") or [])[:5],
+        "monitor_high_yield": _localize_bond_records((monitor.get("high_yield") or [])[:5], lang),
+        "monitor_low_volume": _localize_bond_records((monitor.get("low_volume") or [])[:5], lang),
+        "monitor_outliers": _localize_bond_records((monitor.get("yield_outliers") or [])[:5], lang),
+        "monitor_missing_maturity": _localize_bond_records((monitor.get("missing_maturity") or [])[:5], lang),
         "monitor_summary": monitor.get("summary_zh") if lang == "zh" else monitor.get("summary_en"),
         "monitor_summary_by_lang": {
             "zh": monitor.get("summary_zh") or "",
@@ -375,11 +483,12 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             "en": _maturity_honesty_note(data_source, "en"),
         },
         "maturity_board": _build_maturity_board(data_source, lang),
-        "maturity_unmatched_records": (maturity_coverage.get("unmatched_records") or [])[:20],
+        "maturity_unmatched_records": _localize_bond_records((maturity_coverage.get("unmatched_records") or [])[:20], lang),
         "maturity_export_csv_url": _maturity_export_url("csv", data_source),
         "maturity_export_json_url": _maturity_export_url("json", data_source),
-        "ranking_records": (ranking.get("records") or [])[:5],
-        "outlier_records": (outliers.get("records") or [])[:5],
+        "ranking_records": _localize_bond_records((ranking.get("records") or [])[:5], lang),
+        "outlier_records": _localize_bond_records((outliers.get("records") or [])[:5], lang),
+        "field_labels": {key: _field_label(key, lang) for key in FIELD_LABELS},
         "market_summary": [
             _metric("Yield Mean", "收益率均值", summary.get("mean"), lang, "%"),
             _metric("Yield Range", "收益率区间", _range_text(summary.get("min"), summary.get("max")), lang, "%"),

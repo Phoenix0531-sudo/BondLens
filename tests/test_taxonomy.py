@@ -46,6 +46,9 @@ def test_compare_bond_includes_peer_comparison():
     assert "peer_comparison" in result
     assert result["peer_comparison"]["peer_count"] >= 1
     assert result.get("bond_type")
+    assert "rate_sensitivity" in result
+    assert "credit_context" in result
+    assert result["credit_context"]["available"] is False
 
 
 def test_data_quality_score_bounds():

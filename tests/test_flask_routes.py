@@ -37,6 +37,9 @@ def test_agent_page_shows_submit_busy_state_hooks():
     assert 'id="run-agent-button"' in html
     assert "分析中，请稍候" in html
     assert "请勿重复点击" in html
+    assert 'data-async-endpoint="/api/agent/query"' in html
+    assert 'id="agent-async-progress"' in html
+    assert "/api/agent/query" in html
 
 
 def test_agent_page_localizes_result_for_chinese():
@@ -225,3 +228,22 @@ def test_maturity_unmatched_export_csv_and_json():
     payload = json_response.get_json()
     assert payload["unmatched_count"] == 1
     assert payload["records"][0]["债券简称"] == "测试债B"
+
+def test_agent_api_returns_result_id_for_async_render():
+    client = app.test_client()
+
+    response = client.post(
+        "/api/agent/query",
+        json={"question": "当前样本收益率分布是什么样？", "data_mode": "static", "lang": "zh"},
+    )
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["result_id"]
+    assert payload["result_url"]
+    assert "result_id=" in payload["result_url"]
+
+    page = client.get(payload["result_url"])
+    html = page.get_data(as_text=True)
+    assert page.status_code == 200
+    assert "首屏答案摘要" in html or "最终回答" in html
+    assert "数据新鲜度" in html
