@@ -273,45 +273,66 @@ class BondAnalystAgent:
         if not api_key:
             return {"text": None, "status": "disabled", "error": None}
 
-        try:
-            client = self._create_openai_client(api_key, base_url=base_url)
-            model = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
-            lang = self._detect_answer_lang(question)
-            lang_rule = (
-                "Write the entire answer in Chinese (简体中文)."
-                if lang == "zh"
-                else "Write the entire answer in English."
-            )
-            instructions = (
-                "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
-                "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
-                "present in the JSON (including percentiles, spreads, counts, and percentages). "
-                "When citing quartiles, prefer labels p25/p75 with their evidence values "
-                "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
-                "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
-                "2.5647% only when that exact value appears in evidence. "
-                "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
-                "verbatim if needed, never recompute shares. "
-                "Do not create new percentages, ranges, ratings, issuer details, market facts, "
-                "or investment advice. "
-                "Do not recommend buying, selling, adding position, guaranteed returns, risk-free status, "
-                "or very safe conclusions. "
-                "The yield_distribution values are counts, not percentages. "
-                "If a requested bond is present under data_evidence.search.records, focus on that bond "
-                "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
-                "If the evidence is insufficient, say so directly. "
-                f"{lang_rule} "
-                f"Always include this disclaimer in Chinese: {DISCLAIMER}"
-            )
-            evidence_payload = self._build_llm_evidence(question, plan, report)
-            evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
-            api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
-            text = self._call_llm(client, model, instructions, evidence_json, api_style, prefer_chat=bool(base_url))
-            if not text:
-                return {"text": None, "status": "failed", "error": "OpenAI request failed: empty_output"}
-            return {"text": self._ensure_disclaimer(text.strip()), "status": "success", "error": None}
-        except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
-            return {"text": None, "status": "failed", "error": f"OpenAI request failed: {type(exc).__name__}"}
+        last_error: Exception | None = None
+        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "2")))
+        for attempt in range(attempts):
+            try:
+                client = self._create_openai_client(api_key, base_url=base_url)
+                model = os.environ.get("OPENAI_MODEL", "gpt-5.4-mini")
+                lang = self._detect_answer_lang(question)
+                lang_rule = (
+                    "Write the entire answer in Chinese (简体中文)."
+                    if lang == "zh"
+                    else "Write the entire answer in English."
+                )
+                instructions = (
+                    "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
+                    "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
+                    "present in the JSON (including percentiles, spreads, counts, and percentages). "
+                    "When citing quartiles, prefer labels p25/p75 with their evidence values "
+                    "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
+                    "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
+                    "2.5647% only when that exact value appears in evidence. "
+                    "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
+                    "verbatim if needed, never recompute shares. "
+                    "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
+                    "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
+                    "Do not create new percentages, ranges, ratings, issuer details, market facts, "
+                    "or investment advice. "
+                    "Do not recommend buying, selling, adding position, guaranteed returns, "
+                    "or very safe conclusions. "
+                    "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
+                    "or 'no investment advice' instead of 'not risk-free'. "
+                    "The yield_distribution values are counts, not percentages. "
+                    "If a requested bond is present under data_evidence.search.records, focus on that bond "
+                    "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
+                    "If the evidence is insufficient, say so directly. "
+                    f"{lang_rule} "
+                    f"Always include this disclaimer in Chinese: {DISCLAIMER}"
+                )
+                evidence_payload = self._build_llm_evidence(question, plan, report)
+                evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
+                api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
+                text = self._call_llm(client, model, instructions, evidence_json, api_style, prefer_chat=bool(base_url))
+                if not text:
+                    return {"text": None, "status": "failed", "error": "OpenAI request failed: empty_output"}
+                return {"text": self._ensure_disclaimer(text.strip()), "status": "success", "error": None}
+            except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
+                last_error = exc
+                # One quick retry only for transient transport failures.
+                if attempt + 1 < attempts and type(exc).__name__ in {
+                    "APIConnectionError",
+                    "APITimeoutError",
+                    "RateLimitError",
+                    "InternalServerError",
+                    "TimeoutError",
+                    "ConnectTimeout",
+                    "ReadTimeout",
+                }:
+                    continue
+                return {"text": None, "status": "failed", "error": f"OpenAI request failed: {type(exc).__name__}"}
+        err_name = type(last_error).__name__ if last_error else "UnknownError"
+        return {"text": None, "status": "failed", "error": f"OpenAI request failed: {err_name}"}
 
     def _detect_answer_lang(self, question: str) -> str:
         if re.search(r"[\u4e00-\u9fff]", question or ""):
@@ -547,71 +568,97 @@ class BondAnalystAgent:
         ranking = evidence.get("ranking") or {}
         outliers = evidence.get("outliers") or {}
         comparison = evidence.get("comparison") or {}
+        lang = self._detect_answer_lang(report.get("question") or "")
+        en = lang == "en"
+
+        def L(zh: str, english: str) -> str:
+            return english if en else zh
 
         lines = [
-            f"Question: {report['question']}",
-            f"Intent: {plan['intent']}",
+            f"{L('问题', 'Question')}: {report['question']}",
+            f"{L('意图', 'Intent')}: {plan['intent']}",
             "",
-            "Tools Used:",
+            f"{L('使用的工具', 'Tools Used')}:",
             *[f"- {tool}" for tool in report["tools_used"]],
             "",
-            "Data Evidence:",
+            f"{L('数据证据', 'Data Evidence')}:",
         ]
 
         data_source = report.get("data_source") or {}
         evidence_quality = report.get("evidence_quality") or {}
         risk_explanations = report.get("risk_explanations") or []
         if data_source:
-            lines.append(f"- 数据源: {data_source.get('source_name')} ({data_source.get('runtime_mode')})")
+            lines.append(
+                f"- {L('数据源', 'Data source')}: {data_source.get('source_name')} ({data_source.get('runtime_mode')})"
+            )
             if data_source.get("fetched_at"):
-                lines.append(f"- 获取时间: {data_source.get('fetched_at')}")
+                lines.append(f"- {L('获取时间', 'Fetched at')}: {data_source.get('fetched_at')}")
             if data_source.get("fallback_reason"):
-                lines.append(f"- 实时数据降级原因: {data_source.get('fallback_reason')}")
-            lines.append(f"- 样本行数: {data_source.get('row_count')}，有效收益率记录: {data_source.get('valid_yield_count')}")
+                lines.append(
+                    f"- {L('实时数据降级原因', 'Live fallback reason')}: {data_source.get('fallback_reason')}"
+                )
+            lines.append(
+                f"- {L('样本行数', 'Sample rows')}: {data_source.get('row_count')}"
+                f"{L('，有效收益率记录', ', valid yield records')}: {data_source.get('valid_yield_count')}"
+            )
             if data_source.get("maturity_coverage"):
                 coverage = data_source["maturity_coverage"]
                 ratio = round(float(coverage.get("coverage_ratio", 0)) * 100, 1)
                 lines.append(
-                    f"- 期限覆盖率: {ratio}%，已补全 {coverage.get('filled_count')} 条，缺失 {coverage.get('missing_count')} 条"
+                    f"- {L('期限覆盖率', 'Maturity coverage')}: {ratio}%"
+                    f"{L('，已补全', ', filled')} {coverage.get('filled_count')}"
+                    f"{L(' 条，缺失', ', missing')} {coverage.get('missing_count')}"
                 )
 
         if market:
-            lines.append(f"- 样本数量: {market.get('sample_count', 0)}")
-            lines.append(f"- 收益率摘要: {market.get('yield_summary', {})}")
+            lines.append(f"- {L('样本数量', 'Sample count')}: {market.get('sample_count', 0)}")
+            lines.append(f"- {L('收益率摘要', 'Yield summary')}: {market.get('yield_summary', {})}")
             quality = market.get("data_quality") or {}
             if quality:
-                lines.append(f"- 数据质量: {quality.get('score')}/100 ({quality.get('level')})")
+                lines.append(
+                    f"- {L('数据质量', 'Data quality')}: {quality.get('score')}/100 ({quality.get('level')})"
+                )
         if ranking:
-            lines.append(f"- 排序字段: {ranking.get('rank_by')}")
+            lines.append(f"- {L('排序字段', 'Rank by')}: {ranking.get('rank_by')}")
         if outliers:
-            lines.append(f"- 异常样本数量: {outliers.get('outlier_count', 0)}")
+            lines.append(f"- {L('异常样本数量', 'Outlier count')}: {outliers.get('outlier_count', 0)}")
         monitor = evidence.get("monitor") or {}
         if monitor:
-            lines.append(f"- 监控面板: {monitor.get('summary_zh') or monitor.get('summary_en')}")
+            summary = monitor.get("summary_en") if en else monitor.get("summary_zh")
+            summary = summary or monitor.get("summary_zh") or monitor.get("summary_en")
+            lines.append(f"- {L('监控面板', 'Monitor')}: {summary}")
         search = evidence.get("search") or {}
         if search:
-            lines.append(f"- 检索条件: {search.get('criteria', {})}")
-            lines.append(f"- 检索命中数量: {search.get('match_count', 0)}")
+            lines.append(f"- {L('检索条件', 'Search criteria')}: {search.get('criteria', {})}")
+            lines.append(f"- {L('检索命中数量', 'Match count')}: {search.get('match_count', 0)}")
             for index, record in enumerate(search.get("records", [])[:5], start=1):
-                lines.append(
-                    f"  {index}. {record.get('债券简称')} | 待偿期 {self._display_maturity(record)} | "
-                    f"收益率 {record.get('收盘到期收益率(%)')}% | 成交量 {record.get('交易量(亿元)')} 亿元"
-                )
+                maturity = self._display_maturity(record, lang=lang)
+                if en:
+                    lines.append(
+                        f"  {index}. {record.get('债券简称')} | maturity {maturity} | "
+                        f"YTM {record.get('收盘到期收益率(%)')}% | volume {record.get('交易量(亿元)')} bn CNY"
+                    )
+                else:
+                    lines.append(
+                        f"  {index}. {record.get('债券简称')} | 待偿期 {maturity} | "
+                        f"收益率 {record.get('收盘到期收益率(%)')}% | 成交量 {record.get('交易量(亿元)')} 亿元"
+                    )
         if comparison:
             lines.append(
-                f"- 债券相对市场: yield_percentile={comparison.get('yield_percentile')}, "
+                f"- {L('债券相对市场', 'Bond vs market')}: yield_percentile={comparison.get('yield_percentile')}, "
                 f"volume_percentile={comparison.get('volume_percentile')}, "
                 f"is_yield_outlier={comparison.get('is_yield_outlier')}"
             )
             peer = comparison.get("peer_comparison") or {}
             if peer:
                 lines.append(
-                    f"- 同业可比: type={peer.get('bond_type')}, bucket={peer.get('maturity_bucket')}, "
-                    f"n={peer.get('peer_count')}, spread_bp={peer.get('spread_vs_peer_mean_bp')}"
+                    f"- {L('同业可比', 'Peer comparison')}: type={peer.get('bond_type')}, "
+                    f"bucket={peer.get('maturity_bucket')}, n={peer.get('peer_count')}, "
+                    f"spread_bp={peer.get('spread_vs_peer_mean_bp')}"
                 )
 
         if risk_explanations:
-            lines.extend(["", "Risk Explanation Layer:"])
+            lines.extend(["", f"{L('风险解释层', 'Risk Explanation Layer')}" + ":"])
             for item in risk_explanations:
                 lines.append(f"- {item.get('title')}: {item.get('summary')}")
 
@@ -619,25 +666,25 @@ class BondAnalystAgent:
             lines.extend(
                 [
                     "",
-                    "Evidence Quality:",
-                    f"- Score: {evidence_quality.get('score')}/100",
-                    f"- Level: {evidence_quality.get('level')}",
-                    f"- Data Freshness: {evidence_quality.get('data_freshness')}",
-                    f"- Decision Confidence: {evidence_quality.get('decision_confidence')}",
-                    f"- Summary: {evidence_quality.get('summary')}",
+                    f"{L('证据质量', 'Evidence Quality')}:",
+                    f"- {L('评分', 'Score')}: {evidence_quality.get('score')}/100",
+                    f"- {L('等级', 'Level')}: {evidence_quality.get('level')}",
+                    f"- {L('数据新鲜度', 'Data Freshness')}: {evidence_quality.get('data_freshness')}",
+                    f"- {L('决策置信度', 'Decision Confidence')}: {evidence_quality.get('decision_confidence')}",
+                    f"- {L('摘要', 'Summary')}: {evidence_quality.get('summary')}",
                 ]
             )
 
         lines.extend(
             [
                 "",
-                "Analysis:",
+                f"{L('分析', 'Analysis')}:",
                 *[f"- {item}" for item in report["analysis"]],
                 "",
-                "Risk Notes:",
+                f"{L('风险提示', 'Risk Notes')}:",
                 *[f"- {item}" for item in report["risk_notes"]],
                 "",
-                "Limitations:",
+                f"{L('局限', 'Limitations')}:",
                 *[f"- {item}" for item in report["limitations"]],
             ]
         )
@@ -650,8 +697,10 @@ class BondAnalystAgent:
         visible = [f"{key}={value}" for key, value in params.items() if key != "limit"]
         return ", ".join(visible) if visible else "no filters"
 
-    def _display_maturity(self, record: dict) -> str:
+    def _display_maturity(self, record: dict, lang: str | None = None) -> str:
         maturity = record.get("待偿期")
         if maturity is not None and str(maturity).strip():
             return str(maturity)
+        if lang == "en":
+            return "missing in current source"
         return "当前数据源暂缺"

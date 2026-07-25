@@ -4,7 +4,10 @@ import math
 import re
 from typing import Any
 
-NUMBER_RE = re.compile(r"(?<![\w.%％])-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?")
+# ASCII hyphen-minus, Unicode minus (U+2212), en-dash, fullwidth hyphen-minus.
+# Models often emit "−5.95" (U+2212); treating it as bare 5.95 falsely fails numeric checks.
+_SIGN_CLASS = r"[\-\u2212\u2013\uff0d]"
+NUMBER_RE = re.compile(rf"(?<![\w.%％]){_SIGN_CLASS}?(?:\d{{1,3}}(?:,\d{{3}})+|\d+)(?:\.\d+)?")
 UNSAFE_LANGUAGE_RULES = [
     ("buy_recommendation", re.compile(r"(建议|推荐|应该|可以|适合).{0,10}(买入|购买|配置|加仓|投资)")),
     ("sell_recommendation", re.compile(r"(建议|推荐|应该|可以).{0,10}(卖出|减仓|清仓)")),
@@ -14,6 +17,17 @@ UNSAFE_LANGUAGE_RULES = [
     ("english_buy_recommendation", re.compile(r"\b(strong buy|buy recommendation|you should buy|safe investment)\b", re.IGNORECASE)),
     ("english_guarantee", re.compile(r"\b(guaranteed return|risk-free|no downside)\b", re.IGNORECASE)),
 ]
+# Look-back window for negation before an otherwise-unsafe phrase.
+_NEGATION_LOOKBACK = re.compile(
+    r"(?is)"
+    r"(?:"
+    r"\b(?:not|never|without|avoid|denies?|deny|neither|nor)\b|"
+    r"\b(?:do|does|did|is|are|was|were|can|could|should|must|will)\s+not\b|"
+    r"\bno\b(?!\s+downside\b)|"  # "no risk-free..." OK; keep "no downside" as unsafe phrase itself
+    r"并非|不是|绝不|不要|禁止|避免|不得|无(?:买卖|投资建议)"
+    r")"
+    r"[\w\s\-\"'‘’“”，。、：:（）()]{0,40}$"
+)
 
 
 def assess_llm_faithfulness(text: str | None, report: dict) -> dict:
@@ -80,8 +94,17 @@ def _find_unsafe_phrases(text: str) -> list[dict]:
     findings = []
     for rule_id, pattern in UNSAFE_LANGUAGE_RULES:
         for match in pattern.finditer(text):
+            if _is_negated_claim(text, match):
+                # "not risk-free" / "no risk-free conclusion" / "避免无风险表述" are boundary language.
+                continue
             findings.append({"rule_id": rule_id, "text": match.group(0)})
     return findings
+
+
+def _is_negated_claim(text: str, match: re.Match) -> bool:
+    """True when the unsafe token is used inside a clear negation / refusal."""
+    window = text[max(0, match.start() - 48) : match.start()]
+    return bool(_NEGATION_LOOKBACK.search(window))
 
 
 def _walk_evidence(value: Any, path: list[str], numbers: list[dict]) -> None:
@@ -263,12 +286,19 @@ def _is_quantile_label(text: str, match: re.Match) -> bool:
     )
 
 
+def _normalize_number_token(token: str) -> str:
+    cleaned = token.replace(",", "")
+    for ch in ("\u2212", "\u2013", "\uff0d"):
+        cleaned = cleaned.replace(ch, "-")
+    return cleaned
+
+
 def _to_float(token: str) -> float:
-    return float(token.replace(",", ""))
+    return float(_normalize_number_token(token))
 
 
 def _decimal_places(token: str) -> int:
-    normalized = token.replace(",", "")
+    normalized = _normalize_number_token(token).lstrip("-")
     if "." not in normalized:
         return 0
     return len(normalized.rsplit(".", 1)[1])

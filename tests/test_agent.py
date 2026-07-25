@@ -26,8 +26,8 @@ def test_agent_fallback_uses_local_tools_without_openai_key(monkeypatch):
     assert "compare_bond_to_market" in result["tools_used"]
     assert "generate_bond_report" in result["tools_used"]
     assert "23附息国债26" in result["final_answer"]
-    assert "Risk Explanation Layer" in result["final_answer"]
-    assert "Evidence Quality" in result["final_answer"]
+    assert "风险解释层" in result["final_answer"]
+    assert "证据质量" in result["final_answer"]
     assert "非投资建议，仅用于学习和研究" in result["final_answer"]
     assert result["tool_trace"][-1] == "-> final answer"
     assert result["replay_id"]
@@ -171,6 +171,8 @@ class _FakeAdviceLocalClient:
 
 def test_agent_llm_status_success(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
+    monkeypatch.delenv("OPENAI_API_STYLE", raising=False)
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FakeClient())
 
     result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
@@ -186,6 +188,7 @@ def test_agent_llm_status_success(monkeypatch):
 
 def test_agent_llm_status_failed_keeps_fallback(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("OPENAI_API_STYLE", "responses")
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FailingClient())
 
@@ -195,7 +198,7 @@ def test_agent_llm_status_failed_keeps_fallback(monkeypatch):
     assert result["used_llm_in_final"] is False
     assert result["llm_status"] == "failed"
     assert result["llm_error"] == "OpenAI request failed: RuntimeError"
-    assert "Question:" in result["final_answer"]
+    assert "问题:" in result["final_answer"] or "Question:" in result["final_answer"]
 
 
 def test_agent_local_openai_compatible_base_url_uses_chat_without_api_key(monkeypatch):
@@ -248,7 +251,7 @@ def test_agent_rejects_llm_output_with_unsupported_numeric_claim(monkeypatch):
     assert result["llm_guardrail"]["numeric_status"] == "failed"
     assert result["llm_guardrail"]["language_status"] == "failed"
     assert result["llm_enhanced_answer"].startswith("样本中 99%")
-    assert result["final_answer"].startswith("Question:")
+    assert result["final_answer"].startswith(("问题:", "Question:"))
     assert any(item["text"] == "99%" for item in result["llm_guardrail"]["unsupported_numbers"])
     assert any(item["rule_id"] == "risk_free_claim" for item in result["llm_guardrail"]["unsafe_phrases"])
 
@@ -268,7 +271,7 @@ def test_agent_rejects_llm_output_with_investment_advice_language(monkeypatch):
     assert result["llm_guardrail"]["numeric_status"] == "passed"
     assert result["llm_guardrail"]["language_status"] == "failed"
     assert any(item["rule_id"] == "buy_recommendation" for item in result["llm_guardrail"]["unsafe_phrases"])
-    assert result["final_answer"].startswith("Question:")
+    assert result["final_answer"].startswith(("问题:", "Question:"))
 
 
 def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):

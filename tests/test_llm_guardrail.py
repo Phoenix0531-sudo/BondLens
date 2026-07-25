@@ -131,3 +131,38 @@ def test_llm_guardrail_accepts_quality_note_percent_and_cn_yield_field():
     assert bad["status"] == "failed"
     assert bad["numeric_status"] == "failed"
     assert any(item["text"] == "12.3%" for item in bad["unsupported_numbers"])
+
+
+def test_llm_guardrail_accepts_unicode_minus_peer_spread():
+    """Models often emit U+2212 minus; bare 5.95 must not be extracted as positive."""
+    report = {
+        "data_evidence": {
+            "comparison": {
+                "peer_comparison": {
+                    "spread_vs_peer_mean_bp": -5.95,
+                    "peer_yield_percentile": 28.57,
+                }
+            }
+        }
+    }
+    unicode_minus = "\u2212"  # −
+    text = f"spread vs peer mean **{unicode_minus}5.95 bp**; peer yield percentile **28.57%**."
+    result = assess_llm_faithfulness(text, report)
+    assert result["status"] == "passed"
+    assert result["numeric_status"] == "passed"
+    assert result["unsupported_numbers"] == []
+
+
+def test_llm_guardrail_negated_risk_free_is_safe_but_positive_claim_fails():
+    report = _report()
+    ok = assess_llm_faithfulness(
+        "This bond is not risk-free. There is no risk-free conclusion. Avoid risk-free claims.",
+        report,
+    )
+    assert ok["language_status"] == "passed"
+    assert ok["unsafe_phrases"] == []
+
+    bad = assess_llm_faithfulness("The bond is risk-free with guaranteed return.", report)
+    assert bad["language_status"] == "failed"
+    rule_ids = {item["rule_id"] for item in bad["unsafe_phrases"]}
+    assert "english_guarantee" in rule_ids
