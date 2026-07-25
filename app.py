@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from flask import (
     Flask,
+    Response,
     abort,
     jsonify,
     make_response,
@@ -16,6 +17,7 @@ from flask import (
     render_template,
     request,
     send_file,
+    stream_with_context,
     url_for,
 )
 from pydantic import ValidationError
@@ -43,8 +45,15 @@ FIELD_LABELS = {
     "待偿期(年)": {"zh": "待偿期(年)", "en": "Maturity (years)"},
     "待偿期原文": {"zh": "待偿期原文", "en": "Maturity raw"},
     "是否永续风格": {"zh": "永续风格", "en": "Perpetual-style"},
-    "修正久期(近似)": {"zh": "修正久期(近似)", "en": "Mod. duration (approx)"},
-    "DV01(近似)": {"zh": "DV01(近似)", "en": "DV01 (approx)"},
+    "修正久期(近似)": {"zh": "修正久期(现金流)", "en": "Mod. duration (CF)"},
+    "修正久期(现金流假设)": {"zh": "修正久期(现金流)", "en": "Mod. duration (CF)"},
+    "麦考利久期(现金流假设)": {"zh": "麦考利久期(现金流)", "en": "Macaulay duration (CF)"},
+    "DV01(近似)": {"zh": "DV01(现金流)", "en": "DV01 (CF)"},
+    "DV01(现金流假设)": {"zh": "DV01(现金流)", "en": "DV01 (CF)"},
+    "理论永续修正久期": {"zh": "理论永续修正久期", "en": "Consol mod. duration"},
+    "久期方法": {"zh": "久期方法", "en": "Duration method"},
+    "首段期限(年)": {"zh": "首段期限(年)", "en": "First-leg years"},
+    "远端期限(年)": {"zh": "远端期限(年)", "en": "Remote-leg years"},
     "券种": {"zh": "券种", "en": "Type"},
     "涨跌(BP)": {"zh": "涨跌(BP)", "en": "Change (bp)"},
     "分数": {"zh": "分数", "en": "Score"},
@@ -75,34 +84,76 @@ TOOL_LABELS = {
 
 RISK_TRANSLATIONS = {
     "yield_risk": {
-        "title": "收益率是风险信号，不是投资建议",
-        "summary": "较高收益率通常是在补偿信用风险、流动性风险、久期暴露或定价不确定性。",
-        "watch_points": ["应与相近期限债券比较收益率。", "把高收益样本视为需要核查的信号，而不是直接机会。"],
+        "zh": {
+            "title": "收益率是风险信号，不是投资建议",
+            "summary": "较高收益率通常是在补偿信用风险、流动性风险、久期暴露或定价不确定性。",
+            "watch_points": ["应与相近期限债券比较收益率。", "把高收益样本视为需要核查的信号，而不是直接机会。"],
+        },
+        "en": {
+            "title": "Yield is a risk signal, not investment advice",
+            "summary": "Higher yields usually compensate credit, liquidity, duration exposure, or pricing uncertainty.",
+            "watch_points": ["Compare yields with nearby-maturity peers.", "Treat high-yield hits as review signals, not opportunities."],
+        },
     },
     "liquidity_risk": {
-        "title": "成交量是流动性代理指标",
-        "summary": "低成交量可能意味着买卖价差更宽、执行更困难；样本内看起来有吸引力的债券也可能不易交易。",
-        "watch_points": ["结合市场样本比较成交量分位数。", "把低成交量排名视为流动性提醒，而不是交易机会。"],
+        "zh": {
+            "title": "成交量是流动性代理指标",
+            "summary": "低成交量可能意味着买卖价差更宽、执行更困难；样本内看起来有吸引力的债券也可能不易交易。",
+            "watch_points": ["结合市场样本比较成交量分位数。", "把低成交量排名视为流动性提醒，而不是交易机会。"],
+        },
+        "en": {
+            "title": "Volume is a liquidity proxy",
+            "summary": "Low volume can mean wider spreads and harder execution; attractive sample ranks may still be hard to trade.",
+            "watch_points": ["Compare volume percentiles within the sample.", "Treat low-volume ranks as liquidity alerts, not trade ideas."],
+        },
     },
     "duration_risk": {
-        "title": "更长期限会提高利率敏感性",
-        "summary": "长期债券通常对利率变化更敏感；收益率比较在期限区间相近时更有意义。",
-        "watch_points": ["比较收益率前先看期限分位数。", "区分短期限存单、长期国债和政策性金融债等不同类型。"],
+        "zh": {
+            "title": "更长期限会提高利率敏感性",
+            "summary": "长期债券通常对利率变化更敏感；收益率比较在期限区间相近时更有意义。",
+            "watch_points": ["比较收益率前先看期限分位数。", "区分短期限存单、长期国债和政策性金融债等不同类型。"],
+        },
+        "en": {
+            "title": "Longer residual maturity raises rate sensitivity",
+            "summary": "Longer bonds are usually more rate-sensitive; yield comparisons are more meaningful in nearby maturity buckets.",
+            "watch_points": ["Check maturity percentiles before comparing yields.", "Separate short CDs, long Treasuries, and policy-bank bonds."],
+        },
     },
     "outlier_risk": {
-        "title": "收益率异常需要结合数据与信用核查",
-        "summary": "收益率异常可能来自真实风险、陈旧报价、数据质量问题或债券类型差异，应触发复核而不是直接行动。",
-        "watch_points": ["先检查命中的债券记录。", "判断异常来自收益率、期限、成交量还是缺失上下文。"],
+        "zh": {
+            "title": "收益率异常需要结合数据与信用核查",
+            "summary": "收益率异常可能来自真实风险、陈旧报价、数据质量问题或债券类型差异，应触发复核而不是直接行动。",
+            "watch_points": ["先检查命中的债券记录。", "判断异常来自收益率、期限、成交量还是缺失上下文。"],
+        },
+        "en": {
+            "title": "Yield outliers need data and credit review",
+            "summary": "Outliers can reflect real risk, stale quotes, data quality, or type differences; they trigger review, not action.",
+            "watch_points": ["Inspect the matched bond record first.", "Separate yield, maturity, volume, and missing-context causes."],
+        },
     },
     "credit_risk": {
-        "title": "信用上下文不在当前行情源内",
-        "summary": "当前行情源不包含主体评级、财务报表、担保或信用事件，因此信用结论必须保持克制。",
-        "watch_points": ["不要只根据收益率推断评级。", "做信用判断前应补充主体、评级和事件数据。"],
+        "zh": {
+            "title": "信用上下文不在当前行情源内",
+            "summary": "当前行情源不包含主体评级、财务报表、担保或信用事件，因此信用结论必须保持克制。",
+            "watch_points": ["不要只根据收益率推断评级。", "做信用判断前应补充主体、评级和事件数据。"],
+        },
+        "en": {
+            "title": "Credit context is outside the active feed",
+            "summary": "The active feed has no issuer ratings, financials, guarantees, or credit events, so credit claims stay conservative.",
+            "watch_points": ["Do not infer ratings from yield alone.", "Add issuer, rating, and event data before credit judgments."],
+        },
     },
     "data_boundary": {
-        "title": "数据覆盖范围限制决策置信度",
-        "summary": "Agent 可使用 AkShare 实时债券数据和本地 Excel 备用样本；每个回答都应说明当前数据源，并避免超出字段范围的结论。",
-        "watch_points": ["讨论时效性前先检查 data_source。", "做信用或投资判断前应补充主体、评级、曲线和新闻数据。"],
+        "zh": {
+            "title": "数据覆盖范围限制决策置信度",
+            "summary": "Agent 使用中国货币网现券成交与本地 Excel 备用样本；每个回答都应说明当前数据源，并避免超出字段范围的结论。",
+            "watch_points": ["讨论时效性前先检查 data_source。", "做信用或投资判断前应补充主体、评级、曲线和新闻数据。"],
+        },
+        "en": {
+            "title": "Data coverage limits decision confidence",
+            "summary": "The agent uses ChinaMoney spot deals and a local Excel fallback; every answer should state the active source and stay inside field scope.",
+            "watch_points": ["Check data_source before discussing freshness.", "Add issuer, rating, curve, and news data before credit or investment claims."],
+        },
     },
 }
 
@@ -183,6 +234,70 @@ def agent_query():
     if include_view:
         body["view"] = _build_agent_view_model(result, lang=lang)
     return jsonify(body)
+
+
+@app.route("/api/agent/stream", methods=["POST"])
+def agent_stream():
+    """SSE token/status stream for agent answers.
+
+    Emits text/event-stream events:
+      event: status|token|final|error
+      data: JSON
+    """
+    payload = request.get_json(silent=True) or {}
+    try:
+        query = AgentQueryRequest.model_validate(payload) if payload else AgentQueryRequest(question=request.form.get("question", ""))
+    except ValidationError as exc:
+        return jsonify(ApiError(error="Invalid agent query request.", details=exc.errors()).model_dump(mode="json")), 400
+    question = query.question or request.form.get("question", "")
+    try:
+        data_mode = _normalize_data_mode(query.data_mode or request.form.get("data_mode") or os.environ.get("BOND_DATA_MODE", "auto"))
+    except ValueError as exc:
+        error = ApiError(error=str(exc), allowed_data_modes=sorted(DATA_MODES))
+        return jsonify(error.model_dump(mode="json", exclude_none=True)), 400
+    lang = _resolve_language(payload.get("lang") if isinstance(payload, dict) else None)
+
+    def generate():
+        import json as _json
+        agent = BondAnalystAgent(data_mode=data_mode)
+        try:
+            for event in agent.iter_answer_events(question):
+                etype = event.get("type") or "status"
+                if etype == "final":
+                    result = event.get("result") or {}
+                    result_id = _store_result(result, question=question, data_mode=data_mode)
+                    body = {
+                        "type": "final",
+                        "result_id": result_id,
+                        "result_url": url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode),
+                        "result": result,
+                    }
+                    yield f"event: final\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+                elif etype == "token":
+                    body = {"type": "token", "text": event.get("text") or "", "model": event.get("model")}
+                    yield f"event: token\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+                elif etype == "error":
+                    body = {"type": "error", "error": event.get("error") or "stream error"}
+                    yield f"event: error\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+                else:
+                    body = {
+                        "type": "status",
+                        "stage": event.get("stage"),
+                        "tool": event.get("tool"),
+                        "message": event.get("message_en") if lang == "en" else event.get("message_zh"),
+                        "message_zh": event.get("message_zh"),
+                        "message_en": event.get("message_en"),
+                    }
+                    yield f"event: status\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+        except Exception as exc:  # noqa: BLE001 - surface stream failures to client
+            body = {"type": "error", "error": f"{type(exc).__name__}: {exc}"}
+            yield f"event: error\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+
+    response = Response(stream_with_context(generate()), mimetype="text/event-stream")
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["X-Accel-Buffering"] = "no"
+    response.headers["Connection"] = "keep-alive"
+    return response
 
 
 @app.route("/api/agent/schema")
@@ -335,10 +450,12 @@ def _localize_bond_records(records: list | None, lang: str = "zh") -> list[dict]
                 "maturity_label": _field_label("待偿期", lang),
                 "type_value": bond_type,
                 "type_label": _field_label("券种", lang),
-                "duration_value": record.get("修正久期(近似)"),
-                "duration_label": _field_label("修正久期(近似)", lang),
-                "dv01_value": record.get("DV01(近似)"),
-                "dv01_label": _field_label("DV01(近似)", lang),
+                "duration_value": record.get("修正久期(现金流假设)", record.get("修正久期(近似)")),
+                "duration_label": _field_label("修正久期(现金流假设)", lang),
+                "macaulay_value": record.get("麦考利久期(现金流假设)"),
+                "dv01_value": record.get("DV01(现金流假设)", record.get("DV01(近似)")),
+                "dv01_label": _field_label("DV01(现金流假设)", lang),
+                "perpetual_duration_value": record.get("理论永续修正久期"),
                 "is_perpetual": bool(record.get("是否永续风格")),
                 "score_value": record.get("分数") or record.get("score") or record.get("zscore"),
             }
@@ -875,17 +992,12 @@ def _localize_trace_item(item: str, lang: str) -> str:
 
 
 def _localize_risk_item(item: dict, lang: str) -> dict:
-    if lang == "en":
-        return {
-            "title": item.get("title", ""),
-            "summary": item.get("summary", ""),
-            "watch_points": item.get("watch_points", []),
-        }
     translation = RISK_TRANSLATIONS.get(item.get("id"), {})
+    localized = translation.get(lang) or translation.get("zh") or {}
     return {
-        "title": translation.get("title", item.get("title", "")),
-        "summary": translation.get("summary", item.get("summary", "")),
-        "watch_points": translation.get("watch_points", item.get("watch_points", [])),
+        "title": localized.get("title") or item.get("title", ""),
+        "summary": localized.get("summary") or item.get("summary", ""),
+        "watch_points": localized.get("watch_points") or item.get("watch_points", []),
     }
 
 

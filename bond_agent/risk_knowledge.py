@@ -40,7 +40,7 @@ RISK_SNIPPETS = [
         "id": "data_boundary",
         "title": "Data coverage limits decision confidence",
         "keywords": ["数据", "样本", "来源", "实时", "crawler", "爬虫", "testdata"],
-        "summary": "The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.",
+        "summary": "The Agent can use ChinaMoney spot deals and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.",
         "watch_points": ["Check the response data_source before discussing freshness.", "Use issuer, rating, curve, and news data before making credit or investment judgments."],
     },
 ]

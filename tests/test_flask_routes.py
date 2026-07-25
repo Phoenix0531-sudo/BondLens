@@ -38,8 +38,11 @@ def test_agent_page_shows_submit_busy_state_hooks():
     assert "分析中，请稍候" in html
     assert "请勿重复点击" in html
     assert 'data-async-endpoint="/api/agent/query"' in html
+    assert 'data-stream-endpoint="/api/agent/stream"' in html
     assert 'id="agent-async-progress"' in html
+    assert 'id="agent-stream-preview"' in html
     assert "/api/agent/query" in html
+    assert "/api/agent/stream" in html
 
 
 def test_agent_page_localizes_result_for_chinese():
@@ -247,3 +250,30 @@ def test_agent_api_returns_result_id_for_async_render():
     assert page.status_code == 200
     assert "首屏答案摘要" in html or "最终回答" in html
     assert "数据新鲜度" in html
+
+
+def test_agent_stream_endpoint_emits_final_event():
+    client = app.test_client()
+    response = client.post(
+        "/api/agent/stream",
+        json={"question": "当前样本收益率分布是什么样？", "data_mode": "static", "lang": "zh"},
+        buffered=False,
+    )
+    assert response.status_code == 200
+    assert "text/event-stream" in (response.headers.get("Content-Type") or "")
+    body = response.get_data(as_text=True)
+    assert "event: status" in body
+    assert "event: final" in body
+    assert "result_id" in body
+
+
+def test_agent_page_rate_sensitivity_cashflow_labels():
+    client = app.test_client()
+    response = client.post(
+        "/agent",
+        data={"question": "搜索23附息国债26并给出收益率分析", "data_mode": "static", "lang": "zh"},
+    )
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert "利率敏感度与信用边界" in html
+    assert "修正久期(现金流)" in html or "Mod. duration" in html

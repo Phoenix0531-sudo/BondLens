@@ -246,7 +246,7 @@ class BondAnalystAgent:
             if native > 0 and ratio >= 0.9:
                 note = (
                     f"实时/快照源已保留 ChinaMoney 原生待偿期（覆盖率 {ratio:.1%}）；"
-                    "永续风格 +N 仅取首段有限期限作分析代理，不是完整永续定价。"
+                    "永续风格 +N 主分析取首段行权窗口，并给出理论永续情景；不是完整含权永续定价。"
                 )
             else:
                 note = (
@@ -255,7 +255,7 @@ class BondAnalystAgent:
                 )
             if note not in merged:
                 merged.append(note)
-            perpetual_note = "永续风格残期（如 5Y+…+N）只取首段有限期限，DV01/久期近似对其留空。"
+            perpetual_note = "永续风格残期（如 5Y+…+N）主分析取首段行权窗口，并并行理论永续 consol 久期；非完整含权定价。"
             if perpetual_note not in merged:
                 merged.append(perpetual_note)
         quality = ((report.get("data_evidence") or {}).get("market") or {}).get("data_quality") or {}
@@ -316,8 +316,9 @@ class BondAnalystAgent:
                         "or very safe conclusions. "
                         "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
                         "or 'no investment advice' instead of 'not risk-free'. "
-                        "If evidence includes modified_duration_approx or dv01_approx, quote them only "
-                        "as approximate residual-maturity proxies and say they are not cashflow durations. "
+                        "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
+                        "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
+                        "mention first-leg vs theoretical consol scenarios when present. "
                         "The yield_distribution values are counts, not percentages. "
                         "If a requested bond is present under data_evidence.search.records, focus on that bond "
                         "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
@@ -449,12 +450,25 @@ class BondAnalystAgent:
         }
         compact_comparison = comparison
         if isinstance(comparison, dict):
+            rate = comparison.get("rate_sensitivity") or {}
             compact_comparison = {
                 "bond_name": comparison.get("bond_name") or comparison.get("name"),
                 "record": comparison.get("record"),
                 "market_median": comparison.get("market_median") or comparison.get("median"),
                 "vs_market": comparison.get("vs_market") or comparison.get("comparison"),
                 "notes": comparison.get("notes") or comparison.get("analysis"),
+                "rate_sensitivity": {
+                    "modified_duration": rate.get("modified_duration") or rate.get("modified_duration_approx"),
+                    "macaulay_duration": rate.get("macaulay_duration"),
+                    "dv01": rate.get("dv01") or rate.get("dv01_approx"),
+                    "perpetual_modified_duration": rate.get("perpetual_modified_duration"),
+                    "method": rate.get("method"),
+                    "is_perpetual_style": rate.get("is_perpetual_style"),
+                    "scenarios": rate.get("scenarios") or [],
+                    "assumptions_zh": rate.get("assumptions_zh"),
+                    "assumptions_en": rate.get("assumptions_en"),
+                },
+                "credit_context": comparison.get("credit_context"),
             }
         return {
             "question": question,
@@ -537,6 +551,369 @@ class BondAnalystAgent:
             return None
         message = getattr(choices[0], "message", None)
         return getattr(message, "content", None)
+
+    def _call_chat_completions_stream(self, client, model: str, instructions: str, evidence_json: str):
+        """Yield text deltas from chat.completions stream=True."""
+        stream = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": evidence_json},
+            ],
+            stream=True,
+        )
+        for chunk in stream:
+            choices = getattr(chunk, "choices", None) or []
+            if not choices:
+                continue
+            delta = getattr(choices[0], "delta", None)
+            content = getattr(delta, "content", None) if delta is not None else None
+            if content:
+                yield content
+
+    def iter_answer_events(self, question: str):
+        """Yield structured progress events for SSE/token streaming UI.
+
+        Event types:
+        - status: pipeline stage
+        - token: LLM text delta (only when streaming LLM path is used)
+        - final: complete AgentResponse-compatible dict
+        - error: fatal
+        """
+        question = question.strip() or "请概览当前债券市场样本。"
+        yield {"type": "status", "stage": "resolve_data", "message_zh": "解析数据源…", "message_en": "Resolving data…"}
+        data_frame, data_source = resolve_bond_data(
+            mode=self.data_mode,
+            path=self.data_path or None,
+            live_fetcher=self.live_fetcher,
+        )
+        yield {"type": "status", "stage": "plan", "message_zh": "规划意图与工具…", "message_en": "Planning intent/tools…"}
+        plan = classify_intent(question, data_path=self.data_path, data_frame=data_frame)
+        tool_outputs: list[dict] = []
+        tool_trace: list[str] = [
+            f"User question: {question}",
+            f"-> data_source(mode={data_source['runtime_mode']}, source={data_source['source_id']})",
+            f"-> planner(intent={plan['intent']})",
+        ]
+        report = None
+        for tool_name in plan["requested_tools"]:
+            yield {
+                "type": "status",
+                "stage": "tool",
+                "tool": tool_name,
+                "message_zh": f"执行工具 {tool_name}…",
+                "message_en": f"Running tool {tool_name}…",
+            }
+            if tool_name == "search_bonds":
+                result = search_bonds(**plan["search_params"], data_frame=data_frame)
+                tool_outputs.append(result)
+                tool_trace.append(f"-> search_bonds({self._compact_args(plan['search_params'])})")
+            elif tool_name == "compare_bond_to_market":
+                search_result = self._find_tool_output(tool_outputs, "search_bonds")
+                first_record = (search_result.get("records") or [None])[0] if search_result else None
+                result = compare_bond_to_market(
+                    bond_name=plan["search_params"].get("name"),
+                    record=first_record,
+                    data_frame=data_frame,
+                )
+                tool_outputs.append(result)
+                tool_trace.append("-> compare_bond_to_market()")
+            elif tool_name == "describe_market":
+                result = describe_market(
+                    data_frame=data_frame,
+                    maturity_coverage=data_source.get("maturity_coverage"),
+                    runtime_mode=data_source.get("runtime_mode"),
+                )
+                tool_outputs.append(result)
+                tool_trace.append("-> describe_market()")
+            elif tool_name == "rank_bonds":
+                result = rank_bonds(
+                    by=plan["rank_by"] or "yield",
+                    top_n=5,
+                    ascending=plan["ascending"],
+                    data_frame=data_frame,
+                )
+                tool_outputs.append(result)
+                tool_trace.append(f"-> rank_bonds(by={plan['rank_by'] or 'yield'}, top_n=5)")
+            elif tool_name == "detect_yield_outliers":
+                result = detect_yield_outliers(method="zscore", threshold=3.0, top_n=5, data_frame=data_frame)
+                tool_outputs.append(result)
+                tool_trace.append("-> detect_yield_outliers(method=zscore, threshold=3.0)")
+            elif tool_name == "build_market_monitor":
+                result = build_market_monitor(top_n=5, data_frame=data_frame)
+                tool_outputs.append(result)
+                tool_trace.append("-> build_market_monitor(top_n=5)")
+            elif tool_name == "generate_bond_report":
+                report = generate_bond_report(question, tool_outputs, plan=plan)
+                tool_trace.append("-> generate_bond_report()")
+        if report is None:
+            report = generate_bond_report(question, tool_outputs, plan=plan)
+            tool_trace.append("-> generate_bond_report()")
+
+        risk_explanations = retrieve_risk_explanations(question, report)
+        evidence_quality = assess_evidence_quality(plan, report, data_source, risk_explanations)
+        report["data_source"] = data_source
+        report["risk_explanations"] = risk_explanations
+        report["evidence_quality"] = evidence_quality
+
+        is_advisory_refusal = plan.get("intent") == "advisory_refusal"
+        llm_text_parts: list[str] = []  # optional accumulate
+        if is_advisory_refusal:
+            yield {"type": "status", "stage": "policy", "message_zh": "投资建议政策拦截…", "message_en": "Advisory policy block…"}
+            fallback_answer = self._format_advisory_refusal(question, report, plan)
+            llm_result = {"text": None, "status": "disabled", "error": "advisory_policy_block"}
+            llm_guardrail = assess_llm_faithfulness(None, report)
+            tool_trace.append("-> input_policy(status=advisory_refusal)")
+            tool_trace.append("-> llm_guardrail(skipped: advisory_policy_block)")
+            use_llm_final = False
+            final_answer = fallback_answer
+            final_answer_source = "deterministic_fallback"
+        else:
+            fallback_answer = self._format_report(report, plan)
+            yield {"type": "status", "stage": "llm", "message_zh": "调用 LLM（可流式）…", "message_en": "Calling LLM (streamable)…"}
+            # Live token path: consume streaming generator and re-yield token events immediately.
+            llm_result = {"text": None, "status": "disabled", "error": None}
+            for event in self._iter_llm_answer_events(question, plan, report):
+                if event.get("type") == "token":
+                    yield event
+                    llm_text_parts.append(event.get("text") or "")
+                elif event.get("type") == "llm_result":
+                    llm_result = event.get("result") or llm_result
+            llm_guardrail = (
+                assess_llm_faithfulness(llm_result.get("text"), report)
+                if llm_result.get("status") == "success"
+                else assess_llm_faithfulness(None, report)
+            )
+            if llm_result["status"] == "success":
+                tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
+            else:
+                tool_trace.append(f"-> llm_guardrail(skipped: llm_{llm_result['status']})")
+            use_llm_final = llm_result["status"] == "success" and llm_guardrail["status"] == "passed"
+            final_answer = llm_result["text"] if use_llm_final else fallback_answer
+            final_answer_source = "llm" if use_llm_final else "deterministic_fallback"
+
+        answer_judge = judge_answer(
+            llm_status=llm_result["status"],
+            llm_guardrail=llm_guardrail,
+            evidence_quality=evidence_quality,
+            final_answer_source=final_answer_source,
+        )
+        risk_profile = build_risk_profile(report, data_source, evidence_quality, llm_guardrail)
+        evidence_ledger = build_evidence_ledger(
+            plan=plan,
+            report=report,
+            data_source=data_source,
+            evidence_quality=evidence_quality,
+            llm_guardrail=llm_guardrail,
+            final_answer_source=final_answer_source,
+        )
+        limitations = self._merge_limitations(report.get("limitations") or [])
+        limitations = self._append_data_source_limitations(limitations, data_source, report)
+        if is_advisory_refusal:
+            policy_note = "输入政策：问题含买卖/保证收益等投资建议诉求，已拦截推荐路径。"
+            if policy_note not in limitations:
+                limitations.insert(0, policy_note)
+        trust_score = compute_trust_score(
+            data_source=data_source,
+            evidence_quality=evidence_quality,
+            llm_guardrail=llm_guardrail,
+            answer_judge=answer_judge,
+            final_answer_source=final_answer_source,
+            evidence_ledger=evidence_ledger,
+            plan=plan,
+        )
+        stress_view = build_stress_view(
+            data_source=data_source,
+            trust_score=trust_score,
+            llm_guardrail=llm_guardrail,
+            answer_judge=answer_judge,
+            final_answer_source=final_answer_source,
+            evidence_quality=evidence_quality,
+        )
+        tool_trace.append("-> final answer")
+        response = {
+            "agent": self.name,
+            "subtitle": "Explainable Bond Analysis Agent",
+            "question": question,
+            "plan": plan,
+            "tools_used": report["tools_used"],
+            "tool_trace": tool_trace,
+            "data_evidence": report["data_evidence"],
+            "data_source": data_source,
+            "risk_explanations": risk_explanations,
+            "evidence_quality": evidence_quality,
+            "evidence_ledger": evidence_ledger,
+            "answer_judge": answer_judge,
+            "risk_profile": risk_profile,
+            "trust_score": trust_score,
+            "stress_view": stress_view,
+            "analysis": report["analysis"],
+            "risk_notes": report["risk_notes"],
+            "limitations": limitations,
+            "final_answer": final_answer,
+            "final_answer_source": final_answer_source,
+            "llm_enhanced_answer": llm_result["text"],
+            "llm_guardrail": llm_guardrail,
+            "used_llm": llm_result["status"] == "success",
+            "used_llm_in_final": use_llm_final,
+            "llm_status": llm_result["status"],
+            "llm_error": llm_result["error"],
+            "disclaimer": DISCLAIMER,
+            "replay_id": None,
+            "evidence_pack_id": None,
+            "evidence_pack_paths": None,
+        }
+        validated = AgentResponse.model_validate(response).model_dump(mode="json")
+        pack_meta = self._maybe_export_evidence_pack(validated)
+        if pack_meta:
+            validated["evidence_pack_id"] = pack_meta.get("id")
+            validated["evidence_pack_paths"] = {
+                "json_path": pack_meta.get("json_path"),
+                "html_path": pack_meta.get("html_path"),
+            }
+        replay_record = save_replay(validated)
+        if replay_record:
+            validated["replay_id"] = replay_record["id"]
+            if not validated.get("evidence_pack_id"):
+                validated["evidence_pack_id"] = replay_record["id"]
+        validated = AgentResponse.model_validate(validated).model_dump(mode="json")
+        yield {"type": "final", "result": validated}
+
+    def _iter_llm_answer_events(self, question: str, plan: dict, report: dict):
+        """Yield token events then a final llm_result event for streaming UIs."""
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        api_key = os.environ.get("OPENAI_API_KEY") or ("local-not-needed" if base_url else None)
+        if not api_key:
+            yield {"type": "llm_result", "result": {"text": None, "status": "disabled", "error": None}}
+            return
+
+        models = self._llm_model_candidates()
+        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "2")))
+        last_error: Exception | None = None
+        last_error_name = "UnknownError"
+        for model in models:
+            for attempt in range(attempts):
+                try:
+                    client = self._create_openai_client(api_key, base_url=base_url)
+                    lang = self._detect_answer_lang(question)
+                    lang_rule = (
+                        "Write the entire answer in Chinese (简体中文)."
+                        if lang == "zh"
+                        else "Write the entire answer in English."
+                    )
+                    instructions = (
+                        "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
+                        "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
+                        "present in the JSON (including percentiles, spreads, counts, and percentages). "
+                        "When citing quartiles, prefer labels p25/p75 with their evidence values "
+                        "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
+                        "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
+                        "2.5647% only when that exact value appears in evidence. "
+                        "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
+                        "verbatim if needed, never recompute shares. "
+                        "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
+                        "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
+                        "Do not create new percentages, ranges, ratings, issuer details, market facts, "
+                        "or investment advice. "
+                        "Do not recommend buying, selling, adding position, guaranteed returns, "
+                        "or very safe conclusions. "
+                        "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
+                        "or 'no investment advice' instead of 'not risk-free'. "
+                        "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
+                        "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
+                        "mention first-leg vs theoretical consol scenarios when present. "
+                        "The yield_distribution values are counts, not percentages. "
+                        "If a requested bond is present under data_evidence.search.records, focus on that bond "
+                        "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
+                        "If the evidence is insufficient, say so directly. "
+                        f"{lang_rule} "
+                        f"Always include this disclaimer in Chinese: {DISCLAIMER}"
+                    )
+                    evidence_payload = self._build_llm_evidence(question, plan, report)
+                    evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
+                    parts: list[str] = []
+                    try:
+                        for delta in self._call_chat_completions_stream(client, model, instructions, evidence_json):
+                            parts.append(delta)
+                            yield {"type": "token", "text": delta, "model": model}
+                        text_out = "".join(parts).strip()
+                    except Exception as stream_exc:
+                        # Provider may not support stream; fall back once.
+                        message = str(stream_exc).lower()
+                        if "stream" in message or type(stream_exc).__name__ in {
+                            "TypeError",
+                            "AttributeError",
+                            "BadRequestError",
+                            "APIError",
+                        }:
+                            text_out = self._call_chat_completions(client, model, instructions, evidence_json)
+                        else:
+                            raise
+                    if not text_out:
+                        last_error_name = "empty_output"
+                        continue
+                    yield {
+                        "type": "llm_result",
+                        "result": {
+                            "text": self._ensure_disclaimer(text_out.strip()),
+                            "status": "success",
+                            "error": None,
+                            "model": model,
+                        },
+                    }
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    last_error = exc
+                    last_error_name = type(exc).__name__
+                    if attempt + 1 < attempts and last_error_name in {
+                        "APIConnectionError",
+                        "APITimeoutError",
+                        "RateLimitError",
+                        "InternalServerError",
+                        "TimeoutError",
+                        "ConnectTimeout",
+                        "ReadTimeout",
+                    }:
+                        continue
+                    message = str(exc).lower()
+                    hard_channel = last_error_name in {
+                        "AuthenticationError",
+                        "PermissionDeniedError",
+                        "NotFoundError",
+                        "BadRequestError",
+                    } or any(
+                        token in message
+                        for token in (
+                            "no available channel",
+                            "model not found",
+                            "does not exist",
+                            "invalid model",
+                            "403",
+                            "401",
+                        )
+                    )
+                    if hard_channel:
+                        break
+                    yield {
+                        "type": "llm_result",
+                        "result": {
+                            "text": None,
+                            "status": "failed",
+                            "error": f"OpenAI request failed: {last_error_name}",
+                            "model": model,
+                        },
+                    }
+                    return
+        err_name = type(last_error).__name__ if last_error else last_error_name
+        yield {
+            "type": "llm_result",
+            "result": {
+                "text": None,
+                "status": "failed",
+                "error": f"OpenAI request failed: {err_name}",
+                "model": models[-1] if models else None,
+            },
+        }
 
     def _ensure_disclaimer(self, text: str) -> str:
         if DISCLAIMER in text:

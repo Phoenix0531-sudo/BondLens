@@ -6,17 +6,21 @@ import pandas as pd
 
 from .data_loader import (
     BOND_NAME,
+    DURATION_METHOD,
     DV01,
     IS_PERPETUAL,
+    MACAULAY_DURATION,
     MATURITY,
     MATURITY_PARSE_NOTE,
     MATURITY_RAW,
     MATURITY_YEARS,
     MODIFIED_DURATION,
+    PERPETUAL_MOD_DURATION,
     PRICE,
     VOLUME,
     WEIGHTED_YIELD,
     YIELD,
+    cashflow_modified_duration,
     load_bond_data,
     records_from_frame,
 )
@@ -328,19 +332,52 @@ def compare_bond_to_market(
         peer_spread_bp = round((target_yield - float(peer_mean)) * 100, 2)
 
     modified_duration = None
+    macaulay_duration = None
     dv01 = None
+    duration_method = None
+    perpetual_mod = None
     is_perpetual = False
     maturity_note = None
+    scenarios = []
+    first_leg = None
+    remote_leg = None
     if MODIFIED_DURATION in target.index and pd.notna(target.get(MODIFIED_DURATION)):
         modified_duration = round(float(target[MODIFIED_DURATION]), 4)
+    if MACAULAY_DURATION in target.index and pd.notna(target.get(MACAULAY_DURATION)):
+        macaulay_duration = round(float(target[MACAULAY_DURATION]), 4)
     if DV01 in target.index and pd.notna(target.get(DV01)):
         dv01 = round(float(target[DV01]), 6)
+    if DURATION_METHOD in target.index and target.get(DURATION_METHOD):
+        duration_method = str(target.get(DURATION_METHOD))
+    if PERPETUAL_MOD_DURATION in target.index and pd.notna(target.get(PERPETUAL_MOD_DURATION)):
+        perpetual_mod = round(float(target[PERPETUAL_MOD_DURATION]), 4)
     if IS_PERPETUAL in target.index:
         is_perpetual = bool(target.get(IS_PERPETUAL))
+    if "首段期限(年)" in target.index and pd.notna(target.get("首段期限(年)")):
+        first_leg = round(float(target.get("首段期限(年)")), 4)
+    if "远端期限(年)" in target.index and pd.notna(target.get("远端期限(年)")):
+        remote_leg = round(float(target.get("远端期限(年)")), 4)
+    if "期限情景" in target.index and isinstance(target.get("期限情景"), list):
+        scenarios = list(target.get("期限情景") or [])
     if MATURITY_PARSE_NOTE in target.index:
         raw_note = target.get(MATURITY_PARSE_NOTE)
         if raw_note is not None and not (isinstance(raw_note, float) and pd.isna(raw_note)) and str(raw_note).strip() not in {"", "nan", "None"}:
             maturity_note = str(raw_note).strip()
+    # If frame lacks cashflow fields (older snapshots), compute on the fly.
+    if modified_duration is None and target_yield is not None:
+        computed = cashflow_modified_duration(
+            target_maturity,
+            target_yield,
+            frequency=1,
+            perpetual=is_perpetual,
+        )
+        modified_duration = computed.get("modified_duration")
+        macaulay_duration = computed.get("macaulay_duration")
+        dv01 = computed.get("dv01")
+        duration_method = computed.get("method")
+        if is_perpetual and perpetual_mod is None:
+            consol = cashflow_modified_duration(None, target_yield, frequency=1, perpetual=True)
+            perpetual_mod = consol.get("modified_duration")
 
     return {
         "tool": "compare_bond_to_market",
@@ -356,17 +393,33 @@ def compare_bond_to_market(
         "is_yield_outlier": is_yield_outlier,
         "nearest_market_context": _market_context(target_yield, target_volume, yield_series, volume_series),
         "rate_sensitivity": {
-            "modified_duration_approx": modified_duration,
+            "modified_duration_approx": modified_duration,  # kept key for UI compatibility
+            "modified_duration": modified_duration,
+            "macaulay_duration": macaulay_duration,
             "dv01_approx": dv01,
+            "dv01": dv01,
+            "perpetual_modified_duration": perpetual_mod,
             "is_perpetual_style": is_perpetual,
-            "method": "residual_maturity_proxy",
+            "method": duration_method or "cashflow_level_coupon",
+            "first_leg_years": first_leg,
+            "remote_leg_years": remote_leg,
+            "scenarios": scenarios,
+            "assumptions_zh": (
+                "年付息、票息缺省取 YTM（平价教学假设）、残期取整期数；非 OAS/行权树/交易所现金流。"
+                + (" 永续：主列=首段行权窗口，另给理论 consol 久期。" if is_perpetual else "")
+            ),
+            "assumptions_en": (
+                "Annual coupons; coupon defaults to YTM (par teaching case); residual rounded to periods; "
+                "not OAS/call tree/exchange schedule."
+                + (" Perpetual: primary=first-leg call window, plus theoretical consol duration." if is_perpetual else "")
+            ),
             "note_zh": (
-                "修正久期/DV01 为残期+收益率近似，非现金流 Macauley/OAS；"
-                + ("永续风格样本不给数值。" if is_perpetual else "仅供教学对照。")
+                "修正久期/DV01 为现金流水平票息假设下的教学值，非完整定价。"
+                + (" 永续风格同时给出首段与理论永续情景。" if is_perpetual else "")
             ),
             "note_en": (
-                "Modified duration/DV01 are residual-maturity proxies, not cashflow Macauley/OAS; "
-                + ("blank for perpetual-style rows." if is_perpetual else "for teaching comparison only.")
+                "Modified duration/DV01 are cashflow level-coupon teaching values, not full pricing."
+                + (" Perpetual-style exposes first-leg and theoretical perpetual scenarios." if is_perpetual else "")
             ),
             "maturity_parse_note": maturity_note,
         },
@@ -434,7 +487,7 @@ def generate_bond_report(question: str, tool_outputs: Sequence[dict], plan: dict
             "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
             "未接入评级、主体财务、宏观利率曲线或新闻事件。",
             "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
-            "修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。",
+            "修正久期/DV01 为年付息+票息=YTM 的现金流教学假设，非 OAS/行权树；永续同时给首段与理论 consol 情景。",
             "非投资建议，仅用于学习和研究。",
         ],
     }

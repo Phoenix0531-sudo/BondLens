@@ -10,6 +10,7 @@ from bond_agent.data_loader import (
     VOLUME,
     WEIGHTED_YIELD,
     YIELD,
+    cashflow_modified_duration,
     describe_data_source,
     load_bond_data,
     load_live_bond_data,
@@ -287,13 +288,32 @@ def test_parse_maturity_details_marks_perpetual_style():
     assert details["years"] == 5.0
     assert details["is_perpetual"] is True
     assert details["raw"] == "5Y+65.44Y+N"
-    assert "永续" in (details["display"] or "")
+    assert details["first_leg_years"] == 5.0
+    assert details["remote_leg_years"] == 65.44
+    assert len(details["scenarios"]) >= 2
+    assert any(item.get("id") == "perpetual" for item in details["scenarios"])
     assert details["note_zh"]
+
+
+def test_cashflow_modified_duration_level_coupon_and_consol():
+    level = cashflow_modified_duration(10, 2.5, frequency=1)
+    assert level["method"] == "cashflow_level_coupon"
+    assert level["macaulay_duration"] is not None
+    assert level["modified_duration"] is not None
+    assert abs(level["macaulay_duration"] - 8.9709) < 0.02
+    consol = cashflow_modified_duration(None, 2.5, frequency=1, perpetual=True)
+    assert consol["method"] == "cashflow_consol_perpetual"
+    assert consol["modified_duration"] == 40.0
 
 
 def test_static_load_attaches_duration_proxy():
     df = load_bond_data()
-    assert "修正久期(近似)" in df.columns
-    assert "DV01(近似)" in df.columns
-    # Ordinary finite-maturity rows should usually get a duration proxy.
-    assert df["修正久期(近似)"].notna().sum() > 1000
+    assert "修正久期(现金流假设)" in df.columns
+    assert "DV01(现金流假设)" in df.columns
+    assert "麦考利久期(现金流假设)" in df.columns
+    # Ordinary finite-maturity rows should usually get a cashflow duration.
+    assert df["修正久期(现金流假设)"].notna().sum() > 1000
+    # Perpetual-style rows should expose theoretical consol duration when yield exists.
+    perp = df[df["是否永续风格"]]
+    if len(perp):
+        assert perp["理论永续修正久期"].notna().sum() > 0

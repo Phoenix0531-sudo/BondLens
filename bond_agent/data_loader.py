@@ -28,19 +28,24 @@ MATURITY_SOURCE = "待偿期来源"
 MATURITY_RAW = "待偿期原文"
 IS_PERPETUAL = "是否永续风格"
 MATURITY_PARSE_NOTE = "待偿期解析说明"
-MODIFIED_DURATION = "修正久期(近似)"
-DV01 = "DV01(近似)"
+MODIFIED_DURATION = "修正久期(现金流假设)"
+DV01 = "DV01(现金流假设)"
+MACAULAY_DURATION = "麦考利久期(现金流假设)"
+DURATION_METHOD = "久期方法"
+PERPETUAL_MOD_DURATION = "理论永续修正久期"
 DATA_MODES = {"auto", "live", "static"}
 STATIC_SAMPLE_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
 
 def parse_maturity_details(value: object) -> dict:
-    """Parse residual maturity with honest perpetual handling.
+    """Parse residual maturity with honest perpetual dual-scenario handling.
 
     ChinaMoney perpetual-style residuals look like ``5Y+65.44Y+N``.
-    We keep the first finite leg as an analytics proxy (often nearer to the
-    next call/window) and flag the row as perpetual-style instead of summing a
-    synthetic multi-century residual.
+    We expose:
+    - first finite leg (often nearer to next call/window) as primary analytics tenor
+    - remote finite legs if present
+    - dual scenarios: call/first-leg vs theoretical perpetual (+N)
+    without inventing a multi-century single residual.
     """
     empty = {
         "years": None,
@@ -50,6 +55,9 @@ def parse_maturity_details(value: object) -> dict:
         "note_zh": None,
         "note_en": None,
         "legs": [],
+        "first_leg_years": None,
+        "remote_leg_years": None,
+        "scenarios": [],
     }
     if pd.isna(value):
         return empty
@@ -60,37 +68,93 @@ def parse_maturity_details(value: object) -> dict:
     has_perpetual_marker = bool(re.search(r"(?:\+N\b|\bN\b)$", original)) or "+N" in original
     cleaned = re.sub(r"\+N\b", "", original).strip("+").strip()
     if not cleaned or cleaned == "N":
+        scenarios = (
+            [
+                {
+                    "id": "perpetual",
+                    "label_zh": "理论永续",
+                    "label_en": "Theoretical perpetual",
+                    "years": None,
+                }
+            ]
+            if has_perpetual_marker
+            else []
+        )
         return {
             **empty,
             "raw": raw,
             "is_perpetual": has_perpetual_marker,
-            "note_zh": "永续风格残期无法解析为有限年限。" if has_perpetual_marker else None,
-            "note_en": "Perpetual-style residual could not be parsed to a finite tenor." if has_perpetual_marker else None,
+            "note_zh": "永续风格残期无法解析为有限年限；仅保留理论永续情景。" if has_perpetual_marker else None,
+            "note_en": (
+                "Perpetual-style residual could not be parsed to a finite tenor; "
+                "only a theoretical perpetual scenario remains."
+                if has_perpetual_marker
+                else None
+            ),
+            "scenarios": scenarios,
         }
     parts = [part for part in cleaned.split("+") if part and part != "N"]
     if not parts:
         return {**empty, "raw": raw, "is_perpetual": has_perpetual_marker}
+    parsed_parts = [_parse_maturity_part(part) for part in parts]
     if has_perpetual_marker:
-        years = _parse_maturity_part(parts[0])
-        if years is None:
-            return {**empty, "raw": raw, "is_perpetual": True}
-        display = f"{_format_maturity(years)} (至行权/首段; 永续+N)"
+        first = parsed_parts[0] if parsed_parts else None
+        remote = None
+        if len(parsed_parts) > 1 and all(p is not None for p in parsed_parts[1:]):
+            remote = float(sum(float(p) for p in parsed_parts[1:]))
+        if first is None:
+            return {**empty, "raw": raw, "is_perpetual": True, "legs": parts}
+        display = f"{_format_maturity(first)} (call/first-leg; perpetual +N)"
+        scenarios = [
+            {
+                "id": "call_or_first_leg",
+                "label_zh": "行权/首段有限期限",
+                "label_en": "Call / first finite leg",
+                "years": float(first),
+            },
+            {
+                "id": "perpetual",
+                "label_zh": "理论永续(+N)",
+                "label_en": "Theoretical perpetual (+N)",
+                "years": None,
+            },
+        ]
+        if remote is not None:
+            scenarios.insert(
+                1,
+                {
+                    "id": "remote_leg",
+                    "label_zh": "远端有限段(行情拼写)",
+                    "label_en": "Remote finite leg (feed spelling)",
+                    "years": remote,
+                },
+            )
         return {
-            "years": years,
+            "years": float(first),
             "is_perpetual": True,
             "raw": raw,
             "display": display,
-            "note_zh": f"永续风格残期原文 {raw}；分析仅取首段有限期限 {_format_maturity(years)}，不做完整永续定价。",
+            "note_zh": (
+                f"永续风格残期原文 {raw}；主分析取首段 {_format_maturity(first)} 作为行权/观察窗口，"
+                f"并并行给出理论永续情景"
+                + (f"，远端拼写段 {_format_maturity(remote)}" if remote is not None else "")
+                + "。非完整含权永续定价。"
+            ),
             "note_en": (
-                f"Perpetual-style residual raw={raw}; analytics uses first finite leg "
-                f"{_format_maturity(years)} only, not a full perpetual model."
+                f"Perpetual-style residual raw={raw}; primary analytics uses first finite leg "
+                f"{_format_maturity(first)} as call/observation window, with a parallel theoretical "
+                f"perpetual scenario"
+                + (f" and remote feed leg {_format_maturity(remote)}" if remote is not None else "")
+                + ". Not a full callable-perpetual pricer."
             ),
             "legs": parts,
+            "first_leg_years": float(first),
+            "remote_leg_years": remote,
+            "scenarios": scenarios,
         }
-    parsed = [_parse_maturity_part(part) for part in parts]
-    if any(part is None for part in parsed):
+    if any(part is None for part in parsed_parts):
         return {**empty, "raw": raw}
-    years = sum(float(part) for part in parsed)
+    years = sum(float(part) for part in parsed_parts)
     return {
         "years": years,
         "is_perpetual": False,
@@ -99,6 +163,16 @@ def parse_maturity_details(value: object) -> dict:
         "note_zh": None,
         "note_en": None,
         "legs": parts,
+        "first_leg_years": float(parsed_parts[0]) if parsed_parts else None,
+        "remote_leg_years": None,
+        "scenarios": [
+            {
+                "id": "to_maturity",
+                "label_zh": "至到期",
+                "label_en": "To maturity",
+                "years": years,
+            }
+        ],
     }
 
 
@@ -536,6 +610,9 @@ def _apply_maturity_details(df: pd.DataFrame, source_label: str | None = None) -
     out[IS_PERPETUAL] = details.map(lambda item: bool((item or {}).get("is_perpetual")))
     out[MATURITY_PARSE_NOTE] = details.map(lambda item: (item or {}).get("note_zh"))
     out[MATURITY_YEARS] = details.map(lambda item: (item or {}).get("years"))
+    out["首段期限(年)"] = details.map(lambda item: (item or {}).get("first_leg_years"))
+    out["远端期限(年)"] = details.map(lambda item: (item or {}).get("remote_leg_years"))
+    out["期限情景"] = details.map(lambda item: (item or {}).get("scenarios") or [])
     if source_label:
         out[MATURITY_SOURCE] = None
         native_mask = out[MATURITY_YEARS].notna()
@@ -546,26 +623,139 @@ def _apply_maturity_details(df: pd.DataFrame, source_label: str | None = None) -
     return out
 
 
-def _attach_rate_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
-    """Attach honest modified-duration / DV01 proxies from residual maturity + yield.
+def cashflow_modified_duration(
+    years: float | None,
+    yield_pct: float | None,
+    *,
+    frequency: int = 1,
+    coupon_pct: float | None = None,
+    perpetual: bool = False,
+) -> dict:
+    """Cashflow Macaulay/modified duration under explicit teaching assumptions.
 
-    This is a teaching approximation for zero/bullet-like exposure using residual
-    maturity as a tenor proxy. It is not a cashflow-based Macaulay duration and
-    is left blank for perpetual-style rows.
+    Assumptions (documented, not market-complete):
+    - annual (frequency=1) or semi-annual coupons
+    - coupon defaults to yield (par-bond teaching case) when unknown
+    - residual maturity rounded to whole periods
+    - perpetual-style theoretical consol uses MacD=(1+y/f)/(y/f)/f years
+    - not OAS / not callable tree / not exchange cashflow schedule
+    """
+    empty = {
+        "macaulay_duration": None,
+        "modified_duration": None,
+        "dv01": None,
+        "method": None,
+        "frequency": frequency,
+        "coupon_pct": None,
+        "n_periods": None,
+        "assumptions": [],
+    }
+    if yield_pct is None or (isinstance(yield_pct, float) and pd.isna(yield_pct)):
+        return empty
+    y = float(yield_pct) / 100.0
+    if y <= -0.999999:
+        return empty
+    freq = max(int(frequency or 1), 1)
+    cpn = float(coupon_pct) / 100.0 if coupon_pct is not None and not pd.isna(coupon_pct) else y
+    assumptions = [
+        f"frequency={freq}/year",
+        "coupon defaults to YTM (par teaching case) when schedule unknown",
+        "not OAS / not issuer call tree",
+    ]
+    # Theoretical consol / pure perpetual when years missing and perpetual flag set.
+    if perpetual and (years is None or (isinstance(years, float) and pd.isna(years)) or float(years) <= 0):
+        if y <= 0:
+            return {**empty, "assumptions": [*assumptions, "perpetual requires positive yield"]}
+        y_period = y / freq
+        mac = (1.0 + y_period) / y_period / freq
+        mod = mac / (1.0 + y_period)
+        return {
+            "macaulay_duration": round(mac, 4),
+            "modified_duration": round(mod, 4),
+            "dv01": round(mod * 100.0 / 10000.0, 6),
+            "method": "cashflow_consol_perpetual",
+            "frequency": freq,
+            "coupon_pct": round(cpn * 100.0, 4),
+            "n_periods": None,
+            "assumptions": [*assumptions, "theoretical perpetual consol"],
+        }
+    if years is None or (isinstance(years, float) and pd.isna(years)) or float(years) <= 0:
+        return empty
+    n = max(round(float(years) * freq), 1)
+    y_period = y / freq
+    c_period = cpn / freq
+    times = [i / freq for i in range(1, n + 1)]
+    cfs = [100.0 * c_period] * (n - 1) + [100.0 * c_period + 100.0]
+    if abs(y_period) < 1e-12:
+        price = sum(cfs)
+        mac = sum(t * cf for t, cf in zip(times, cfs, strict=False)) / price if price else None
+    else:
+        pv_cfs = [cf / ((1.0 + y_period) ** i) for i, cf in enumerate(cfs, start=1)]
+        price = sum(pv_cfs)
+        mac = sum(t * pv for t, pv in zip(times, pv_cfs, strict=False)) / price if price else None
+    if mac is None:
+        return empty
+    mod = mac / (1.0 + y_period)
+    dv01 = mod * 100.0 / 10000.0
+    method = "cashflow_to_first_leg_call_window" if perpetual else "cashflow_level_coupon"
+    if perpetual:
+        assumptions = [*assumptions, "perpetual-style: duration to first finite leg only in primary columns"]
+    return {
+        "macaulay_duration": round(float(mac), 4),
+        "modified_duration": round(float(mod), 4),
+        "dv01": round(float(dv01), 6),
+        "method": method,
+        "frequency": freq,
+        "coupon_pct": round(cpn * 100.0, 4),
+        "n_periods": n,
+        "assumptions": assumptions,
+    }
+
+
+def _attach_rate_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
+    """Attach cashflow-based modified duration / DV01 under documented assumptions.
+
+    Primary columns use cashflow level-coupon formulas. Perpetual-style rows get
+    first-leg (call-window) cashflow duration in primary columns, plus a separate
+    theoretical consol modified-duration column when yield is positive.
     """
     out = df.copy()
     years = pd.to_numeric(out.get(MATURITY_YEARS), errors="coerce")
     yld = pd.to_numeric(out.get(YIELD), errors="coerce")
-    price = pd.to_numeric(out.get(PRICE), errors="coerce")
-    perpetual = out[IS_PERPETUAL].fillna(False) if IS_PERPETUAL in out.columns else False
-    # Modified duration proxy: T / (1 + y), y as decimal percent/100.
-    duration = years / (1.0 + (yld / 100.0))
-    duration = duration.where(years.notna() & yld.notna() & ~perpetual)
-    # DV01 proxy per 100 face using price if present, else par 100.
-    px = price.fillna(100.0)
-    dv01 = duration * px / 10000.0
-    out[MODIFIED_DURATION] = duration.round(4)
-    out[DV01] = dv01.round(6)
+    perpetual = (
+        out[IS_PERPETUAL].fillna(False)
+        if IS_PERPETUAL in out.columns
+        else pd.Series(False, index=out.index)
+    )
+
+    mod_vals: list[float | None] = []
+    mac_vals: list[float | None] = []
+    dv01_vals: list[float | None] = []
+    method_vals: list[str | None] = []
+    perp_mod_vals: list[float | None] = []
+    for idx in out.index:
+        y_raw = yld.loc[idx] if idx in yld.index else None
+        t_raw = years.loc[idx] if idx in years.index else None
+        y = None if y_raw is None or pd.isna(y_raw) else float(y_raw)
+        t = None if t_raw is None or pd.isna(t_raw) else float(t_raw)
+        is_perp = bool(perpetual.loc[idx]) if idx in perpetual.index else False
+        if is_perp:
+            primary = cashflow_modified_duration(t, y, frequency=1, perpetual=True)
+            consol = cashflow_modified_duration(None, y, frequency=1, perpetual=True)
+            perp_mod_vals.append(consol.get("modified_duration"))
+        else:
+            primary = cashflow_modified_duration(t, y, frequency=1, perpetual=False)
+            perp_mod_vals.append(None)
+        mod_vals.append(primary.get("modified_duration"))
+        mac_vals.append(primary.get("macaulay_duration"))
+        dv01_vals.append(primary.get("dv01"))
+        method_vals.append(primary.get("method"))
+
+    out[MODIFIED_DURATION] = pd.Series(mod_vals, index=out.index)
+    out[DV01] = pd.Series(dv01_vals, index=out.index)
+    out[MACAULAY_DURATION] = pd.Series(mac_vals, index=out.index)
+    out[DURATION_METHOD] = pd.Series(method_vals, index=out.index)
+    out[PERPETUAL_MOD_DURATION] = pd.Series(perp_mod_vals, index=out.index)
     return out
 
 
@@ -656,7 +846,27 @@ def _maturity_coverage(df: pd.DataFrame, unmatched_limit: int = 50) -> dict:
 
 
 def records_from_frame(df: pd.DataFrame, limit: int = 10) -> list[dict]:
-    display_columns = [BOND_NAME, MATURITY, MATURITY_YEARS, MATURITY_SOURCE, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP]
+    display_columns = [
+        BOND_NAME,
+        MATURITY,
+        MATURITY_YEARS,
+        MATURITY_SOURCE,
+        MATURITY_RAW,
+        IS_PERPETUAL,
+        MATURITY_PARSE_NOTE,
+        "首段期限(年)",
+        "远端期限(年)",
+        PRICE,
+        YIELD,
+        WEIGHTED_YIELD,
+        VOLUME,
+        LIVE_CHANGE_BP,
+        MODIFIED_DURATION,
+        MACAULAY_DURATION,
+        DV01,
+        PERPETUAL_MOD_DURATION,
+        DURATION_METHOD,
+    ]
     available_columns = [column for column in display_columns if column in df.columns]
     records = df[available_columns].head(limit).where(pd.notnull(df[available_columns]), None)
     return records.to_dict(orient="records")

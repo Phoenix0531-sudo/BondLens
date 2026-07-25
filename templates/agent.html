@@ -814,7 +814,7 @@
     {% if form_error %}
       <p class="form-error">{{ form_error }}</p>
     {% endif %}
-    <form method="post" id="agent-query-form" data-agent-form data-async-endpoint="/api/agent/query">
+    <form method="post" id="agent-query-form" data-agent-form data-async-endpoint="/api/agent/query" data-stream-endpoint="/api/agent/stream">
       <input type="hidden" name="lang" value="{{ lang }}">
       <div class="form-field">
         <label for="question" data-lang-zh="自然语言问题" data-lang-en="Natural-language question">自然语言问题</label>
@@ -834,6 +834,7 @@
         <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
         <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
         <div class="async-progress-bar" aria-hidden="true"><span></span></div>
+        <pre class="async-stream-preview" id="agent-stream-preview" hidden></pre>
         <p class="async-error" id="agent-async-error" hidden></p>
       </div>
     </form>
@@ -846,7 +847,9 @@
     const note = document.getElementById("agent-wait-note");
     const progress = document.getElementById("agent-async-progress");
     const meta = document.getElementById("agent-async-meta");
+    const title = document.getElementById("agent-async-title");
     const errorBox = document.getElementById("agent-async-error");
+    const streamPreview = document.getElementById("agent-stream-preview");
     if (!form || !button) {
       return;
     }
@@ -870,9 +873,15 @@
       button.setAttribute("aria-busy", isBusy ? "true" : "false");
       if (note) note.hidden = !isBusy;
       if (progress) progress.hidden = !isBusy;
-      if (!isBusy && errorBox) {
-        errorBox.hidden = true;
-        errorBox.textContent = "";
+      if (!isBusy) {
+        if (errorBox) {
+          errorBox.hidden = true;
+          errorBox.textContent = "";
+        }
+        if (streamPreview) {
+          streamPreview.hidden = true;
+          streamPreview.textContent = "";
+        }
       }
     }
 
@@ -884,8 +893,8 @@
         if (!meta) return;
         const sec = Math.floor((Date.now() - started) / 1000);
         meta.textContent = currentLang() === "en"
-          ? (`Elapsed ${sec}s · tools first, then optional LLM`)
-          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM`);
+          ? (`Elapsed ${sec}s · tools first, then optional LLM tokens`)
+          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM token 流`);
       }, 500);
     }
     function stopTimer() {
@@ -895,9 +904,122 @@
       }
     }
 
+    function appendStreamText(chunk) {
+      if (!streamPreview) return;
+      streamPreview.hidden = false;
+      streamPreview.textContent += chunk;
+      streamPreview.scrollTop = streamPreview.scrollHeight;
+    }
+
+    async function runJsonFallback(endpoint, lang, question, dataMode) {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          question,
+          data_mode: dataMode,
+          lang,
+          include_view: false,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error || (`HTTP ${response.status}`));
+      }
+      const resultId = payload.result_id;
+      if (!resultId) {
+        throw new Error(lang === "en" ? "Missing result_id from API." : "接口未返回 result_id。");
+      }
+      const url = new URL(window.location.href);
+      url.pathname = "/agent";
+      url.searchParams.set("result_id", resultId);
+      url.searchParams.set("lang", lang);
+      url.searchParams.set("data_mode", dataMode);
+      window.location.assign(url.toString());
+    }
+
+    async function runSse(streamEndpoint, lang, question, dataMode) {
+      const response = await fetch(streamEndpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "text/event-stream",
+        },
+        body: JSON.stringify({
+          question,
+          data_mode: dataMode,
+          lang,
+        }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || (`HTTP ${response.status}`));
+      }
+      if (!response.body || !response.body.getReader) {
+        throw new Error("SSE body unavailable");
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let buffer = "";
+      let currentEvent = "message";
+      let finalUrl = null;
+
+      function handleBlock(block) {
+        const lines = block.split(/\r?\n/);
+        let eventName = currentEvent;
+        const dataLines = [];
+        for (const line of lines) {
+          if (line.startsWith("event:")) {
+            eventName = line.slice(6).trim();
+          } else if (line.startsWith("data:")) {
+            dataLines.push(line.slice(5).trim());
+          }
+        }
+        if (!dataLines.length) return;
+        let payload = {};
+        try {
+          payload = JSON.parse(dataLines.join("\n"));
+        } catch {
+          return;
+        }
+        if (eventName === "status") {
+          if (title && payload.message) {
+            title.textContent = payload.message;
+          }
+        } else if (eventName === "token") {
+          appendStreamText(payload.text || "");
+          if (title) {
+            title.textContent = lang === "en" ? "Streaming LLM tokens…" : "正在流式输出 LLM…";
+          }
+        } else if (eventName === "final") {
+          finalUrl = payload.result_url;
+        } else if (eventName === "error") {
+          throw new Error(payload.error || "stream error");
+        }
+      }
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let splitAt;
+        while ((splitAt = buffer.indexOf("\n\n")) >= 0) {
+          const block = buffer.slice(0, splitAt);
+          buffer = buffer.slice(splitAt + 2);
+          if (block.trim()) handleBlock(block);
+        }
+      }
+      if (buffer.trim()) handleBlock(buffer);
+      if (!finalUrl) {
+        throw new Error(lang === "en" ? "Stream ended without final result." : "流式结束但未收到最终结果。");
+      }
+      window.location.assign(finalUrl);
+    }
+
     form.addEventListener("submit", async (event) => {
-      // Prefer async JSON path so the page can show progress without a frozen full reload.
-      // Fallback to native POST if fetch is unavailable.
       if (!window.fetch) {
         setBusy(true);
         return;
@@ -905,7 +1027,8 @@
       event.preventDefault();
       if (button.disabled) return;
 
-      const endpoint = form.dataset.asyncEndpoint || "/api/agent/query";
+      const streamEndpoint = form.dataset.streamEndpoint || "/api/agent/stream";
+      const jsonEndpoint = form.dataset.asyncEndpoint || "/api/agent/query";
       const lang = currentLang();
       const question = (form.question && form.question.value || "").trim();
       const dataMode = (form.data_mode && form.data_mode.value) || "auto";
@@ -920,33 +1043,17 @@
       setBusy(true);
       startTimer();
       try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
-          body: JSON.stringify({
-            question,
-            data_mode: dataMode,
-            lang,
-            include_view: false,
-          }),
-        });
-        const payload = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(payload.error || (`HTTP ${response.status}`));
+        try {
+          await runSse(streamEndpoint, lang, question, dataMode);
+        } catch (streamErr) {
+          // Fall back to non-stream JSON path if SSE fails.
+          if (title) {
+            title.textContent = lang === "en"
+              ? "Stream unavailable, falling back…"
+              : "流式不可用，回退普通请求…";
+          }
+          await runJsonFallback(jsonEndpoint, lang, question, dataMode);
         }
-        const resultId = payload.result_id;
-        if (!resultId) {
-          throw new Error(lang === "en" ? "Missing result_id from API." : "接口未返回 result_id。");
-        }
-        const url = new URL(window.location.href);
-        url.pathname = "/agent";
-        url.searchParams.set("result_id", resultId);
-        url.searchParams.set("lang", lang);
-        url.searchParams.set("data_mode", dataMode);
-        window.location.assign(url.toString());
       } catch (err) {
         stopTimer();
         setBusy(false);
@@ -957,6 +1064,7 @@
       }
     });
   })();
+</script>
 </script>
 
 {% if result %}
@@ -1210,35 +1318,63 @@
     {% endif %}
 
 
-    {% if view.rate_sensitivity and (view.rate_sensitivity.modified_duration_approx is not none or view.rate_sensitivity.is_perpetual_style or view.credit_context) %}
+    {% if view.rate_sensitivity and (view.rate_sensitivity.modified_duration_approx is not none or view.rate_sensitivity.modified_duration is not none or view.rate_sensitivity.is_perpetual_style or view.credit_context) %}
     <section class="surface">
       <div class="surface-header">
         <div>
           <h2 class="surface-title" data-lang-zh="利率敏感度与信用边界" data-lang-en="Rate sensitivity & credit boundary">利率敏感度与信用边界</h2>
-          <p class="surface-subtitle" data-lang-zh="久期/DV01 为残期近似；评级字段当前源中不存在。" data-lang-en="Duration/DV01 are residual-maturity proxies; ratings are unavailable in the active feed.">久期/DV01 为残期近似；评级字段当前源中不存在。</p>
+          <p class="surface-subtitle" data-lang-zh="久期/DV01 为年付息+票息=YTM 的现金流教学假设；评级字段当前源中不存在。" data-lang-en="Duration/DV01 use annual coupon=YTM cashflow teaching assumptions; ratings are unavailable in the active feed.">久期/DV01 为年付息+票息=YTM 的现金流教学假设；评级字段当前源中不存在。</p>
         </div>
       </div>
       <div class="surface-body metric-grid">
         <article class="metric">
-          <p class="metric-label" data-lang-zh="修正久期(近似)" data-lang-en="Mod. duration (approx)">修正久期(近似)</p>
-          <p class="metric-value">{% if view.rate_sensitivity.modified_duration_approx is not none %}{{ view.rate_sensitivity.modified_duration_approx }}{% else %}—{% endif %}</p>
+          <p class="metric-label" data-lang-zh="修正久期(现金流)" data-lang-en="Mod. duration (CF)">修正久期(现金流)</p>
+          <p class="metric-value">{% if view.rate_sensitivity.modified_duration is not none %}{{ view.rate_sensitivity.modified_duration }}{% elif view.rate_sensitivity.modified_duration_approx is not none %}{{ view.rate_sensitivity.modified_duration_approx }}{% else %}—{% endif %}</p>
         </article>
         <article class="metric">
-          <p class="metric-label" data-lang-zh="DV01(近似)" data-lang-en="DV01 (approx)">DV01(近似)</p>
-          <p class="metric-value">{% if view.rate_sensitivity.dv01_approx is not none %}{{ view.rate_sensitivity.dv01_approx }}{% else %}—{% endif %}</p>
+          <p class="metric-label" data-lang-zh="麦考利久期(现金流)" data-lang-en="Macaulay (CF)">麦考利久期(现金流)</p>
+          <p class="metric-value">{% if view.rate_sensitivity.macaulay_duration is not none %}{{ view.rate_sensitivity.macaulay_duration }}{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="DV01(现金流)" data-lang-en="DV01 (CF)">DV01(现金流)</p>
+          <p class="metric-value">{% if view.rate_sensitivity.dv01 is not none %}{{ view.rate_sensitivity.dv01 }}{% elif view.rate_sensitivity.dv01_approx is not none %}{{ view.rate_sensitivity.dv01_approx }}{% else %}—{% endif %}</p>
+        </article>
+        <article class="metric">
+          <p class="metric-label" data-lang-zh="理论永续修正久期" data-lang-en="Consol mod. duration">理论永续修正久期</p>
+          <p class="metric-value">{% if view.rate_sensitivity.perpetual_modified_duration is not none %}{{ view.rate_sensitivity.perpetual_modified_duration }}{% else %}—{% endif %}</p>
         </article>
         <article class="metric">
           <p class="metric-label" data-lang-zh="永续风格" data-lang-en="Perpetual-style">永续风格</p>
-          <p class="metric-value">{% if view.rate_sensitivity.is_perpetual_style %}{% if lang == 'en' %}Yes{% else %}是{% endif %}{% else %}{% if lang == 'en' %}No{% else %}否{% endif %}{% endif %}</p>
+          <p class="metric-value" data-lang-zh="{% if view.rate_sensitivity.is_perpetual_style %}是{% else %}否{% endif %}" data-lang-en="{% if view.rate_sensitivity.is_perpetual_style %}Yes{% else %}No{% endif %}">{% if view.rate_sensitivity.is_perpetual_style %}是{% else %}否{% endif %}</p>
         </article>
         <article class="metric">
           <p class="metric-label" data-lang-zh="主体评级" data-lang-en="Issuer rating">主体评级</p>
           <p class="metric-value" data-lang-zh="源中无此字段" data-lang-en="Not in feed">源中无此字段</p>
         </article>
       </div>
-      {% if view.rate_sensitivity.note_zh or view.credit_context.note_zh %}
+      {% if view.rate_sensitivity.scenarios %}
       <div class="surface-body">
-        <p class="surface-subtitle" data-lang-zh="{{ view.rate_sensitivity.note_zh or '' }} {{ view.credit_context.note_zh or '' }}" data-lang-en="{{ view.rate_sensitivity.note_en or '' }} {{ view.credit_context.note_en or '' }}">{{ view.rate_sensitivity.note_zh or '' }} {{ view.credit_context.note_zh or '' }}</p>
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th data-lang-zh="情景" data-lang-en="Scenario">情景</th>
+              <th data-lang-zh="年限" data-lang-en="Years">年限</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for sc in view.rate_sensitivity.scenarios %}
+            <tr>
+              <td data-lang-zh="{{ sc.label_zh or sc.id }}" data-lang-en="{{ sc.label_en or sc.id }}">{{ sc.label_zh or sc.id }}</td>
+              <td>{% if sc.years is not none %}{{ sc.years }}{% else %}∞ / N{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+      {% if view.rate_sensitivity.note_zh or view.credit_context.note_zh or view.rate_sensitivity.assumptions_zh %}
+      <div class="surface-body">
+        <p class="surface-subtitle" data-lang-zh="{{ view.rate_sensitivity.note_zh or '' }} {{ view.rate_sensitivity.assumptions_zh or '' }} {{ view.credit_context.note_zh or '' }}" data-lang-en="{{ view.rate_sensitivity.note_en or '' }} {{ view.rate_sensitivity.assumptions_en or '' }} {{ view.credit_context.note_en or '' }}">{{ view.rate_sensitivity.note_zh or '' }} {{ view.rate_sensitivity.assumptions_zh or '' }} {{ view.credit_context.note_zh or '' }}</p>
       </div>
       {% endif %}
     </section>
