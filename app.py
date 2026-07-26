@@ -1494,11 +1494,11 @@ def _build_answer_provenance_view(result: dict, lang: str = "zh") -> dict:
         headline_zh = "本次未启用 LLM；最终答案来自确定性报告。"
         headline_en = "LLM not enabled for this run; deterministic report is the final answer."
     elif guardrail.get("status") == "failed":
-        headline_zh = "LLM 已生成文本，但护栏未通过；页面回退到规则报告。"
-        headline_en = "LLM drafted text but guardrail rejected it; page fell back to the rule report."
+        headline_zh = "模型已生成文本，但护栏未通过；已改用确定性报告（非模型最终答案）。"
+        headline_en = "Model drafted text but guardrail rejected it; deterministic report is final (not the model text)."
     elif llm_status == "failed":
-        headline_zh = "LLM 调用失败；页面回退到确定性报告。"
-        headline_en = "LLM call failed; page fell back to the deterministic report."
+        headline_zh = "模型通道失败 → 已改用确定性报告（非模型最终答案）。"
+        headline_en = "Model channel failed → using deterministic report (not a model final answer)."
     else:
         headline_zh = "最终答案来自确定性路径。"
         headline_en = "Final answer comes from the deterministic path."
@@ -1513,6 +1513,16 @@ def _build_answer_provenance_view(result: dict, lang: str = "zh") -> dict:
         f"LLM status: {_localized_status(llm_status, 'en')}",
         f"Guardrail: {_localized_status(guardrail.get('status'), 'en')}",
     ]
+    if not used_final and final_source == "deterministic_fallback":
+        if llm_status == "failed":
+            lines_zh.append("说明：模型通道失败，页面未把 LLM 文本当作最终答案。")
+            lines_en.append("Note: model channel failed; LLM text was not used as the final answer.")
+        elif guardrail.get("status") == "failed":
+            lines_zh.append("说明：护栏拒绝了模型文本中的不受支持数字/风险语言。")
+            lines_en.append("Note: guardrail rejected unsupported numbers or unsafe risk language.")
+        elif llm_status in {None, "disabled"}:
+            lines_zh.append("说明：无可用模型密钥/通道时，确定性报告仍可独立工作。")
+            lines_en.append("Note: without a model key/channel, the deterministic report still works alone.")
     if llm_error:
         lines_zh.append(f"LLM 错误/拦截原因：{llm_error}")
         lines_en.append(f"LLM error / block reason: {llm_error}")

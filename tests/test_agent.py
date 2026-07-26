@@ -5,6 +5,7 @@ from bond_agent import BondAnalystAgent
 
 def test_agent_fallback_uses_local_tools_without_openai_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     result = BondAnalystAgent(data_mode="static").answer("搜索23附息国债26并给出收益率分析")
 
@@ -35,6 +36,7 @@ def test_agent_fallback_uses_local_tools_without_openai_key(monkeypatch):
 
 def test_agent_tool_selection_for_market_overview(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
 
@@ -49,6 +51,7 @@ def test_agent_tool_selection_for_market_overview(monkeypatch):
 
 def test_agent_search_only_answer_shows_search_evidence(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     result = BondAnalystAgent(data_mode="static").answer("筛选收益率大于 3 的债券")
 
@@ -60,6 +63,7 @@ def test_agent_search_only_answer_shows_search_evidence(monkeypatch):
 
 def test_agent_exposes_confidence_and_risk_retrieval(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     result = BondAnalystAgent(data_mode="static").answer("有没有收益率异常的债券？")
 
@@ -276,6 +280,7 @@ def test_agent_rejects_llm_output_with_investment_advice_language(monkeypatch):
 
 def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     def fake_fetcher():
         return pd.DataFrame(
@@ -300,6 +305,7 @@ def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):
 
 def test_agent_live_feed_enriches_known_bond_maturity(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
     def fake_fetcher():
         return pd.DataFrame(
@@ -324,6 +330,7 @@ def test_agent_live_feed_enriches_known_bond_maturity(monkeypatch):
 
 def test_agent_advisory_refusal_blocks_recommendations(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
 
     result = BondAnalystAgent(data_mode="static").answer("今天该不该买债？")
@@ -343,6 +350,7 @@ def test_agent_advisory_refusal_blocks_recommendations(monkeypatch):
 
 def test_agent_ranking_includes_market_summary(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
 
     result = BondAnalystAgent(data_mode="static").answer("按收益率列出最高的前5只债券")
@@ -352,3 +360,69 @@ def test_agent_ranking_includes_market_summary(monkeypatch):
     assert result["data_evidence"]["market"]
     assert result["data_evidence"]["market"]["yield_summary"].get("median") is not None
     assert result["data_evidence"]["ranking"]
+
+
+def test_agent_retries_transient_rate_limit_then_succeeds(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://127.0.0.1:31876/v1")
+    monkeypatch.setenv("OPENAI_API_STYLE", "chat")
+    monkeypatch.setenv("OPENAI_RETRY_ATTEMPTS", "3")
+    monkeypatch.setenv("OPENAI_RETRY_BACKOFF", "0")
+    monkeypatch.setenv("OPENAI_MODEL", "grok-4.5")
+    monkeypatch.delenv("OPENAI_MODEL_FALLBACKS", raising=False)
+    monkeypatch.delenv("OPENAI_FALLBACK_MODEL", raising=False)
+
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    class _FlakyChatCompletions:
+        def create(self, **kwargs):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RateLimitError("429 rate limit")
+            return _FakeChatCompletion()
+
+    class _FlakyChat:
+        completions = _FlakyChatCompletions()
+
+    class _FlakyClient:
+        chat = _FlakyChat()
+
+    monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FlakyClient())
+    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+    assert calls["n"] == 3
+    assert result["llm_status"] == "success"
+    assert result["used_llm_in_final"] is True
+    assert result["final_answer"].startswith("Local LLM chat answer")
+
+
+def test_agent_llm_evidence_includes_peer_spread():
+    agent = BondAnalystAgent(data_mode="static")
+    report = {
+        "data_evidence": {
+            "market": {"sample_count": 10, "yield_summary": {"median": 2.5}, "data_quality": {}},
+            "search": {"records": [{"债券简称": "06国开24"}], "match_count": 1},
+            "comparison": {
+                "bond_name": "06国开24",
+                "peer_comparison": {
+                    "spread_vs_peer_mean_bp": -5.95,
+                    "peer_count": 12,
+                    "bond_type": "国开",
+                },
+                "rate_sensitivity": {},
+            },
+            "ranking": {},
+            "outliers": {},
+        },
+        "data_source": {"source_name": "static", "runtime_mode": "static", "row_count": 10},
+        "analysis": [],
+        "risk_notes": [],
+        "limitations": [],
+    }
+    payload = agent._build_llm_evidence("report", {"intent": "bond_report"}, report)
+    peer = ((payload.get("data_evidence") or {}).get("comparison") or {}).get("peer_comparison") or {}
+    assert peer.get("spread_vs_peer_mean_bp") == -5.95
+    assert peer.get("peer_count") == 12
+

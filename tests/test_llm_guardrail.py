@@ -153,6 +153,42 @@ def test_llm_guardrail_accepts_unicode_minus_peer_spread():
     assert result["unsupported_numbers"] == []
 
 
+def test_llm_guardrail_accepts_bare_peer_spread_magnitude_but_rejects_invented_spread():
+    """Dual: absolute peer-spread magnitude OK when evidence has ±value; invented magnitude fails."""
+    report = {
+        "data_evidence": {
+            "comparison": {
+                "peer_comparison": {
+                    "spread_vs_peer_mean_bp": -5.95,
+                    "peer_yield_zscore": -0.42,
+                    "peer_yield_percentile": 28.57,
+                }
+            }
+        }
+    }
+    ok = assess_llm_faithfulness(
+        "Absolute peer-mean spread is 5.95 bp (below peers). Percentile 28.57%. Not investment advice.",
+        report,
+    )
+    assert ok["status"] == "passed"
+    assert ok["numeric_status"] == "passed"
+    assert ok["unsupported_numbers"] == []
+
+    signed_ok = assess_llm_faithfulness(
+        "spread vs peer mean -5.95 bp; z-score -0.42.",
+        report,
+    )
+    assert signed_ok["status"] == "passed"
+
+    bad = assess_llm_faithfulness(
+        "Absolute peer-mean spread is 9.99 bp.",
+        report,
+    )
+    assert bad["status"] == "failed"
+    assert bad["numeric_status"] == "failed"
+    assert any(item["text"] == "9.99" for item in bad["unsupported_numbers"])
+
+
 def test_llm_guardrail_negated_risk_free_is_safe_but_positive_claim_fails():
     report = _report()
     ok = assess_llm_faithfulness(

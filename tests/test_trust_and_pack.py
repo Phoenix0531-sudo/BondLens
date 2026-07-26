@@ -8,6 +8,7 @@ from bond_agent.trust_score import compute_trust_score
 
 def test_trust_score_penalizes_static_sample(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
 
     result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
@@ -26,6 +27,7 @@ def test_trust_score_penalizes_static_sample(monkeypatch):
 
 def test_agent_exports_evidence_pack(monkeypatch, tmp_path):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "true")
     monkeypatch.setenv("BOND_EVIDENCE_PACK_DIR", str(tmp_path))
 
@@ -44,6 +46,7 @@ def test_agent_exports_evidence_pack(monkeypatch, tmp_path):
 
 def test_evidence_pack_html_contains_core_sections(monkeypatch, tmp_path):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "false")
 
     result = BondAnalystAgent(data_mode="static").answer("有没有收益率异常的债券？")
@@ -138,6 +141,7 @@ def test_pack_route_serves_exported_html(monkeypatch, tmp_path):
     from app import app
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
     monkeypatch.setenv("BOND_EVIDENCE_PACK_ENABLED", "true")
     monkeypatch.setenv("BOND_EVIDENCE_PACK_DIR", str(tmp_path))
 

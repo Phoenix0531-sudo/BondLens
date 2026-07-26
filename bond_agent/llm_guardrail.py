@@ -184,7 +184,37 @@ def _matches_evidence(item: dict, evidence_numbers: list[dict]) -> bool:
     else:
         candidates = evidence_numbers
 
-    return any(_values_match(item["value"], number["value"], item["decimal_places"]) for number in candidates)
+    claimed = item["value"]
+    decimals = item["decimal_places"]
+    for number in candidates:
+        if _values_match(claimed, number["value"], decimals):
+            return True
+        # Signed peer-spread / z-score / bp fields are often written without the
+        # minus sign ("5.95 bp vs peer mean") while evidence stores -5.95.
+        # Allow magnitude-only match for those paths only — inventing the same
+        # magnitude without such evidence still fails.
+        if item["unit"] != "percent" and _is_signed_magnitude_field(number) and _values_match(
+            claimed, abs(float(number["value"])), decimals
+        ):
+            return True
+    return False
+
+
+def _is_signed_magnitude_field(number: dict) -> bool:
+    path = str(number.get("path") or "").lower()
+    if not path:
+        return False
+    markers = (
+        "spread",
+        "_bp",
+        "bp.",
+        "zscore",
+        "z_score",
+        "vs_peer",
+        "peer_mean",
+        "涨跌",
+    )
+    return any(marker in path for marker in markers)
 
 
 def _values_match(claimed: float, evidence: float, decimal_places: int) -> bool:

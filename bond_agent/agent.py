@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 
 from .answer_judge import judge_answer
 from .data_loader import resolve_bond_data
@@ -285,7 +286,7 @@ class BondAnalystAgent:
             return {"text": None, "status": "disabled", "error": None}
 
         models = self._llm_model_candidates()
-        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "2")))
+        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "3")))
         last_error: Exception | None = None
         last_error_name = "UnknownError"
         for model in models:
@@ -293,39 +294,7 @@ class BondAnalystAgent:
                 try:
                     client = self._create_openai_client(api_key, base_url=base_url)
                     lang = self._detect_answer_lang(question)
-                    lang_rule = (
-                        "Write the entire answer in Chinese (简体中文)."
-                        if lang == "zh"
-                        else "Write the entire answer in English."
-                    )
-                    instructions = (
-                        "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
-                        "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
-                        "present in the JSON (including percentiles, spreads, counts, and percentages). "
-                        "When citing quartiles, prefer labels p25/p75 with their evidence values "
-                        "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
-                        "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
-                        "2.5647% only when that exact value appears in evidence. "
-                        "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
-                        "verbatim if needed, never recompute shares. "
-                        "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
-                        "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
-                        "Do not create new percentages, ranges, ratings, issuer details, market facts, "
-                        "or investment advice. "
-                        "Do not recommend buying, selling, adding position, guaranteed returns, "
-                        "or very safe conclusions. "
-                        "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
-                        "or 'no investment advice' instead of 'not risk-free'. "
-                        "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
-                        "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
-                        "mention first-leg vs theoretical consol scenarios when present. "
-                        "The yield_distribution values are counts, not percentages. "
-                        "If a requested bond is present under data_evidence.search.records, focus on that bond "
-                        "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
-                        "If the evidence is insufficient, say so directly. "
-                        f"{lang_rule} "
-                        f"Always include this disclaimer in Chinese: {DISCLAIMER}"
-                    )
+                    instructions = self._llm_instructions(lang)
                     evidence_payload = self._build_llm_evidence(question, plan, report)
                     evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
                     api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
@@ -344,35 +313,11 @@ class BondAnalystAgent:
                 except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
                     last_error = exc
                     last_error_name = type(exc).__name__
-                    # Retry transport failures; advance to fallback model on hard channel/auth errors.
-                    if attempt + 1 < attempts and last_error_name in {
-                        "APIConnectionError",
-                        "APITimeoutError",
-                        "RateLimitError",
-                        "InternalServerError",
-                        "TimeoutError",
-                        "ConnectTimeout",
-                        "ReadTimeout",
-                    }:
+                    # Retry transport failures with backoff; advance model on hard channel/auth errors.
+                    if attempt + 1 < attempts and self._is_transient_llm_error(last_error_name, exc):
+                        self._sleep_llm_retry(attempt, last_error_name)
                         continue
-                    message = str(exc).lower()
-                    hard_channel = last_error_name in {
-                        "AuthenticationError",
-                        "PermissionDeniedError",
-                        "NotFoundError",
-                        "BadRequestError",
-                    } or any(
-                        token in message
-                        for token in (
-                            "no available channel",
-                            "model not found",
-                            "does not exist",
-                            "invalid model",
-                            "403",
-                            "401",
-                        )
-                    )
-                    if hard_channel:
+                    if self._is_hard_channel_error(last_error_name, exc):
                         break
                     return {
                         "text": None,
@@ -410,6 +355,105 @@ class BondAnalystAgent:
         if re.search(r"[\u4e00-\u9fff]", question or ""):
             return "zh"
         return "en"
+
+    def _llm_instructions(self, lang: str) -> str:
+        lang_rule = (
+            "Write the entire answer in Chinese (简体中文)."
+            if lang == "zh"
+            else "Write the entire answer in English."
+        )
+        return (
+            "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
+            "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
+            "present in the JSON (including percentiles, spreads, counts, and percentages). "
+            "When citing quartiles, prefer labels p25/p75 with their evidence values "
+            "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
+            "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
+            "2.5647% only when that exact value appears in evidence. "
+            "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
+            "verbatim if needed, never recompute shares. "
+            "For signed peer spreads / z-scores / bp fields, prefer ASCII hyphen-minus "
+            "(e.g. -5.95 bp). If you describe magnitude only, keep the same absolute value "
+            "that appears in evidence and say it is the absolute peer-mean spread. "
+            "Never invent spreads that are not present. "
+            "Do not create new percentages, ranges, ratings, issuer details, market facts, "
+            "or investment advice. "
+            "Do not recommend buying, selling, adding position, guaranteed returns, "
+            "or very safe conclusions. "
+            "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
+            "or 'no investment advice' instead of 'not risk-free'. "
+            "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
+            "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
+            "mention first-leg vs theoretical consol scenarios when present. "
+            "The yield_distribution values are counts, not percentages. "
+            "If a requested bond is present under data_evidence.search.records, focus on that bond "
+            "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
+            "If the evidence is insufficient, say so directly. "
+            f"{lang_rule} "
+            f"Always include this disclaimer in Chinese: {DISCLAIMER}"
+        )
+
+    def _is_transient_llm_error(self, error_name: str, exc: Exception | None = None) -> bool:
+        if error_name in {
+            "APIConnectionError",
+            "APITimeoutError",
+            "RateLimitError",
+            "InternalServerError",
+            "TimeoutError",
+            "ConnectTimeout",
+            "ReadTimeout",
+            "APIStatusError",
+            "ServiceUnavailableError",
+        }:
+            return True
+        message = str(exc or "").lower()
+        return any(
+            token in message
+            for token in (
+                "rate limit",
+                "too many requests",
+                "429",
+                "500",
+                "502",
+                "503",
+                "504",
+                "timeout",
+                "temporar",
+                "overloaded",
+                "upstream",
+            )
+        ) and not self._is_hard_channel_error(error_name, exc)
+
+    def _is_hard_channel_error(self, error_name: str, exc: Exception | None = None) -> bool:
+        if error_name in {
+            "AuthenticationError",
+            "PermissionDeniedError",
+            "NotFoundError",
+            "BadRequestError",
+        }:
+            return True
+        message = str(exc or "").lower()
+        return any(
+            token in message
+            for token in (
+                "no available channel",
+                "model not found",
+                "does not exist",
+                "invalid model",
+                "invalid api key",
+                "incorrect api key",
+            )
+        )
+
+    def _sleep_llm_retry(self, attempt: int, error_name: str) -> None:
+        """Backoff before retrying 429/5xx/timeout. Tests can set OPENAI_RETRY_BACKOFF=0."""
+        base = float(os.environ.get("OPENAI_RETRY_BACKOFF", "0.8"))
+        if base <= 0:
+            return
+        # Rate limits get a slightly longer pause.
+        factor = 1.8 if error_name == "RateLimitError" else 1.0
+        delay = min(8.0, base * factor * (2 ** max(0, attempt)))
+        time.sleep(delay)
 
     def _build_llm_evidence(self, question: str, plan: dict, report: dict) -> dict:
         """Compact evidence payload for the LLM to reduce hallucinated numbers."""
@@ -451,12 +495,27 @@ class BondAnalystAgent:
         compact_comparison = comparison
         if isinstance(comparison, dict):
             rate = comparison.get("rate_sensitivity") or {}
+            peer = comparison.get("peer_comparison") or {}
             compact_comparison = {
                 "bond_name": comparison.get("bond_name") or comparison.get("name"),
                 "record": comparison.get("record"),
                 "market_median": comparison.get("market_median") or comparison.get("median"),
                 "vs_market": comparison.get("vs_market") or comparison.get("comparison"),
                 "notes": comparison.get("notes") or comparison.get("analysis"),
+                "peer_comparison": {
+                    "bond_type": peer.get("bond_type"),
+                    "maturity_bucket": peer.get("maturity_bucket"),
+                    "peer_count": peer.get("peer_count"),
+                    "peer_yield_mean": peer.get("peer_yield_mean"),
+                    "peer_yield_median": peer.get("peer_yield_median"),
+                    "peer_yield_percentile": peer.get("peer_yield_percentile"),
+                    "peer_yield_zscore": peer.get("peer_yield_zscore"),
+                    "spread_vs_peer_mean_bp": peer.get("spread_vs_peer_mean_bp"),
+                    "note_zh": peer.get("note_zh"),
+                    "note_en": peer.get("note_en"),
+                }
+                if peer
+                else None,
                 "rate_sensitivity": {
                     "modified_duration": rate.get("modified_duration") or rate.get("modified_duration_approx"),
                     "macaulay_duration": rate.get("macaulay_duration"),
@@ -581,13 +640,18 @@ class BondAnalystAgent:
         - error: fatal
         """
         question = question.strip() or "请概览当前债券市场样本。"
-        yield {"type": "status", "stage": "resolve_data", "message_zh": "解析数据源…", "message_en": "Resolving data…"}
+        yield {"type": "status", "stage": "resolve_data", "message_zh": "解析数据源（auto/live/static）…", "message_en": "Resolving data source (auto/live/static)…"}
         data_frame, data_source = resolve_bond_data(
             mode=self.data_mode,
             path=self.data_path or None,
             live_fetcher=self.live_fetcher,
         )
-        yield {"type": "status", "stage": "plan", "message_zh": "规划意图与工具…", "message_en": "Planning intent/tools…"}
+        yield {
+            "type": "status",
+            "stage": "plan",
+            "message_zh": f"规划意图与工具…（模式 {data_source.get('runtime_mode')}）",
+            "message_en": f"Planning intent/tools… (mode {data_source.get('runtime_mode')})",
+        }
         plan = classify_intent(question, data_path=self.data_path, data_frame=data_frame)
         tool_outputs: list[dict] = []
         tool_trace: list[str] = [
@@ -596,13 +660,23 @@ class BondAnalystAgent:
             f"-> planner(intent={plan['intent']})",
         ]
         report = None
+        tool_labels = {
+            "search_bonds": ("检索债券", "Search bonds"),
+            "compare_bond_to_market": ("同业/市场对比", "Peer/market compare"),
+            "describe_market": ("市场概览统计", "Market overview stats"),
+            "rank_bonds": ("收益率排序", "Rank yields"),
+            "detect_yield_outliers": ("异常收益检测", "Detect yield outliers"),
+            "build_market_monitor": ("截面监控面板", "Market monitor panel"),
+            "generate_bond_report": ("组装证据报告", "Assemble evidence report"),
+        }
         for tool_name in plan["requested_tools"]:
+            zh_label, en_label = tool_labels.get(tool_name, (tool_name, tool_name))
             yield {
                 "type": "status",
                 "stage": "tool",
                 "tool": tool_name,
-                "message_zh": f"执行工具 {tool_name}…",
-                "message_en": f"Running tool {tool_name}…",
+                "message_zh": f"执行工具：{zh_label}（{tool_name}）…",
+                "message_en": f"Running tool: {en_label} ({tool_name})…",
             }
             if tool_name == "search_bonds":
                 result = search_bonds(**plan["search_params"], data_frame=data_frame)
@@ -670,15 +744,37 @@ class BondAnalystAgent:
             final_answer_source = "deterministic_fallback"
         else:
             fallback_answer = self._format_report(report, plan)
-            yield {"type": "status", "stage": "llm", "message_zh": "调用 LLM（可流式）…", "message_en": "Calling LLM (streamable)…"}
+            yield {
+                "type": "status",
+                "stage": "llm",
+                "message_zh": "准备调用模型通道（可流式；失败将回退确定性报告）…",
+                "message_en": "Preparing model channel (streamable; fails over to deterministic report)…",
+            }
             # Live token path: consume streaming generator and re-yield token events immediately.
             llm_result = {"text": None, "status": "disabled", "error": None}
             for event in self._iter_llm_answer_events(question, plan, report):
                 if event.get("type") == "token":
                     yield event
                     llm_text_parts.append(event.get("text") or "")
+                elif event.get("type") == "status":
+                    yield event
                 elif event.get("type") == "llm_result":
                     llm_result = event.get("result") or llm_result
+            if llm_result.get("status") == "failed":
+                err = llm_result.get("error") or "unknown"
+                yield {
+                    "type": "status",
+                    "stage": "llm_fallback",
+                    "message_zh": f"模型通道失败（{err}）→ 已改用确定性报告。",
+                    "message_en": f"Model channel failed ({err}) → using deterministic report.",
+                }
+            elif llm_result.get("status") == "success":
+                yield {
+                    "type": "status",
+                    "stage": "guardrail",
+                    "message_zh": "模型文本已返回，正在跑数值/语言护栏…",
+                    "message_en": "Model text returned; running numeric/language guardrail…",
+                }
             llm_guardrail = (
                 assess_llm_faithfulness(llm_result.get("text"), report)
                 if llm_result.get("status") == "success"
@@ -686,6 +782,13 @@ class BondAnalystAgent:
             )
             if llm_result["status"] == "success":
                 tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
+                if llm_guardrail["status"] != "passed":
+                    yield {
+                        "type": "status",
+                        "stage": "llm_fallback",
+                        "message_zh": "护栏未通过 → 已改用确定性报告。",
+                        "message_en": "Guardrail rejected model text → using deterministic report.",
+                    }
             else:
                 tool_trace.append(f"-> llm_guardrail(skipped: llm_{llm_result['status']})")
             use_llm_final = llm_result["status"] == "success" and llm_guardrail["status"] == "passed"
@@ -788,7 +891,7 @@ class BondAnalystAgent:
             return
 
         models = self._llm_model_candidates()
-        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "2")))
+        attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "3")))
         last_error: Exception | None = None
         last_error_name = "UnknownError"
         for model in models:
@@ -796,41 +899,26 @@ class BondAnalystAgent:
                 try:
                     client = self._create_openai_client(api_key, base_url=base_url)
                     lang = self._detect_answer_lang(question)
-                    lang_rule = (
-                        "Write the entire answer in Chinese (简体中文)."
-                        if lang == "zh"
-                        else "Write the entire answer in English."
-                    )
-                    instructions = (
-                        "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
-                        "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
-                        "present in the JSON (including percentiles, spreads, counts, and percentages). "
-                        "When citing quartiles, prefer labels p25/p75 with their evidence values "
-                        "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
-                        "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
-                        "2.5647% only when that exact value appears in evidence. "
-                        "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
-                        "verbatim if needed, never recompute shares. "
-                        "For negative spreads/z-scores, use ASCII hyphen-minus only (e.g. -5.95 bp), "
-                        "never Unicode minus (U+2212) or en-dash. Keep the sign exactly as in evidence. "
-                        "Do not create new percentages, ranges, ratings, issuer details, market facts, "
-                        "or investment advice. "
-                        "Do not recommend buying, selling, adding position, guaranteed returns, "
-                        "or very safe conclusions. "
-                        "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
-                        "or 'no investment advice' instead of 'not risk-free'. "
-                        "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
-                        "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
-                        "mention first-leg vs theoretical consol scenarios when present. "
-                        "The yield_distribution values are counts, not percentages. "
-                        "If a requested bond is present under data_evidence.search.records, focus on that bond "
-                        "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
-                        "If the evidence is insufficient, say so directly. "
-                        f"{lang_rule} "
-                        f"Always include this disclaimer in Chinese: {DISCLAIMER}"
-                    )
+                    instructions = self._llm_instructions(lang)
                     evidence_payload = self._build_llm_evidence(question, plan, report)
                     evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
+                    if attempt == 0:
+                        yield {
+                            "type": "status",
+                            "stage": "llm",
+                            "message_zh": f"调用模型 {model}（流式）…",
+                            "message_en": f"Calling model {model} (streaming)…",
+                            "model": model,
+                        }
+                    else:
+                        yield {
+                            "type": "status",
+                            "stage": "llm_retry",
+                            "message_zh": f"模型通道瞬时失败，正在重试 {model}（第 {attempt + 1}/{attempts} 次）…",
+                            "message_en": f"Transient model failure; retrying {model} ({attempt + 1}/{attempts})…",
+                            "model": model,
+                            "attempt": attempt + 1,
+                        }
                     parts: list[str] = []
                     try:
                         for delta in self._call_chat_completions_stream(client, model, instructions, evidence_json):
@@ -846,6 +934,13 @@ class BondAnalystAgent:
                             "BadRequestError",
                             "APIError",
                         }:
+                            yield {
+                                "type": "status",
+                                "stage": "llm",
+                                "message_zh": f"流式不可用，改用非流式补全（{model}）…",
+                                "message_en": f"Streaming unavailable; falling back to non-stream completion ({model})…",
+                                "model": model,
+                            }
                             text_out = self._call_chat_completions(client, model, instructions, evidence_json)
                         else:
                             raise
@@ -865,34 +960,10 @@ class BondAnalystAgent:
                 except Exception as exc:  # noqa: BLE001
                     last_error = exc
                     last_error_name = type(exc).__name__
-                    if attempt + 1 < attempts and last_error_name in {
-                        "APIConnectionError",
-                        "APITimeoutError",
-                        "RateLimitError",
-                        "InternalServerError",
-                        "TimeoutError",
-                        "ConnectTimeout",
-                        "ReadTimeout",
-                    }:
+                    if attempt + 1 < attempts and self._is_transient_llm_error(last_error_name, exc):
+                        self._sleep_llm_retry(attempt, last_error_name)
                         continue
-                    message = str(exc).lower()
-                    hard_channel = last_error_name in {
-                        "AuthenticationError",
-                        "PermissionDeniedError",
-                        "NotFoundError",
-                        "BadRequestError",
-                    } or any(
-                        token in message
-                        for token in (
-                            "no available channel",
-                            "model not found",
-                            "does not exist",
-                            "invalid model",
-                            "403",
-                            "401",
-                        )
-                    )
-                    if hard_channel:
+                    if self._is_hard_channel_error(last_error_name, exc):
                         break
                     yield {
                         "type": "llm_result",

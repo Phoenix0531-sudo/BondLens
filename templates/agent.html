@@ -1094,9 +1094,27 @@
         const streamHint = streamChars > 0
           ? (currentLang() === "en" ? ` · ${streamChars} chars streamed` : ` · 已流式 ${streamChars} 字`)
           : "";
+        let phase;
+        if (streamChars > 0) {
+          phase = currentLang() === "en"
+            ? "LLM tokens arriving"
+            : "模型 token 输出中";
+        } else if (sec < 8) {
+          phase = currentLang() === "en"
+            ? "loading data + running tools"
+            : "加载数据并执行工具";
+        } else if (sec < 25) {
+          phase = currentLang() === "en"
+            ? "tools/evidence, then model channel"
+            : "工具/证据完成中，随后进模型通道";
+        } else {
+          phase = currentLang() === "en"
+            ? "waiting on model channel (may retry 429/5xx; fails over to deterministic report)"
+            : "等待模型通道（429/5xx 会轻量重试；失败则改用确定性报告）";
+        }
         meta.textContent = currentLang() === "en"
-          ? (`Elapsed ${sec}s · tools first, then optional LLM tokens` + streamHint)
-          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM token 流` + streamHint);
+          ? (`Elapsed ${sec}s · ${phase}` + streamHint)
+          : (`已等待 ${sec} 秒 · ${phase}` + streamHint);
       }, 500);
     }
     function stopTimer() {
