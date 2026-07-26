@@ -57,10 +57,12 @@ BondLens turns a natural-language bond question into an **auditable analysis run
 ### Product surfaces (answer-first)
 
 - **Answer Snapshot**: 3-sentence headline + key metrics; full body collapsed by default
+- **SSE stream + soft final render**: tool-step progress, token preview, final summary card without forced full-page reload; share/full board still via `result_url`
+- **Bilingual UI (zh default)**: query/cookie language memory, explicit zh/en switch, bilingual provenance lines
 - **Bond type mix + maturity buckets**: conservative name-rule taxonomy (no rating inference)
 - **Peer comparison**: same type + maturity bucket spread vs peers
 - **Cross-section monitor board**: high yield / low volume / yield outliers / missing maturity
-- **Maturity enrichment board**: live coverage ratio, source counts, unmatched list export (CSV/JSON)
+- **Maturity / residual board**: live coverage, cashflow teaching duration/DV01, perpetual dual scenarios (first finite leg + theoretical consol)
 - **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind details
 
 ---
@@ -127,9 +129,13 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 
 ```bash
 pip install -r requirements.txt
+# preferred local demo bind
+export FLASK_RUN_HOST=127.0.0.1
+export PORT=8765
 export BOND_DATA_MODE=static
+export SECRET_KEY=local-dev
 python app.py
-# open http://127.0.0.1:5000/agent
+# open http://127.0.0.1:8765/agent
 # try: 当前样本收益率分布是什么样？
 ```
 
@@ -142,6 +148,8 @@ Or open a pre-generated pack with no server:
 ### 30 minutes (live path + fallback)
 
 ```bash
+export FLASK_RUN_HOST=127.0.0.1
+export PORT=8765
 export BOND_DATA_MODE=auto   # live first, then snapshot, then static
 python app.py
 # force live: BOND_DATA_MODE=live
@@ -152,7 +160,10 @@ Optional LLM polish (never required):
 
 ```bash
 export OPENAI_API_KEY=...
-# or OPENAI_BASE_URL for OpenAI-compatible local endpoints
+export OPENAI_BASE_URL=http://127.0.0.1:31876/v1   # example: local OpenAI-compatible gateway
+export OPENAI_MODEL=grok-4.5
+export OPENAI_API_STYLE=chat
+# Keys stay in process env only. Do not commit secrets.
 ```
 
 ---
@@ -232,6 +243,20 @@ Content-Type: application/json
 }
 ```
 
+Streaming (SSE):
+
+```http
+POST /api/agent/stream
+Content-Type: application/json
+
+{
+  "question": "当前债券市场样本概览如何？",
+  "data_mode": "static"
+}
+```
+
+Events include `status` (tool steps), `token` (partial text), and `final` (soft-render view + `result_url`).
+
 Operational endpoints:
 
 ```text
@@ -250,13 +275,15 @@ Deployment notes: [docs/deployment.md](docs/deployment.md)
 ## Data Source Boundary
 
 ```text
-Primary:        AkShare bond_spot_deal
+Primary:        ChinaMoney / AkShare-style spot deal fetch (direct preferred)
 Snapshot:       .tmp/bond_spot_deal_snapshot.csv
 Final fallback: data/testdata.xlsx
 ```
 
-- Live feed fields used: bond name, clean price, latest yield, BP change, weighted yield, volume
-- **No native maturity** on live feed → enrichment from local static master + `maturity_coverage`
+- Live fields used include bond name, clean price, yield, BP change, weighted yield, volume, and native residual maturity when present (`termToMaturity`)
+- Residual maturity may still be incomplete → coverage board + trust penalty on weak coverage
+- Cashflow duration / DV01 are **teaching-level** level-coupon estimates, not OAS / full call-tree valuation
+- Perpetual-style residuals expose dual scenarios (first finite leg + theoretical perpetual), not a multi-century fake tenor
 - No issuer ratings, financial statements, guarantees, or credit events
 - Yield is a **risk signal**, not a trade instruction
 
@@ -282,6 +309,32 @@ static -> local Excel only
 8. **Trust score + Evidence Pack + replay** make the run reviewable without dumping raw JSON
 
 If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallback output.
+
+---
+
+## Appendix: LLM final-answer matrix (recorded)
+
+Recorded against local **new-api** with model **`grok-4.5`**, `BOND_DATA_MODE=static`.
+Stable first bond for report questions: **06国开24** (bond-name ascending, mergesort).
+
+Full table: [docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md) · raw: [llm_matrix_grok45.json](docs/demo_runs/llm_matrix_grok45.json)
+
+| Scenario | Lang | Threshold | Result | Notes |
+| --- | --- | --- | --- | --- |
+| overview | zh | 3/3 final LLM | **3/3** | 1 provider 500 mid-run; recovered |
+| bond report | zh | 3/3 final LLM | **3/3** | provider 500 / rate-limit on some attempts |
+| overview | en | >=2/3 | **2 successes** | early attempts rate-limited |
+| bond report | en | >=2/3 | **2 successes** | 1 guardrail reject on unsupported `5.95` |
+
+Honest residuals:
+
+- Provider rate limits / occasional 500s still force deterministic fallback
+- Guardrails stay on; unsupported numbers never become final
+- End-to-end latency often 35–90s; outliers can exceed 2 minutes under load
+- Soft-render shows a summary card; full dashboard tables remain on `result_url`
+- Not implemented: WebSocket tick feed, true OAS / full call-tree perpetual pricing, desktop GUI/CLI
+
+This matrix is evidence of a working path, **not** a zero-bug claim.
 
 ---
 

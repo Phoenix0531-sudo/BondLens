@@ -58,10 +58,12 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 ### 产品界面（答案优先）
 
 - **首屏答案摘要**：3 句结论 + 关键指标；完整正文默认折叠
+- **SSE 流式 + 软渲染终态**：工具阶段进度、token 预览、最终摘要卡无需强制整页跳转；完整看板仍可通过 `result_url`
+- **双语 UI（默认中文）**：query/cookie 记忆语言，显式中/英切换，溯源行双语
 - **券种结构 + 期限分桶**：保守名称规则，不做评级推断
 - **同业可比**：同券种 + 同期限分桶相对利差
 - **截面监控面板**：高收益 / 低成交 / 收益异常 / 缺期限
-- **期限补全看板**：覆盖率、来源统计、未匹配名单导出（CSV/JSON）
+- **期限 / 残期看板**：覆盖率、现金流教学久期/DV01、永续双情景（首段有限 + 理论永续）
 - **信任分 + 运行压力 + 审计折叠**：护栏 / 评审 / 风险 / 账本默认收起
 
 ---
@@ -128,9 +130,13 @@ flowchart TD
 
 ```bash
 pip install -r requirements.txt
+# 本地演示推荐绑定
+export FLASK_RUN_HOST=127.0.0.1
+export PORT=8765
 export BOND_DATA_MODE=static
+export SECRET_KEY=local-dev
 python app.py
-# 打开 http://127.0.0.1:5000/agent
+# 打开 http://127.0.0.1:8765/agent
 # 试试：当前样本收益率分布是什么样？
 ```
 
@@ -143,6 +149,8 @@ python app.py
 ### 30 分钟（实时链路与降级）
 
 ```bash
+export FLASK_RUN_HOST=127.0.0.1
+export PORT=8765
 export BOND_DATA_MODE=auto   # 实时优先，失败后快照/本地
 python app.py
 # 强制实时：BOND_DATA_MODE=live
@@ -153,7 +161,10 @@ python app.py
 
 ```bash
 export OPENAI_API_KEY=...
-# 或 OPENAI_BASE_URL 指向本地 OpenAI 兼容端点
+export OPENAI_BASE_URL=http://127.0.0.1:31876/v1   # 示例：本地 OpenAI 兼容网关
+export OPENAI_MODEL=grok-4.5
+export OPENAI_API_STYLE=chat
+# 密钥仅放进程环境变量，禁止写入仓库
 ```
 
 ---
@@ -232,6 +243,20 @@ Content-Type: application/json
 }
 ```
 
+流式接口（SSE）：
+
+```http
+POST /api/agent/stream
+Content-Type: application/json
+
+{
+  "question": "当前债券市场样本概览如何？",
+  "data_mode": "static"
+}
+```
+
+事件包括 `status`（工具步骤）、`token`（增量文本）、`final`（软渲染视图 + `result_url`）。
+
 运维接口：
 
 ```text
@@ -250,13 +275,15 @@ GET  /api/maturity/unmatched
 ## 数据源边界
 
 ```text
-主源：    AkShare bond_spot_deal
+主源：    ChinaMoney / AkShare 风格现券成交抓取（优先直连）
 快照：    .tmp/bond_spot_deal_snapshot.csv
 最终备用： data/testdata.xlsx
 ```
 
-- 实时字段：简称、净价、最新收益率、涨跌 BP、加权收益、成交量
-- 实时源**无原生期限** → 本地主数据补全 + `maturity_coverage`
+- 实时字段包括简称、净价、收益率、涨跌 BP、加权收益、成交量，以及可用时的原生残期（`termToMaturity`）
+- 残期仍可能不完整 → 覆盖率看板 + 弱覆盖时信任分惩罚
+- 现金流久期 / DV01 为**教学级**平价票息估计，不是 OAS / 完整含权树定价
+- 永续风格残期暴露双情景（首段有限 + 理论永续），不做伪造超长单一年限
 - 无主体评级、财报、担保、信用事件
 - 收益率是**风险信号**，不是交易指令
 
@@ -282,6 +309,32 @@ static -> 仅本地 Excel
 8. **信任分 + Evidence Pack + 回放** 让结果可审查，而不是甩原始 JSON
 
 未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
+
+---
+
+## 附录：LLM 最终答案矩阵（实测记录）
+
+基于本地 **new-api**、模型 **`grok-4.5`**、`BOND_DATA_MODE=static` 实测。
+单券报告稳定第一只债：**06国开24**（债券简称升序，mergesort）。
+
+完整表：[docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md) · 原始行：[llm_matrix_grok45.json](docs/demo_runs/llm_matrix_grok45.json)
+
+| 场景 | 语言 | 门槛 | 结果 | 备注 |
+| --- | --- | --- | --- | --- |
+| 市场概览 | 中文 | 3/3 final LLM | **3/3** | 中途 1 次上游 500，恢复后通过 |
+| 单券报告 | 中文 | 3/3 final LLM | **3/3** | 部分尝试上游 500 / 限流 |
+| 市场概览 | 英文 | >=2/3 | **2 次成功** | 前几轮限流 |
+| 单券报告 | 英文 | >=2/3 | **2 次成功** | 1 次护栏拒掉 unsupported `5.95` |
+
+诚实残留：
+
+- 上游限流 / 偶发 500 仍会落到确定性回退
+- 护栏保持开启；证据外数字不会成为最终答案
+- 端到端延迟常见 35–90s，负载高时可能超过 2 分钟
+- 软渲染是摘要卡；完整看板表格仍在 `result_url`
+- 未实现：WebSocket 行情、真 OAS / 完整含权永续定价、桌面 GUI/CLI
+
+该矩阵证明主路径可用，**不是**零缺陷声明。
 
 ---
 
