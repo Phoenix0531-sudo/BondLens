@@ -781,6 +781,101 @@
     100% { transform: translateX(320%); }
   }
 
+
+  .async-tool-steps {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 6px;
+  }
+  .async-tool-steps li {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border-left: 3px solid rgba(15, 107, 95, 0.35);
+    background: rgba(15, 107, 95, 0.05);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.45;
+  }
+  .async-tool-steps li.active {
+    border-left-color: var(--amber);
+    color: var(--ink);
+    background: rgba(192, 122, 34, 0.08);
+  }
+  .async-tool-steps li.done {
+    border-left-color: rgba(47, 125, 85, 0.65);
+    opacity: 0.9;
+  }
+  .async-tool-steps .step-mark {
+    min-width: 1.2em;
+    color: var(--teal);
+    font-weight: 700;
+  }
+  .soft-result-shell {
+    margin-top: 18px;
+  }
+  .soft-result-shell[hidden] { display: none !important; }
+  .soft-result-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .soft-result-answer {
+    white-space: pre-wrap;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #23322d;
+  }
+  .soft-result-lines {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: 8px;
+  }
+  .soft-result-lines li {
+    padding: 10px 12px;
+    border-left: 3px solid var(--teal);
+    background: #f7f4ed;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .async-stream-preview {
+    margin-top: 12px;
+    max-height: 220px;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid rgba(15, 107, 95, 0.18);
+    background: #101a16;
+    color: #e8f0ec;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .async-stream-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .cancel-button, .ghost-button {
+    border: 1px solid rgba(15, 107, 95, 0.28);
+    background: #fffdf8;
+    color: var(--ink);
+    padding: 8px 12px;
+    cursor: pointer;
+    font: inherit;
+    font-size: 13px;
+  }
+  .cancel-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
   .async-error {
     margin-top: 12px;
     color: #8a2f1f;
@@ -834,6 +929,7 @@
         <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
         <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
         <div class="async-progress-bar" aria-hidden="true"><span></span></div>
+        <ol class="async-tool-steps" id="agent-tool-steps" aria-live="polite"></ol>
         <div class="async-stream-actions" id="agent-stream-actions" hidden>
           <button type="button" class="cancel-button" id="agent-cancel-button" data-lang-zh="取消请求" data-lang-en="Cancel request">取消请求</button>
           <button type="button" class="ghost-button" id="agent-copy-stream-button" data-lang-zh="复制流式预览" data-lang-en="Copy stream preview" hidden>复制流式预览</button>
@@ -843,6 +939,44 @@
       </div>
     </form>
   </section>
+  <div class="soft-result-shell surface" id="agent-soft-result" hidden>
+    <div class="surface-header">
+      <div>
+        <h2 class="surface-title" data-lang-zh="本页结果（未整页刷新）" data-lang-en="In-page result (no full reload)">本页结果（未整页刷新）</h2>
+        <p class="surface-subtitle" id="agent-soft-subtitle" data-lang-zh="流式结束后直接渲染；可打开可分享链接。" data-lang-en="Rendered after stream final; shareable link available.">流式结束后直接渲染；可打开可分享链接。</p>
+      </div>
+      <div class="badge-row" style="margin-top:0" id="agent-soft-badges"></div>
+    </div>
+    <div class="surface-body">
+      <div class="soft-result-meta" id="agent-soft-meta"></div>
+      <div class="insight-grid" style="margin-top:0;margin-bottom:14px">
+        <section class="surface" style="margin:0;box-shadow:none">
+          <div class="surface-header" style="background:transparent">
+            <h3 class="surface-title" style="font-size:16px" data-lang-zh="答案来源" data-lang-en="Answer provenance">答案来源</h3>
+          </div>
+          <div class="surface-body" style="padding-top:0">
+            <p class="surface-subtitle" id="agent-soft-prov-headline"></p>
+            <ul class="soft-result-lines" id="agent-soft-prov-lines"></ul>
+          </div>
+        </section>
+        <section class="surface" style="margin:0;box-shadow:none">
+          <div class="surface-header" style="background:transparent">
+            <h3 class="surface-title" style="font-size:16px" data-lang-zh="数据血缘" data-lang-en="Data lineage">数据血缘</h3>
+          </div>
+          <div class="surface-body" style="padding-top:0">
+            <p class="surface-subtitle" id="agent-soft-lineage-headline"></p>
+            <ul class="soft-result-lines" id="agent-soft-lineage-lines"></ul>
+          </div>
+        </section>
+      </div>
+      <h3 class="surface-title" style="font-size:16px;margin:0 0 8px" data-lang-zh="最终回答" data-lang-en="Final answer">最终回答</h3>
+      <div class="soft-result-answer answer-box" id="agent-soft-answer"></div>
+      <div class="action-row" style="margin-top:14px">
+        <a class="action-link" id="agent-soft-open-link" href="#" data-lang-zh="打开完整结果页" data-lang-en="Open full result page">打开完整结果页</a>
+        <button type="button" class="ghost-button" id="agent-soft-copy-answer" data-lang-zh="复制最终回答" data-lang-en="Copy final answer">复制最终回答</button>
+      </div>
+    </div>
+  </div>
 </div>
 <script>
   (function () {
@@ -857,6 +991,17 @@
     const streamActions = document.getElementById("agent-stream-actions");
     const cancelButton = document.getElementById("agent-cancel-button");
     const copyButton = document.getElementById("agent-copy-stream-button");
+    const toolSteps = document.getElementById("agent-tool-steps");
+    const softResult = document.getElementById("agent-soft-result");
+    const softBadges = document.getElementById("agent-soft-badges");
+    const softMeta = document.getElementById("agent-soft-meta");
+    const softProvHeadline = document.getElementById("agent-soft-prov-headline");
+    const softProvLines = document.getElementById("agent-soft-prov-lines");
+    const softLineageHeadline = document.getElementById("agent-soft-lineage-headline");
+    const softLineageLines = document.getElementById("agent-soft-lineage-lines");
+    const softAnswer = document.getElementById("agent-soft-answer");
+    const softOpenLink = document.getElementById("agent-soft-open-link");
+    const softCopyAnswer = document.getElementById("agent-soft-copy-answer");
     if (!form || !button) {
       return;
     }
@@ -864,11 +1009,48 @@
     let activeController = null;
     let timer = null;
     let streamChars = 0;
+    let stepCount = 0;
 
     function currentLang() {
       return (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
         ? "en"
         : "zh";
+    }
+
+    function clearToolSteps() {
+      if (!toolSteps) return;
+      toolSteps.innerHTML = "";
+      stepCount = 0;
+    }
+
+    function markStepsDone() {
+      if (!toolSteps) return;
+      toolSteps.querySelectorAll("li").forEach((li) => {
+        li.classList.remove("active");
+        li.classList.add("done");
+      });
+    }
+
+    function appendToolStep(message, stage, tool) {
+      if (!toolSteps) return;
+      toolSteps.querySelectorAll("li.active").forEach((li) => {
+        li.classList.remove("active");
+        li.classList.add("done");
+      });
+      stepCount += 1;
+      const li = document.createElement("li");
+      li.className = "active";
+      const mark = document.createElement("span");
+      mark.className = "step-mark";
+      mark.textContent = String(stepCount);
+      const body = document.createElement("span");
+      const stageBit = stage ? `[${stage}] ` : "";
+      const toolBit = tool ? `${tool}: ` : "";
+      body.textContent = `${stageBit}${toolBit}${message || ""}`;
+      li.appendChild(mark);
+      li.appendChild(body);
+      toolSteps.appendChild(li);
+      toolSteps.scrollTop = toolSteps.scrollHeight;
     }
 
     function setBusy(isBusy) {
@@ -897,6 +1079,9 @@
         }
         if (copyButton) copyButton.hidden = true;
         streamChars = 0;
+      } else {
+        clearToolSteps();
+        if (softResult) softResult.hidden = true;
       }
     }
 
@@ -936,6 +1121,104 @@
       }
     }
 
+    function badge(text, tone) {
+      const span = document.createElement("span");
+      span.className = "badge" + (tone ? (" " + tone) : "");
+      span.textContent = text;
+      return span;
+    }
+
+    function fillList(el, items) {
+      if (!el) return;
+      el.innerHTML = "";
+      (items || []).forEach((item) => {
+        const li = document.createElement("li");
+        if (item && typeof item === "object") {
+          const zh = item.zh || item.text || "";
+          const en = item.en || item.text || zh;
+          li.setAttribute("data-lang-zh", zh);
+          li.setAttribute("data-lang-en", en);
+          li.textContent = currentLang() === "en" ? en : zh;
+        } else {
+          li.textContent = String(item || "");
+        }
+        el.appendChild(li);
+      });
+    }
+
+    function pickAnswer(result, view, lang) {
+      if (view && view.final_answer_by_lang) {
+        return view.final_answer_by_lang[lang] || view.final_answer_by_lang.zh || view.final_answer || "";
+      }
+      if (view && view.final_answer) return view.final_answer;
+      return (result && (result.final_answer || result.answer)) || "";
+    }
+
+    function renderSoftFinal(payload) {
+      const lang = currentLang();
+      const result = payload.result || {};
+      const view = payload.view || {};
+      const resultUrl = payload.result_url || "#";
+      const trust = (result.trust_score && result.trust_score.score != null)
+        ? result.trust_score.score
+        : (view.trust_score != null ? view.trust_score : "—");
+      const finalSource = result.final_answer_source || (view.answer_provenance && view.answer_provenance.final_source) || "unknown";
+      const usedFinal = !!(result.used_llm_in_final);
+      const llmStatus = result.llm_status || "—";
+      const guard = (result.llm_guardrail && result.llm_guardrail.status) || "—";
+
+      if (softBadges) {
+        softBadges.innerHTML = "";
+        softBadges.appendChild(badge(lang === "en" ? `Trust ${trust}/100` : `信任分 ${trust}/100`, ""));
+        softBadges.appendChild(badge(lang === "en" ? `Source ${finalSource}` : `来源 ${finalSource}`, usedFinal ? "good" : "warn"));
+        softBadges.appendChild(badge(lang === "en" ? `LLM ${llmStatus}` : `LLM ${llmStatus}`, llmStatus === "success" ? "good" : ""));
+        softBadges.appendChild(badge(lang === "en" ? `Guardrail ${guard}` : `护栏 ${guard}`, guard === "passed" ? "good" : (guard === "failed" ? "warn" : "")));
+      }
+      if (softMeta) {
+        softMeta.innerHTML = "";
+        softMeta.appendChild(badge(lang === "en" ? `Mode ${payload.data_mode || "—"}` : `模式 ${payload.data_mode || "—"}`));
+        softMeta.appendChild(badge(lang === "en" ? `result_id ${payload.result_id || "—"}` : `结果 ${payload.result_id || "—"}`));
+        if (result.disclaimer) softMeta.appendChild(badge(String(result.disclaimer).slice(0, 80)));
+      }
+
+      const prov = view.answer_provenance || {};
+      if (softProvHeadline) {
+        softProvHeadline.textContent = lang === "en"
+          ? (prov.headline_en || prov.headline || "")
+          : (prov.headline_zh || prov.headline || "");
+      }
+      fillList(softProvLines, prov.line_items || (prov.lines || []).map((x) => ({ zh: x, en: x })));
+
+      const lineage = view.data_lineage || {};
+      if (softLineageHeadline) {
+        softLineageHeadline.textContent = lineage.freshness || lineage.runtime_label || (lang === "en" ? "Data lineage" : "数据血缘");
+      }
+      fillList(softLineageLines, (lineage.lines || []).map((x) => ({ zh: x, en: x })));
+
+      if (softAnswer) softAnswer.textContent = pickAnswer(result, view, lang);
+      if (softOpenLink) {
+        softOpenLink.href = resultUrl;
+        softOpenLink.hidden = !payload.result_id;
+      }
+      if (softResult) {
+        softResult.hidden = false;
+        softResult.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      if (typeof window.applyLanguage === "function") {
+        try { window.applyLanguage(lang); } catch (_) { /* optional */ }
+      }
+      if (payload.result_id) {
+        try {
+          const url = new URL(window.location.href);
+          url.pathname = "/agent";
+          url.searchParams.set("result_id", payload.result_id);
+          url.searchParams.set("lang", lang);
+          if (payload.data_mode) url.searchParams.set("data_mode", payload.data_mode);
+          window.history.replaceState({}, "", url.toString());
+        } catch (_) { /* ignore */ }
+      }
+    }
+
     if (cancelButton) {
       cancelButton.addEventListener("click", () => {
         abortActive("user_cancel");
@@ -970,6 +1253,23 @@
         }
       });
     }
+    if (softCopyAnswer) {
+      softCopyAnswer.addEventListener("click", async () => {
+        const textValue = softAnswer ? softAnswer.textContent : "";
+        if (!textValue) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(textValue);
+          }
+          softCopyAnswer.textContent = currentLang() === "en" ? "Copied" : "已复制";
+          setTimeout(() => {
+            softCopyAnswer.textContent = currentLang() === "en"
+              ? (softCopyAnswer.dataset.langEn || "Copy final answer")
+              : (softCopyAnswer.dataset.langZh || "复制最终回答");
+          }, 1200);
+        } catch (_) { /* ignore */ }
+      });
+    }
 
     async function runJsonFallback(endpoint, lang, question, dataMode, signal) {
       const response = await fetch(endpoint, {
@@ -982,7 +1282,7 @@
           question,
           data_mode: dataMode,
           lang,
-          include_view: false,
+          include_view: true,
         }),
         signal,
       });
@@ -990,16 +1290,31 @@
       if (!response.ok) {
         throw new Error(payload.error || (`HTTP ${response.status}`));
       }
-      const resultId = payload.result_id;
-      if (!resultId) {
-        throw new Error(lang === "en" ? "Missing result_id from API." : "接口未返回 result_id。");
+      if (!payload.result_id && !payload.final_answer) {
+        throw new Error(lang === "en" ? "Missing result from API." : "接口未返回结果。");
       }
-      const url = new URL(window.location.href);
-      url.pathname = "/agent";
-      url.searchParams.set("result_id", resultId);
-      url.searchParams.set("lang", lang);
-      url.searchParams.set("data_mode", dataMode);
-      window.location.assign(url.toString());
+      // Normalize shape to soft renderer
+      const body = {
+        result_id: payload.result_id,
+        result_url: payload.result_url,
+        result: payload.result || payload,
+        view: payload.view || null,
+        data_mode: dataMode,
+        lang,
+      };
+      if (!body.view) {
+        // Minimal view for soft card when include_view failed
+        body.view = {
+          final_answer: body.result.final_answer || body.result.answer || "",
+          answer_provenance: {
+            headline: lang === "en" ? "Answer provenance unavailable in soft view." : "软渲染未附带完整 provenance。",
+            lines: [],
+            line_items: [],
+          },
+          data_lineage: { lines: [], freshness: "" },
+        };
+      }
+      renderSoftFinal(body);
     }
 
     async function runSse(streamEndpoint, lang, question, dataMode, signal) {
@@ -1027,7 +1342,7 @@
       const decoder = new TextDecoder("utf-8");
       let buffer = "";
       let currentEvent = "message";
-      let finalUrl = null;
+      let finalPayload = null;
 
       function handleBlock(block) {
         const lines = block.split(/\r?\n/);
@@ -1048,16 +1363,16 @@
           return;
         }
         if (eventName === "status") {
-          if (title && payload.message) {
-            title.textContent = payload.message;
-          }
+          const msg = payload.message || (lang === "en" ? payload.message_en : payload.message_zh) || "";
+          if (title && msg) title.textContent = msg;
+          appendToolStep(msg, payload.stage, payload.tool);
         } else if (eventName === "token") {
           appendStreamText(payload.text || "");
           if (title) {
             title.textContent = lang === "en" ? "Streaming LLM tokens…" : "正在流式输出 LLM…";
           }
         } else if (eventName === "final") {
-          finalUrl = payload.result_url;
+          finalPayload = payload;
         } else if (eventName === "error") {
           throw new Error(payload.error || "stream error");
         }
@@ -1079,10 +1394,11 @@
         }
       }
       if (buffer.trim()) handleBlock(buffer);
-      if (!finalUrl) {
+      if (!finalPayload) {
         throw new Error(lang === "en" ? "Stream ended without final result." : "流式结束但未收到最终结果。");
       }
-      window.location.assign(finalUrl);
+      markStepsDone();
+      renderSoftFinal(finalPayload);
     }
 
     form.addEventListener("submit", async (event) => {
@@ -1129,6 +1445,13 @@
           }
           await runJsonFallback(jsonEndpoint, lang, question, dataMode, signal);
         }
+        stopTimer();
+        setBusy(false);
+        activeController = null;
+        if (title) {
+          title.textContent = lang === "en" ? "Done" : "完成";
+        }
+        if (progress) progress.hidden = false;
       } catch (err) {
         stopTimer();
         setBusy(false);
@@ -1251,15 +1574,21 @@
         <div class="surface-header">
           <div>
             <h2 class="surface-title" data-lang-zh="答案来源说明" data-lang-en="Answer provenance">答案来源说明</h2>
-            <p class="surface-subtitle">{{ view.answer_provenance.headline }}</p>
+            <p class="surface-subtitle" data-lang-zh="{{ view.answer_provenance.headline_zh or view.answer_provenance.headline }}" data-lang-en="{{ view.answer_provenance.headline_en or view.answer_provenance.headline }}">{{ view.answer_provenance.headline }}</p>
           </div>
           <span class="badge {% if view.answer_provenance.tone == 'good' %}good{% elif view.answer_provenance.tone == 'warn' %}warn{% endif %}">{{ view.final_source_label }}</span>
         </div>
         <div class="surface-body">
           <ul class="quality-issue-list">
-            {% for item in view.answer_provenance.lines %}
-              <li>{{ item }}</li>
-            {% endfor %}
+            {% if view.answer_provenance.line_items %}
+              {% for item in view.answer_provenance.line_items %}
+                <li data-lang-zh="{{ item.zh }}" data-lang-en="{{ item.en }}">{{ item.zh if lang != 'en' else item.en }}</li>
+              {% endfor %}
+            {% else %}
+              {% for item in view.answer_provenance.lines %}
+                <li>{{ item }}</li>
+              {% endfor %}
+            {% endif %}
           </ul>
         </div>
       </section>

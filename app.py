@@ -168,13 +168,18 @@ def agent_stream():
                 if etype == "final":
                     result = event.get("result") or {}
                     result_id = _store_result(result, question=question, data_mode=data_mode)
+                    view = _build_agent_view_model(result, lang=lang)
                     body = {
                         "type": "final",
                         "result_id": result_id,
                         "result_url": url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode),
                         "result": result,
+                        "view": view,
+                        "question": question,
+                        "data_mode": data_mode,
+                        "lang": lang,
                     }
-                    yield f"event: final\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+                    yield "event: final\ndata: " + _json.dumps(body, ensure_ascii=False) + "\n\n"
                 elif etype == "token":
                     body = {"type": "token", "text": event.get("text") or "", "model": event.get("model")}
                     yield f"event: token\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
@@ -1479,74 +1484,74 @@ def _build_answer_provenance_view(result: dict, lang: str = "zh") -> dict:
     unsafe = guardrail.get("unsafe_phrases") or []
     used_final = bool(result.get("used_llm_in_final"))
 
-    if lang == "en":
-        if used_final and final_source == "llm":
-            headline = "Final answer uses the LLM narrative (guardrail passed)."
-        elif llm_status == "disabled" and llm_error == "advisory_policy_block":
-            headline = "Investment-advice request blocked by policy; deterministic refusal only."
-        elif llm_status in {None, "disabled"} and not llm_error:
-            headline = "LLM not enabled for this run; deterministic report is the final answer."
-        elif guardrail.get("status") == "failed":
-            headline = "LLM drafted text but guardrail rejected it; page fell back to the rule report."
-        elif llm_status == "failed":
-            headline = "LLM call failed; page fell back to the deterministic report."
-        else:
-            headline = "Final answer comes from the deterministic path."
-        lines = [
-            f"Final source: {_localized_status(final_source, 'en')}",
-            f"LLM status: {_localized_status(llm_status, 'en')}",
-            f"Guardrail: {_localized_status(guardrail.get('status'), 'en')}",
-        ]
-        if llm_error:
-            lines.append(f"LLM error / block reason: {llm_error}")
-        for item in unsupported[:8]:
-            text_item = item.get("text") if isinstance(item, dict) else item
-            lines.append(f"Unsupported number: {text_item}")
-        for item in unsafe[:8]:
-            text_item = item.get("text") if isinstance(item, dict) else item
-            lines.append(f"Unsafe phrase: {text_item}")
-        if guardrail.get("summary"):
-            lines.append(guardrail.get("summary"))
-        return {
-            "title": "Answer provenance",
-            "headline": headline,
-            "lines": lines,
-            "tone": "good" if used_final else "warn" if final_source == "deterministic_fallback" else "",
-        }
-
     if used_final and final_source == "llm":
-        headline = "最终答案采用 LLM 叙述（护栏已通过）。"
+        headline_zh = "最终答案采用 LLM 叙述（护栏已通过）。"
+        headline_en = "Final answer uses the LLM narrative (guardrail passed)."
     elif llm_status == "disabled" and llm_error == "advisory_policy_block":
-        headline = "投资建议类问题被政策拦截；仅返回确定性拒绝说明，不调用 LLM。"
+        headline_zh = "投资建议类问题被政策拦截；仅返回确定性拒绝说明，不调用 LLM。"
+        headline_en = "Investment-advice request blocked by policy; deterministic refusal only."
     elif llm_status in {None, "disabled"} and not llm_error:
-        headline = "本次未启用 LLM；最终答案来自确定性报告。"
+        headline_zh = "本次未启用 LLM；最终答案来自确定性报告。"
+        headline_en = "LLM not enabled for this run; deterministic report is the final answer."
     elif guardrail.get("status") == "failed":
-        headline = "LLM 已生成文本，但护栏未通过；页面回退到规则报告。"
+        headline_zh = "LLM 已生成文本，但护栏未通过；页面回退到规则报告。"
+        headline_en = "LLM drafted text but guardrail rejected it; page fell back to the rule report."
     elif llm_status == "failed":
-        headline = "LLM 调用失败；页面回退到确定性报告。"
+        headline_zh = "LLM 调用失败；页面回退到确定性报告。"
+        headline_en = "LLM call failed; page fell back to the deterministic report."
     else:
-        headline = "最终答案来自确定性路径。"
-    lines = [
+        headline_zh = "最终答案来自确定性路径。"
+        headline_en = "Final answer comes from the deterministic path."
+
+    lines_zh = [
         f"最终来源：{_localized_status(final_source, 'zh')}",
         f"LLM 状态：{_localized_status(llm_status, 'zh')}",
         f"护栏：{_localized_status(guardrail.get('status'), 'zh')}",
     ]
+    lines_en = [
+        f"Final source: {_localized_status(final_source, 'en')}",
+        f"LLM status: {_localized_status(llm_status, 'en')}",
+        f"Guardrail: {_localized_status(guardrail.get('status'), 'en')}",
+    ]
     if llm_error:
-        lines.append(f"LLM 错误/拦截原因：{llm_error}")
+        lines_zh.append(f"LLM 错误/拦截原因：{llm_error}")
+        lines_en.append(f"LLM error / block reason: {llm_error}")
     for item in unsupported[:8]:
         text_item = item.get("text") if isinstance(item, dict) else item
-        lines.append(f"未被证据支持的数字：{text_item}")
+        lines_zh.append(f"未被证据支持的数字：{text_item}")
+        lines_en.append(f"Unsupported number: {text_item}")
     for item in unsafe[:8]:
         text_item = item.get("text") if isinstance(item, dict) else item
-        lines.append(f"不安全风险语言：{text_item}")
-    summary = _llm_guardrail_summary(guardrail, "zh")
-    if summary:
-        lines.append(summary)
+        lines_zh.append(f"不安全风险语言：{text_item}")
+        lines_en.append(f"Unsafe phrase: {text_item}")
+    summary_zh = _llm_guardrail_summary(guardrail, "zh")
+    if summary_zh:
+        lines_zh.append(summary_zh)
+    if guardrail.get("summary"):
+        lines_en.append(guardrail.get("summary"))
+
+    headline = headline_en if lang == "en" else headline_zh
+    lines = lines_en if lang == "en" else lines_zh
+    paired = []
+    for i in range(max(len(lines_zh), len(lines_en))):
+        paired.append({
+            "zh": lines_zh[i] if i < len(lines_zh) else "",
+            "en": lines_en[i] if i < len(lines_en) else "",
+        })
     return {
-        "title": "答案来源说明",
+        "title": "Answer provenance" if lang == "en" else "答案来源说明",
+        "title_zh": "答案来源说明",
+        "title_en": "Answer provenance",
         "headline": headline,
+        "headline_zh": headline_zh,
+        "headline_en": headline_en,
         "lines": lines,
+        "line_items": paired,
         "tone": "good" if used_final else "warn" if final_source == "deterministic_fallback" else "",
+        "final_source": final_source,
+        "llm_status": llm_status,
+        "guardrail_status": guardrail.get("status"),
+        "used_llm_in_final": used_final,
     }
 
 
