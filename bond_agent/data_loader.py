@@ -36,6 +36,11 @@ PERPETUAL_MOD_DURATION = "理论永续修正久期"
 DATA_MODES = {"auto", "live", "static"}
 STATIC_SAMPLE_DATE_RE = re.compile(r"(\d{4}-\d{2}-\d{2})")
 
+_STATIC_DF_CACHE: dict[str, pd.DataFrame] = {}
+_STATIC_DF_LOCK = __import__("threading").Lock()
+_CHINAMONEY_SESSION = None
+_CHINAMONEY_SESSION_LOCK = __import__("threading").Lock()
+
 
 def parse_maturity_details(value: object) -> dict:
     """Parse residual maturity with honest perpetual dual-scenario handling.
@@ -195,10 +200,23 @@ def infer_static_sample_date(path: str | Path = DEFAULT_DATA_PATH):
     return date(year, month, day)
 
 
-def load_bond_data(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
+def clear_static_bond_cache() -> None:
+    """Drop cached static DataFrames (tests / explicit reload)."""
+    with _STATIC_DF_LOCK:
+        _STATIC_DF_CACHE.clear()
+
+
+def load_bond_data(path: str | Path = DEFAULT_DATA_PATH, *, use_cache: bool = True) -> pd.DataFrame:
     data_path = Path(path)
     if not data_path.exists():
         raise FileNotFoundError(f"Bond data file not found: {data_path}")
+
+    cache_key = str(data_path.resolve())
+    if use_cache:
+        with _STATIC_DF_LOCK:
+            cached = _STATIC_DF_CACHE.get(cache_key)
+            if cached is not None:
+                return cached.copy(deep=False)
 
     df = pd.read_excel(data_path, header=1)
     df.columns = [str(column).strip() for column in df.columns]
@@ -212,7 +230,33 @@ def load_bond_data(path: str | Path = DEFAULT_DATA_PATH) -> pd.DataFrame:
     df = _apply_maturity_details(df, source_label="source_field")
     for column in NUMERIC_COLUMNS:
         df[column] = pd.to_numeric(df[column], errors="coerce")
-    return _attach_rate_sensitivity(df)
+    df = _attach_rate_sensitivity(df)
+    if use_cache:
+        with _STATIC_DF_LOCK:
+            _STATIC_DF_CACHE[cache_key] = df
+        return df.copy(deep=False)
+    return df
+
+
+
+def _chinamoney_session():
+    """Reuse one requests.Session for ChinaMoney POSTs (connection keep-alive)."""
+    global _CHINAMONEY_SESSION
+    import requests
+
+    with _CHINAMONEY_SESSION_LOCK:
+        if _CHINAMONEY_SESSION is None:
+            session = requests.Session()
+            session.headers.update(
+                {
+                    "User-Agent": (
+                        "Mozilla/5.0 (compatible; BondLens/1.0; "
+                        "+https://github.com/Phoenix0531-sudo/BondLens)"
+                    )
+                }
+            )
+            _CHINAMONEY_SESSION = session
+        return _CHINAMONEY_SESSION
 
 
 def fetch_chinamoney_bond_spot_deal() -> pd.DataFrame:
@@ -221,8 +265,6 @@ def fetch_chinamoney_bond_spot_deal() -> pd.DataFrame:
     AkShare ``bond_spot_deal`` hits the same endpoint but drops ``termToMaturity``.
     BondLens keeps that field so live peer/maturity buckets are usable.
     """
-    import requests
-
     url = "https://www.chinamoney.com.cn/ags/ms/cm-u-md-bond/CbtPri"
     payload = {"flag": "1", "lang": "cn", "bondName": ""}
     headers = {
@@ -231,7 +273,11 @@ def fetch_chinamoney_bond_spot_deal() -> pd.DataFrame:
         ),
         "Referer": "https://www.chinamoney.com.cn/chinese/mkdatabond/",
     }
-    response = requests.post(url, data=payload, headers=headers, timeout=20)
+    # Align HTTP timeout with outer live wall-clock (BOND_LIVE_FETCH_TIMEOUT_SECONDS, default 12).
+    outer = _live_fetch_timeout_seconds()
+    http_timeout = max(3.0, min(float(outer), 20.0))
+    session = _chinamoney_session()
+    response = session.post(url, data=payload, headers=headers, timeout=http_timeout)
     response.raise_for_status()
     payload_json = response.json()
     records = payload_json.get("records") or []

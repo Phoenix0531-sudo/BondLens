@@ -834,6 +834,10 @@
         <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
         <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
         <div class="async-progress-bar" aria-hidden="true"><span></span></div>
+        <div class="async-stream-actions" id="agent-stream-actions" hidden>
+          <button type="button" class="cancel-button" id="agent-cancel-button" data-lang-zh="取消请求" data-lang-en="Cancel request">取消请求</button>
+          <button type="button" class="ghost-button" id="agent-copy-stream-button" data-lang-zh="复制流式预览" data-lang-en="Copy stream preview" hidden>复制流式预览</button>
+        </div>
         <pre class="async-stream-preview" id="agent-stream-preview" hidden></pre>
         <p class="async-error" id="agent-async-error" hidden></p>
       </div>
@@ -850,9 +854,16 @@
     const title = document.getElementById("agent-async-title");
     const errorBox = document.getElementById("agent-async-error");
     const streamPreview = document.getElementById("agent-stream-preview");
+    const streamActions = document.getElementById("agent-stream-actions");
+    const cancelButton = document.getElementById("agent-cancel-button");
+    const copyButton = document.getElementById("agent-copy-stream-button");
     if (!form || !button) {
       return;
     }
+
+    let activeController = null;
+    let timer = null;
+    let streamChars = 0;
 
     function currentLang() {
       return (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
@@ -873,6 +884,8 @@
       button.setAttribute("aria-busy", isBusy ? "true" : "false");
       if (note) note.hidden = !isBusy;
       if (progress) progress.hidden = !isBusy;
+      if (streamActions) streamActions.hidden = !isBusy;
+      if (cancelButton) cancelButton.disabled = !isBusy;
       if (!isBusy) {
         if (errorBox) {
           errorBox.hidden = true;
@@ -882,19 +895,23 @@
           streamPreview.hidden = true;
           streamPreview.textContent = "";
         }
+        if (copyButton) copyButton.hidden = true;
+        streamChars = 0;
       }
     }
 
-    let timer = null;
     function startTimer() {
       const started = Date.now();
       if (timer) clearInterval(timer);
       timer = setInterval(() => {
         if (!meta) return;
         const sec = Math.floor((Date.now() - started) / 1000);
+        const streamHint = streamChars > 0
+          ? (currentLang() === "en" ? ` · ${streamChars} chars streamed` : ` · 已流式 ${streamChars} 字`)
+          : "";
         meta.textContent = currentLang() === "en"
-          ? (`Elapsed ${sec}s · tools first, then optional LLM tokens`)
-          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM token 流`);
+          ? (`Elapsed ${sec}s · tools first, then optional LLM tokens` + streamHint)
+          : (`已等待 ${sec} 秒 · 先跑工具，再可选 LLM token 流` + streamHint);
       }, 500);
     }
     function stopTimer() {
@@ -908,10 +925,53 @@
       if (!streamPreview) return;
       streamPreview.hidden = false;
       streamPreview.textContent += chunk;
+      streamChars += (chunk || "").length;
       streamPreview.scrollTop = streamPreview.scrollHeight;
+      if (copyButton) copyButton.hidden = false;
     }
 
-    async function runJsonFallback(endpoint, lang, question, dataMode) {
+    function abortActive(reason) {
+      if (activeController) {
+        try { activeController.abort(reason || "cancelled"); } catch (_) { /* older browsers */ }
+      }
+    }
+
+    if (cancelButton) {
+      cancelButton.addEventListener("click", () => {
+        abortActive("user_cancel");
+        if (title) {
+          title.textContent = currentLang() === "en" ? "Cancelling…" : "正在取消…";
+        }
+      });
+    }
+    if (copyButton) {
+      copyButton.addEventListener("click", async () => {
+        const textValue = streamPreview ? streamPreview.textContent : "";
+        if (!textValue) return;
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(textValue);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = textValue;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand("copy");
+            document.body.removeChild(ta);
+          }
+          copyButton.textContent = currentLang() === "en" ? "Copied" : "已复制";
+          setTimeout(() => {
+            copyButton.textContent = currentLang() === "en"
+              ? (copyButton.dataset.langEn || "Copy stream preview")
+              : (copyButton.dataset.langZh || "复制流式预览");
+          }, 1200);
+        } catch (_) {
+          /* ignore */
+        }
+      });
+    }
+
+    async function runJsonFallback(endpoint, lang, question, dataMode, signal) {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -924,6 +984,7 @@
           lang,
           include_view: false,
         }),
+        signal,
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -941,7 +1002,7 @@
       window.location.assign(url.toString());
     }
 
-    async function runSse(streamEndpoint, lang, question, dataMode) {
+    async function runSse(streamEndpoint, lang, question, dataMode, signal) {
       const response = await fetch(streamEndpoint, {
         method: "POST",
         headers: {
@@ -953,6 +1014,7 @@
           data_mode: dataMode,
           lang,
         }),
+        signal,
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
@@ -1002,6 +1064,10 @@
       }
 
       while (true) {
+        if (signal && signal.aborted) {
+          try { await reader.cancel(); } catch (_) {}
+          throw new DOMException("Aborted", "AbortError");
+        }
         const { value, done } = await reader.read();
         if (done) break;
         buffer += decoder.decode(value, { stream: true });
@@ -1040,32 +1106,49 @@
         return;
       }
 
+      abortActive("superseded");
+      activeController = (typeof AbortController !== "undefined") ? new AbortController() : null;
+      const signal = activeController ? activeController.signal : undefined;
+
       setBusy(true);
       startTimer();
       try {
         try {
-          await runSse(streamEndpoint, lang, question, dataMode);
+          await runSse(streamEndpoint, lang, question, dataMode, signal);
         } catch (streamErr) {
-          // Fall back to non-stream JSON path if SSE fails.
+          if (signal && signal.aborted) {
+            throw streamErr;
+          }
           if (title) {
             title.textContent = lang === "en"
-              ? "Stream unavailable, falling back…"
-              : "流式不可用，回退普通请求…";
+              ? "Stream unavailable, falling back to JSON…"
+              : "流式不可用，回退普通 JSON 请求…";
           }
-          await runJsonFallback(jsonEndpoint, lang, question, dataMode);
+          if (streamPreview && streamPreview.textContent) {
+            streamPreview.hidden = false;
+          }
+          await runJsonFallback(jsonEndpoint, lang, question, dataMode, signal);
         }
       } catch (err) {
         stopTimer();
         setBusy(false);
+        activeController = null;
         if (errorBox) {
           errorBox.hidden = false;
-          errorBox.textContent = (lang === "en" ? "Request failed: " : "请求失败：") + (err && err.message ? err.message : String(err));
+          const aborted = (err && (err.name === "AbortError" || String(err).includes("abort")));
+          if (aborted) {
+            errorBox.textContent = lang === "en"
+              ? "Request cancelled."
+              : "已取消请求。";
+          } else {
+            errorBox.textContent = (lang === "en" ? "Request failed: " : "请求失败：") + (err && err.message ? err.message : String(err));
+          }
         }
       }
     });
   })();
 </script>
-</script>
+
 
 {% if result %}
   <section class="dashboard">

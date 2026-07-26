@@ -136,6 +136,32 @@
             }
         }
     
+
+        .async-stream-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        .cancel-button,
+        .ghost-button {
+            border: 1px solid var(--line);
+            background: var(--surface);
+            color: var(--ink);
+            padding: 6px 12px;
+            font: inherit;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .cancel-button:hover,
+        .ghost-button:hover {
+            border-color: var(--teal);
+            color: var(--teal-dark);
+        }
+        .cancel-button:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
         .async-stream-preview {
             margin-top: 10px;
             max-height: 220px;
