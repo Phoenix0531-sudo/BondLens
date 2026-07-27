@@ -506,5 +506,6 @@ def test_build_llm_evidence_includes_market_focus_numbers():
     assert focus.get("coverage_percent") == 99.9
     assert any("10.0%" in str(x) for x in (focus.get("allowed_quality_percents") or []))
     instr = agent._llm_instructions("en")
-    assert "Do NOT invent bare percentages" in instr
+    assert "Do NOT invent bare share percentages" in instr
+    assert "Never invent round textbook shares" in instr
     assert "market_focus_numbers" in instr

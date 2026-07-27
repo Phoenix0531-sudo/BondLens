@@ -537,11 +537,14 @@ class BondAnalystAgent:
             overview_en_rule = (
                 "English market-overview hard rules: "
                 "Prefer market_focus_numbers for sample_count / yield_* / volume_* / coverage_percent. "
-                "Do NOT invent bare percentages such as 5%, 10%, 15%, 20%, 25%, 30% for shares, "
-                "growth, coverage, or 'about X% of the sample' unless that exact percentage token "
-                "already appears in evidence (quality issues or market_focus_numbers). "
+                "Cite yields as the evidence values with a trailing % only when the field is a yield "
+                "(e.g. mean 2.7709%). Do NOT invent bare share percentages such as 5%, 10%, 15%, "
+                "20%, 25%, 30% for 'about X% of the sample', growth, coverage, or type mix unless "
+                "that exact percentage token already appears in evidence "
+                "(quality issues or market_focus_numbers.allowed_quality_percents). "
                 "Do not paraphrase p25/p75 into '25th/75th percentile share of the market'. "
                 "If you need a missing-yield share, copy the quality issue text (e.g. 7.8%) exactly. "
+                "Never invent round textbook shares (5/10/15/20/25/30) when evidence lacks them. "
                 "When unsure, omit the percentage rather than inventing one. "
             )
         return (
@@ -835,7 +838,8 @@ class BondAnalystAgent:
     def _create_openai_client(self, api_key: str, base_url: str | None = None):
         from openai import OpenAI
 
-        timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20"))
+        # Gateways (new-api / deepseek) often need longer than the old 20s default.
+        timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "90"))
         kwargs = {"api_key": api_key, "timeout": timeout}
         if base_url:
             kwargs["base_url"] = base_url
@@ -1014,8 +1018,8 @@ class BondAnalystAgent:
             yield {
                 "type": "status",
                 "stage": "llm",
-                "message_zh": "准备调用模型通道（可流式；失败将回退确定性报告）…",
-                "message_en": "Preparing model channel (streamable; fails over to deterministic report)…",
+                "message_zh": "准备调用模型通道（可流式；约 8–40 秒；超时/无通道将诚实回退确定性报告）…",
+                "message_en": "Preparing model channel (streamable; often 8–40s; timeout/no-channel fails over to deterministic report)…",
             }
             # Live token path: consume streaming generator and re-yield token events immediately.
             llm_result = {"text": None, "status": "disabled", "error": None}
@@ -1029,11 +1033,21 @@ class BondAnalystAgent:
                     llm_result = event.get("result") or llm_result
             if llm_result.get("status") == "failed":
                 err = llm_result.get("error") or "unknown"
+                err_l = str(err).lower()
+                if any(tok in err_l for tok in ("no available channel", "model not found", "does not exist")):
+                    zh_msg = f"模型通道不可用（{err}）→ 已改用确定性报告（护栏未放行编造数字）。"
+                    en_msg = f"Model channel unavailable ({err}) → using deterministic report (guardrail still closed)."
+                elif any(tok in err_l for tok in ("timeout", "timed out", "429", "rate limit", "503", "502", "504")):
+                    zh_msg = f"模型通道抖动/超时（{err}）→ 已改用确定性报告。"
+                    en_msg = f"Model channel flaky/timeout ({err}) → using deterministic report."
+                else:
+                    zh_msg = f"模型通道失败（{err}）→ 已改用确定性报告。"
+                    en_msg = f"Model channel failed ({err}) → using deterministic report."
                 yield {
                     "type": "status",
                     "stage": "llm_fallback",
-                    "message_zh": f"模型通道失败（{err}）→ 已改用确定性报告。",
-                    "message_en": f"Model channel failed ({err}) → using deterministic report.",
+                    "message_zh": zh_msg,
+                    "message_en": en_msg,
                 }
             elif llm_result.get("status") == "success":
                 yield {
@@ -1055,8 +1069,8 @@ class BondAnalystAgent:
                 yield {
                     "type": "status",
                     "stage": "llm_repair",
-                    "message_zh": "护栏未通过，尝试一次数值修复重写…",
-                    "message_en": "Guardrail failed; attempting one numeric repair rewrite…",
+                    "message_zh": "护栏未通过，尝试一次数值修复重写（仍须再次通过护栏；可能额外 10–30 秒）…",
+                    "message_en": "Guardrail failed; one numeric repair rewrite (must re-pass; may add 10–30s)…",
                 }
                 repaired = self._try_repair_llm_answer(
                     question, plan, report, llm_result.get("text") or "", llm_guardrail

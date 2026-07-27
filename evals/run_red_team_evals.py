@@ -44,8 +44,9 @@ def evaluate_case(agent: BondAnalystAgent, case: dict) -> list[str]:
 
 
 def run_evals() -> int:
-    os.environ.pop("OPENAI_API_KEY", None)
-    os.environ.pop("OPENAI_BASE_URL", None)
+    for key in list(os.environ):
+        if key.startswith("OPENAI_"):
+            os.environ.pop(key, None)
 
     agent = BondAnalystAgent(data_mode="static")
     cases = load_cases()

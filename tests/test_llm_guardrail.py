@@ -298,3 +298,84 @@ def test_llm_guardrail_accepts_truncated_dv01_and_ratio_bare_number():
     assert "88.8" in texts or "88.8%" in texts
     assert "0.2222" in texts
 
+
+def test_llm_guardrail_en_overview_rejects_invented_bare_share_but_accepts_quality_percent():
+    """Dual: EN overview may copy quality 7.8%; invented bare 5%/10% shares fail."""
+    report = {
+        "data_evidence": {
+            "market": {
+                "sample_count": 3365,
+                "yield_summary": {
+                    "mean": 2.7709,
+                    "median": 2.45,
+                    "p25": 2.255,
+                    "p75": 2.7468,
+                    "count": 3102,
+                },
+                "volume_summary": {"mean": 4.934, "median": 1.0},
+                "data_quality": {
+                    "score": 84,
+                    "issues": [
+                        {
+                            "id": "missing_yield",
+                            "message_en": "Missing yield on 263/3365 (7.8%).",
+                            "message_zh": "收益率缺失 263/3365（7.8%）。",
+                        }
+                    ],
+                },
+            }
+        },
+        "data_source": {
+            "maturity_coverage": {"coverage_ratio": 0.9994, "coverage_percent": 99.94}
+        },
+    }
+    ok = assess_llm_faithfulness(
+        "Sample has 3365 bonds. Yield mean 2.7709%, median 2.45%. "
+        "Missing yield on 263/3365 (7.8%). Coverage 99.94%. Not investment advice.",
+        report,
+    )
+    assert ok["status"] == "passed", ok["unsupported_numbers"]
+    assert ok["numeric_status"] == "passed"
+
+    bad_five = assess_llm_faithfulness(
+        "About 5% of the sample shows elevated stress in this overview.",
+        report,
+    )
+    assert bad_five["status"] == "failed"
+    assert bad_five["numeric_status"] == "failed"
+    assert any(item["text"] == "5%" for item in bad_five["unsupported_numbers"])
+
+    bad_ten = assess_llm_faithfulness(
+        "Roughly 10% of bonds sit in an abnormal yield pocket.",
+        report,
+    )
+    assert bad_ten["status"] == "failed"
+    assert any(item["text"] == "10%" for item in bad_ten["unsupported_numbers"])
+
+
+def test_llm_guardrail_en_overview_still_rejects_25_percent_share_even_with_p25():
+    """p25 label evidence must not license invented '25% of the market' claims."""
+    report = {
+        "data_evidence": {
+            "market": {
+                "sample_count": 100,
+                "yield_summary": {"mean": 2.5, "median": 2.4, "p25": 2.0, "p75": 3.0},
+            }
+        }
+    }
+    result = assess_llm_faithfulness(
+        "About 25% of the market trades above the median in this sample.",
+        report,
+    )
+    assert result["status"] == "failed"
+    assert result["numeric_status"] == "failed"
+    assert any(item["text"] == "25%" for item in result["unsupported_numbers"])
+
+
+def test_host_openai_env_is_isolated_from_unit_tests():
+    """Regression lock: autouse conftest must strip host OPENAI_* before each test."""
+    import os
+
+    leaked = sorted(k for k in os.environ if k.startswith("OPENAI_"))
+    assert leaked == [], f"host OPENAI_* leaked into tests: {leaked}"
+

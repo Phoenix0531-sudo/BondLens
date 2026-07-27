@@ -924,7 +924,7 @@
         </select>
       </div>
       <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>
-      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="请求在后台执行，本页显示进度；开启 LLM 时通常 20–90 秒。请勿重复点击。期间可另开标签页访问 /healthz。" data-lang-en="The request runs in the background with on-page progress. With LLM enabled it often takes 20–90s. Do not click again. You can open /healthz in another tab.">请求在后台执行，本页显示进度；开启 LLM 时通常 20–90 秒。请勿重复点击。期间可另开标签页访问 /healthz。</p>
+      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。" data-lang-en="Runs in the background with on-page progress. No key: a few seconds. With LLM: often 8–40s (repair can be longer). Do not click again. You can open /healthz in another tab.">请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。</p>
       <div class="async-progress" id="agent-async-progress" hidden>
         <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
         <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
@@ -943,7 +943,7 @@
     <div class="surface-header">
       <div>
         <h2 class="surface-title" data-lang-zh="本页结果（未整页刷新）" data-lang-en="In-page result (no full reload)">本页结果（未整页刷新）</h2>
-        <p class="surface-subtitle" id="agent-soft-subtitle" data-lang-zh="流式结束后直接渲染；可打开可分享链接。" data-lang-en="Rendered after stream final; shareable link available.">流式结束后直接渲染；可打开可分享链接。</p>
+        <p class="surface-subtitle" id="agent-soft-subtitle" data-lang-zh="流式结束后直接渲染摘要卡；完整看板与表格仍在可分享链接。无 Key / 通道失败时显示确定性报告。" data-lang-en="Summary card after stream final; full board stays on the shareable link. No key / channel failure → deterministic report.">流式结束后直接渲染摘要卡；完整看板与表格仍在可分享链接。无 Key / 通道失败时显示确定性报告。</p>
       </div>
       <div class="badge-row" style="margin-top:0" id="agent-soft-badges"></div>
     </div>
