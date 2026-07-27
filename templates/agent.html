@@ -122,6 +122,56 @@
     padding: 12px 14px;
   }
 
+  .console-config-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(140px, 0.85fr);
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .console-config-grid .form-field {
+    margin-bottom: 0;
+  }
+
+  .language-field-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .language-field-row select {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .query-console .language-switch {
+    flex: 0 0 auto;
+    border-color: rgba(255, 253, 248, 0.24);
+    background: rgba(16, 26, 22, 0.92);
+  }
+
+  .query-console .language-option {
+    color: #b7c7c1;
+  }
+
+  .query-console .language-option[aria-pressed="true"] {
+    background: var(--amber);
+    color: #17120b;
+  }
+
+  .config-hint {
+    margin: 6px 0 0;
+    color: #8fa39b;
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  @media (max-width: 760px) {
+    .console-config-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .run-button {
     width: 100%;
     border: 0;
@@ -915,13 +965,29 @@
         <label for="question" data-lang-zh="自然语言问题" data-lang-en="Natural-language question">自然语言问题</label>
         <textarea id="question" name="question" placeholder="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-zh="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-en="Example: list the highest-yield bonds and explain whether any yield outliers appear.">{{ question }}</textarea>
       </div>
-      <div class="form-field">
-        <label for="data_mode" data-lang-zh="数据源模式" data-lang-en="Data source mode">数据源模式</label>
-        <select id="data_mode" name="data_mode">
-          <option value="auto" {% if data_mode == 'auto' %}selected{% endif %} data-lang-zh="Auto：实时优先，失败后使用快照/本地备用" data-lang-en="Auto: live first, then snapshot/local fallback">Auto：实时优先，失败后使用快照/本地备用</option>
-          <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="Live：中国货币网现券成交（原生待偿期）" data-lang-en="Live: ChinaMoney spot deals (native residual maturity)">Live：中国货币网现券成交（原生待偿期）</option>
-          <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
-        </select>
+      <div class="console-config-grid" aria-label="Run configuration" data-lang-zh-aria="运行配置" data-lang-en-aria="Run configuration">
+        <div class="form-field">
+          <label for="data_mode" data-lang-zh="数据源模式" data-lang-en="Data source mode">数据源模式</label>
+          <select id="data_mode" name="data_mode">
+            <option value="auto" {% if data_mode == 'auto' %}selected{% endif %} data-lang-zh="Auto：实时优先，失败后使用快照/本地备用" data-lang-en="Auto: live first, then snapshot/local fallback">Auto：实时优先，失败后使用快照/本地备用</option>
+            <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="Live：中国货币网现券成交（原生待偿期）" data-lang-en="Live: ChinaMoney spot deals (native residual maturity)">Live：中国货币网现券成交（原生待偿期）</option>
+            <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label for="ui_lang" data-lang-zh="界面语言" data-lang-en="UI language">界面语言</label>
+          <div class="language-field-row">
+            <select id="ui_lang" data-language-select aria-label="UI language">
+              <option value="zh" {% if lang != 'en' %}selected{% endif %} data-lang-zh="中文" data-lang-en="Chinese">中文</option>
+              <option value="en" {% if lang == 'en' %}selected{% endif %} data-lang-zh="English" data-lang-en="English">English</option>
+            </select>
+            <div class="language-switch compact" aria-label="Language switch">
+              <button class="language-option" type="button" data-language-option="zh" aria-pressed="{{ 'true' if lang != 'en' else 'false' }}">中</button>
+              <button class="language-option" type="button" data-language-option="en" aria-pressed="{{ 'true' if lang == 'en' else 'false' }}">EN</button>
+            </div>
+          </div>
+          <p class="config-hint" data-lang-zh="与页头切换同步；记忆 query / cookie / localStorage，默认中文。" data-lang-en="Synced with the header switch; remembers query / cookie / localStorage; default Chinese.">与页头切换同步；记忆 query / cookie / localStorage，默认中文。</p>
+        </div>
       </div>
       <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>
       <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。" data-lang-en="Runs in the background with on-page progress. No key: a few seconds. With LLM: often 8–40s (repair can be longer). Do not click again. You can open /healthz in another tab.">请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。</p>

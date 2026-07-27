@@ -238,8 +238,8 @@ export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # 可选；/models 探测�
 ## 语言（i18n）
 
 - 默认界面语言：**中文**
-- 页头显式切换（中 / EN）
-- 记忆优先级：`?lang=zh|en` 查询参数 > `bondlens_lang` cookie > 默认 `zh`
+- 两处显式切换：页头（中 / EN）+ Agent 控制台配置区（**界面语言**，与数据源模式并排）
+- 记忆优先级：`?lang=zh|en` 查询参数 > `bondlens_lang` cookie > 默认 `zh`（前端 localStorage 同步）
 - 覆盖范围：模板文案、意图/工具标签、确定性报告骨架、投顾类拒绝文案、flash/error 提示
 - LLM 系统提示跟随当前语言；日志仍面向开发者，不追求全双语
 

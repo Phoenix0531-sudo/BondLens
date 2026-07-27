@@ -119,6 +119,11 @@
             color: var(--surface);
         }
 
+        .language-switch.compact .language-option {
+            min-width: 40px;
+            padding: 6px 8px;
+        }
+
         .page-shell {
             width: min(1440px, calc(100% - 40px));
             margin: 0 auto;
@@ -227,8 +232,21 @@
                     );
                 });
 
+                document.querySelectorAll("[data-lang-zh-aria][data-lang-en-aria]").forEach((element) => {
+                    element.setAttribute(
+                        "aria-label",
+                        activeLang === "en" ? element.dataset.langEnAria : element.dataset.langZhAria
+                    );
+                });
+
                 document.querySelectorAll("input[name='lang']").forEach((element) => {
                     element.value = activeLang;
+                });
+
+                document.querySelectorAll("select[data-language-select]").forEach((element) => {
+                    if (element.value !== activeLang) {
+                        element.value = activeLang;
+                    }
                 });
 
                 const answerTargets = document.querySelectorAll("[data-answer-target], [data-answer-target-secondary]");
@@ -302,8 +320,15 @@
                 }
             }
 
+            // Soft-render / console scripts call this after async results.
+            window.applyLanguage = applyLanguage;
+
             document.querySelectorAll("[data-language-option]").forEach((button) => {
                 button.addEventListener("click", () => applyLanguage(button.dataset.languageOption));
+            });
+
+            document.querySelectorAll("select[data-language-select]").forEach((element) => {
+                element.addEventListener("change", () => applyLanguage(element.value));
             });
 
             document.querySelectorAll("[data-fill-question-zh],[data-fill-question-en],[data-fill-question]").forEach((chip) => {

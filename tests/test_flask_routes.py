@@ -24,6 +24,14 @@ def test_agent_page_exposes_language_switch():
     assert 'data-language-option="en"' in html
     assert "智能体控制台" in html
     assert "Agent Console" in html
+    # Console config (not only header) must expose language controls.
+    assert 'id="ui_lang"' in html
+    assert "data-language-select" in html
+    assert "界面语言" in html
+    assert "UI language" in html
+    assert "window.applyLanguage = applyLanguage" in html
+    assert html.count('data-language-option="zh"') >= 2
+    assert html.count('data-language-option="en"') >= 2
 
 
 def test_agent_page_shows_submit_busy_state_hooks():

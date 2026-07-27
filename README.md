@@ -237,8 +237,8 @@ export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # optional; /models probe 
 ## Language (i18n)
 
 - Default UI language: **Chinese**
-- Explicit switch in the page header (中 / EN)
-- Persistence: `?lang=zh|en` query wins, then `bondlens_lang` cookie, else `zh`
+- Explicit switch in two places: page header (中 / EN) and Agent console config (**UI language** next to data mode)
+- Persistence: `?lang=zh|en` query wins, then `bondlens_lang` cookie, else `zh` (localStorage mirrors client-side)
 - Covers templates, intent/tool labels, deterministic report skeleton, advisory refusal, and flash/error copy
 - LLM system prompts follow the active language; logs stay developer-facing and are not fully bilingual
 
