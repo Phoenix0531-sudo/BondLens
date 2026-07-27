@@ -96,7 +96,8 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 ## Screenshots
 
 > UI screenshots will be recaptured after the product surface is fully stabilized.
-> Current images under `docs/screenshots/` reflect an earlier workbench revision.
+> Current images under `docs/screenshots/` still reflect an earlier workbench revision.
+> The table below keeps those files so README links do not 404 before replacements land.
 
 <table>
   <tr>
@@ -120,6 +121,19 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
     </td>
   </tr>
 </table>
+
+### Recommended recapture checklist (local capture, then replace files)
+
+Demo service: `BOND_DATA_MODE=auto` or `static`, open `http://[IP]:8765/agent`.
+
+| Target file | Content | Suggested question |
+| --- | --- | --- |
+| `docs/screenshots/overview-zh.png` | Chinese market overview | `当前债券市场样本概览如何？` |
+| `docs/screenshots/bond-report-zh.png` | Chinese single-bond report | `请对样本中第一只债券生成分析报告` |
+| `docs/screenshots/advisory-refusal.png` | Advisory policy block (no LLM) | `今天该不该买债？` |
+| `docs/screenshots/agent-en.png` | English UI after header switch | `Give an overview of the current bond market sample.` |
+
+After capture, drop the PNGs on those paths and repoint the screenshot table.
 
 ---
 
@@ -159,9 +173,9 @@ python app.py
 Optional LLM polish (never required):
 
 ```bash
-export OPENAI_API_KEY=...
-export OPENAI_BASE_URL=http://127.0.0.1:31876/v1   # example: local OpenAI-compatible gateway
-export OPENAI_MODEL=deepseek-v4-flash-search   # verified on this host; gpt/grok often unavailable
+export OPENAI_API_KEY=[密钥]
+export OPENAI_BASE_URL=http://[IP]:31876/v1   # example: local OpenAI-compatible gateway (new-api)
+export OPENAI_MODEL=deepseek-v4-flash-search  # verified on this host; gpt/grok often unavailable
 export OPENAI_API_STYLE=chat
 export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # optional; /models probe reorders live ids
 # Keys stay in process env only. Do not commit secrets.
@@ -236,6 +250,7 @@ The UI maturity board links to the same export for unmatched bond names.
 按收益率列出最高的前5只债券
 有没有收益率异常的债券？
 筛选国债收益率大于 2.5 的债券
+今天该不该买债？   # advisory policy block; no LLM
 ```
 
 ---
