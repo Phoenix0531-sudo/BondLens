@@ -161,12 +161,21 @@ Optional LLM polish (never required):
 ```bash
 export OPENAI_API_KEY=...
 export OPENAI_BASE_URL=http://127.0.0.1:31876/v1   # example: local OpenAI-compatible gateway
-export OPENAI_MODEL=grok-4.5
+export OPENAI_MODEL=deepseek-v4-flash-search   # verified on this host; gpt/grok often unavailable
 export OPENAI_API_STYLE=chat
+export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # optional; /models probe reorders live ids
 # Keys stay in process env only. Do not commit secrets.
 ```
 
 ---
+
+## Language (i18n)
+
+- Default UI language: **Chinese**
+- Explicit switch in the page header (中 / EN)
+- Persistence: `?lang=zh|en` query wins, then `bondlens_lang` cookie, else `zh`
+- Covers templates, intent/tool labels, deterministic report skeleton, advisory refusal, and flash/error copy
+- LLM system prompts follow the active language; logs stay developer-facing and are not fully bilingual
 
 ## Tool Catalog (deterministic operators)
 
@@ -340,7 +349,7 @@ Honest residuals:
 
 - Provider channel churn still forces deterministic fallback when models vanish
 - Guardrails stay on; unsupported numbers never become final
-- English overviews may invent bare shares like `5%` and fall back once in three
+- English overviews may still invent bare shares like `5%` under channel noise; prompt + `market_focus_numbers` reduce this, guardrail still fails closed
 - One-shot repair rewrites only after a failed numeric check; not a free pass
 - End-to-end latency often 8–25s on deepseek; repair path can exceed 40s
 - Soft-render shows a summary card; full dashboard tables remain on `result_url`

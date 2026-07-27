@@ -302,14 +302,14 @@ class BondAnalystAgent:
         if not api_key:
             return {"text": None, "status": "disabled", "error": None}
 
-        models = self._llm_model_candidates()
+        client = self._create_openai_client(api_key, base_url=base_url)
+        models = self._filter_models_by_probe(client, self._llm_model_candidates())
         attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "3")))
         last_error: Exception | None = None
         last_error_name = "UnknownError"
         for model in models:
             for attempt in range(attempts):
                 try:
-                    client = self._create_openai_client(api_key, base_url=base_url)
                     lang = self._detect_answer_lang(question)
                     instructions = self._llm_instructions(lang)
                     evidence_payload = self._build_llm_evidence(question, plan, report)
@@ -386,6 +386,8 @@ class BondAnalystAgent:
             "4) Prefer focused_numbers values exactly when present. "
             "5) Do not invent calendar dates or unit conversions. "
             "6) Keep the same bond focus and structure; no buy/sell advice. "
+            "7) For market overviews: never invent bare percentages like 5%/10%/15%; "
+            "use market_focus_numbers and quality-issue percents only. "
             f"{lang_rule} "
             f"Always include this disclaimer in Chinese: {DISCLAIMER}"
         )
@@ -396,10 +398,14 @@ class BondAnalystAgent:
             "unsupported_tokens": [item.get("text") for item in unsupported[:12]],
         }
         evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
-        models = self._llm_model_candidates()
-        model = models[0] if models else (os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini").strip()
         try:
             client = self._create_openai_client(api_key, base_url=base_url)
+            models = self._filter_models_by_probe(client, self._llm_model_candidates())
+            model = (
+                models[0]
+                if models
+                else (os.environ.get("OPENAI_MODEL") or "deepseek-v4-flash-search").strip()
+            )
             api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
             text_out = self._call_llm(
                 client, model, repair_instructions, evidence_json, api_style, prefer_chat=bool(base_url)
@@ -426,24 +432,94 @@ class BondAnalystAgent:
                 "model": model,
             }
 
-    def _llm_model_candidates(self) -> list[str]:
+    # Process-local cache: probed model ids from OpenAI-compatible /models.
+    _probed_model_ids: set[str] | None = None
+    _probed_model_base: str | None = None
 
-        primary = (os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini").strip()
-        fallback_raw = os.environ.get("OPENAI_MODEL_FALLBACKS") or os.environ.get("OPENAI_FALLBACK_MODEL") or ""
+    def _llm_model_candidates(self) -> list[str]:
+        """Ordered model list: env primary -> env fallbacks -> host-sensible defaults.
+
+        When OPENAI_BASE_URL is set, optionally reorder by a one-shot /models probe
+        (see _filter_models_by_probe) so dead gpt/grok channels are skipped when a
+        live deepseek (or other) id is available.
+        """
+        primary = (os.environ.get("OPENAI_MODEL") or "deepseek-v4-flash-search").strip()
+        fallback_raw = (
+            os.environ.get("OPENAI_MODEL_FALLBACKS")
+            or os.environ.get("OPENAI_FALLBACK_MODEL")
+            or ""
+        )
         fallbacks = [part.strip() for part in fallback_raw.split(",") if part.strip()]
-        # Sensible local defaults when only one model is configured.
+        default_pool = [
+            "deepseek-v4-flash-search",
+            "deepseek-chat",
+            "gpt-5.4-mini",
+            "gpt-5.4",
+            "grok-4.5",
+        ]
         if not fallbacks:
             if primary == "gpt-5.4":
-                fallbacks = ["gpt-5.4-mini", "grok-4.5"]
+                fallbacks = ["gpt-5.4-mini", "deepseek-v4-flash-search", "grok-4.5"]
             elif primary == "gpt-5.4-mini":
-                fallbacks = ["grok-4.5"]
+                fallbacks = ["deepseek-v4-flash-search", "grok-4.5"]
             elif primary == "grok-4.5":
-                fallbacks = ["gpt-5.4-mini"]
+                fallbacks = ["deepseek-v4-flash-search", "gpt-5.4-mini"]
+            elif primary.startswith("deepseek"):
+                fallbacks = ["gpt-5.4-mini", "grok-4.5", "gpt-5.4"]
+            else:
+                fallbacks = [m for m in default_pool if m != primary]
         ordered: list[str] = []
         for model in [primary, *fallbacks]:
             if model and model not in ordered:
                 ordered.append(model)
+        for model in default_pool:
+            if model not in ordered:
+                ordered.append(model)
         return ordered or [primary]
+
+    def _probe_provider_model_ids(self, client) -> set[str] | None:
+        """Best-effort list of model ids from an OpenAI-compatible gateway."""
+        base_url = (os.environ.get("OPENAI_BASE_URL") or "").rstrip("/")
+        if not base_url:
+            return None
+        if (
+            BondAnalystAgent._probed_model_ids is not None
+            and BondAnalystAgent._probed_model_base == base_url
+        ):
+            return BondAnalystAgent._probed_model_ids
+        disable = (os.environ.get("OPENAI_MODEL_PROBE") or "1").strip().lower()
+        if disable in {"0", "false", "no", "off"}:
+            return None
+        ids: set[str] = set()
+        try:
+            listed = client.models.list()
+            data = getattr(listed, "data", None) or []
+            for item in data:
+                mid = getattr(item, "id", None)
+                if mid is None and isinstance(item, dict):
+                    mid = item.get("id")
+                if mid:
+                    ids.add(str(mid).strip())
+        except Exception:  # noqa: BLE001 - probe is best-effort only
+            BondAnalystAgent._probed_model_ids = set()
+            BondAnalystAgent._probed_model_base = base_url
+            return set()
+        BondAnalystAgent._probed_model_ids = ids
+        BondAnalystAgent._probed_model_base = base_url
+        return ids
+
+    def _filter_models_by_probe(self, client, models: list[str]) -> list[str]:
+        """Prefer candidates that appear in /models; keep full list if probe empty."""
+        available = self._probe_provider_model_ids(client)
+        if not available:
+            return models
+        preferred = [m for m in models if m in available]
+        if not preferred:
+            for m in models:
+                if any(m in a or a in m for a in available):
+                    preferred.append(m)
+        tail = [m for m in models if m not in preferred]
+        return preferred + tail if preferred else models
 
     def _detect_answer_lang(self, question: str) -> str:
         if re.search(r"[\u4e00-\u9fff]", question or ""):
@@ -456,6 +532,18 @@ class BondAnalystAgent:
             if lang == "zh"
             else "Write the entire answer in English."
         )
+        overview_en_rule = ""
+        if lang == "en":
+            overview_en_rule = (
+                "English market-overview hard rules: "
+                "Prefer market_focus_numbers for sample_count / yield_* / volume_* / coverage_percent. "
+                "Do NOT invent bare percentages such as 5%, 10%, 15%, 20%, 25%, 30% for shares, "
+                "growth, coverage, or 'about X% of the sample' unless that exact percentage token "
+                "already appears in evidence (quality issues or market_focus_numbers). "
+                "Do not paraphrase p25/p75 into '25th/75th percentile share of the market'. "
+                "If you need a missing-yield share, copy the quality issue text (e.g. 7.8%) exactly. "
+                "When unsure, omit the percentage rather than inventing one. "
+            )
         return (
             "You are a fixed-income analysis assistant. Use only the provided JSON evidence. "
             "Copy numeric evidence exactly when citing it. Do not invent any number that is not "
@@ -486,6 +574,7 @@ class BondAnalystAgent:
             "Write durations as years (e.g. 10.9372), never as percent (never 10.94%). "
             "Do not invent peer percentiles such as 35% unless that exact value is in evidence. "
             "When focused_numbers is present, prefer those exact values for the subject bond. "
+            "When market_focus_numbers is present (overviews), prefer those exact market stats. "
             "Cite peer_yield_percentile as 28.57% only if evidence has 28.57; never invent 35%. "
             "Cite volume as 3.8 (亿元), never 380. Cite DV01 as 0.109372 or a 4-dp truncation, not percent. "
             "For perpetual-style, mention first-leg vs theoretical consol scenarios when present. "
@@ -493,6 +582,7 @@ class BondAnalystAgent:
             "If a requested bond is present under data_evidence.search.records, focus on that bond "
             "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
             "If the evidence is insufficient, say so directly. "
+            f"{overview_en_rule}"
             f"{lang_rule} "
             f"Always include this disclaimer in Chinese: {DISCLAIMER}"
         )
@@ -713,6 +803,28 @@ class BondAnalystAgent:
                 "coverage_percent": coverage_percent
                 if coverage_percent is not None
                 else coverage.get("coverage_percent"),
+            },
+            # Preferred citation targets for market overviews (copy exactly; no invented %).
+            "market_focus_numbers": {
+                "sample_count": market.get("sample_count"),
+                "yield_count": (market.get("yield_summary") or {}).get("count"),
+                "yield_mean": (market.get("yield_summary") or {}).get("mean"),
+                "yield_median": (market.get("yield_summary") or {}).get("median"),
+                "yield_p25": (market.get("yield_summary") or {}).get("p25"),
+                "yield_p75": (market.get("yield_summary") or {}).get("p75"),
+                "yield_min": (market.get("yield_summary") or {}).get("min"),
+                "yield_max": (market.get("yield_summary") or {}).get("max"),
+                "volume_mean_yi": (market.get("volume_summary") or {}).get("mean"),
+                "volume_median_yi": (market.get("volume_summary") or {}).get("median"),
+                "coverage_percent": coverage_percent
+                if coverage_percent is not None
+                else coverage.get("coverage_percent"),
+                "quality_score": quality.get("score"),
+                "allowed_quality_percents": [
+                    issue.get("message_en") or issue.get("message_zh")
+                    for issue in (quality.get("issues") or [])[:4]
+                    if isinstance(issue, dict)
+                ],
             },
             # Keep short analysis bullets; they already carry audited numbers.
             "analysis": (report.get("analysis") or [])[:8],
@@ -1067,14 +1179,14 @@ class BondAnalystAgent:
             yield {"type": "llm_result", "result": {"text": None, "status": "disabled", "error": None}}
             return
 
-        models = self._llm_model_candidates()
+        client = self._create_openai_client(api_key, base_url=base_url)
+        models = self._filter_models_by_probe(client, self._llm_model_candidates())
         attempts = max(1, int(os.environ.get("OPENAI_RETRY_ATTEMPTS", "3")))
         last_error: Exception | None = None
         last_error_name = "UnknownError"
         for model in models:
             for attempt in range(attempts):
                 try:
-                    client = self._create_openai_client(api_key, base_url=base_url)
                     lang = self._detect_answer_lang(question)
                     instructions = self._llm_instructions(lang)
                     evidence_payload = self._build_llm_evidence(question, plan, report)

@@ -24,7 +24,18 @@ FIELD_LABELS = {
     "券种": {"zh": "券种", "en": "Type"},
     "涨跌(BP)": {"zh": "涨跌(BP)", "en": "Change (bp)"},
     "分数": {"zh": "分数", "en": "Score"},
+    "成交量": {"zh": "成交量", "en": "Volume"},
+    "成交量(亿)": {"zh": "成交量(亿)", "en": "Volume (100m CNY)"},
+    "到期收益率": {"zh": "到期收益率", "en": "YTM"},
+    "到期收益率(%)": {"zh": "到期收益率(%)", "en": "YTM (%)"},
+    "剩余期限": {"zh": "剩余期限", "en": "Residual tenor"},
+    "剩余期限(年)": {"zh": "剩余期限(年)", "en": "Residual tenor (years)"},
+    "发行人": {"zh": "发行人", "en": "Issuer"},
+    "债券代码": {"zh": "债券代码", "en": "Bond code"},
+    "交易日": {"zh": "交易日", "en": "Trade date"},
+    "全价(元)": {"zh": "全价(元)", "en": "Dirty price"},
 }
+
 
 INTENT_LABELS = {
     "bond_report": {"zh": "单券分析", "en": "Bond report"},

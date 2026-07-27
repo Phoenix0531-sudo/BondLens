@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "pack_type": "bond_evidence_pack",
   "id": "demo-yield-outliers",
-  "created_at": "2026-07-25T15:37:04.790941+00:00",
+  "created_at": "2026-07-27T04:26:37.142286+00:00",
   "agent": "BondLens AI",
   "question": "有没有收益率异常的债券？",
   "intent": "outlier_detection",
@@ -365,7 +365,7 @@
       ]
     }
   ],
-  "final_answer": "问题: 有没有收益率异常的债券？\n意图: outlier_detection\n\n使用的工具:\n- describe_market\n- detect_yield_outliers\n- generate_bond_report\n\n数据证据:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 99.9%，已补全 3363 条，缺失 2\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n- 数据质量: 90/100 (high)\n- 异常样本数量: 13\n\n风险解释层:\n- Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.\n- Data coverage limits decision confidence: The Agent can use AkShare live bond data and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n- Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n\n证据质量:\n- 评分: 67/100\n- 等级: medium\n- 数据新鲜度: static_snapshot\n- 决策置信度: low\n- 摘要: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\n分析:\n- 异常检测使用 zscore 方法，共发现 13 条收益率异常样本。\n- 异常分数最高的是 21金地MTN004，收益率 57.0224%，异常分数 23.8091。\n- 异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。\n\n风险提示:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\n局限:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。\n- 修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。\n- 非投资建议，仅用于学习和研究。",
+  "final_answer": "问题: 有没有收益率异常的债券？\n意图: outlier_detection\n\n使用的工具:\n- describe_market\n- detect_yield_outliers\n- generate_bond_report\n\n数据证据:\n- 数据源: data/testdata.xlsx (static_sample)\n- 样本行数: 3365，有效收益率记录: 3102\n- 期限覆盖率: 99.9%，已补全 3363 条，缺失 2\n- 样本数量: 3365\n- 收益率摘要: {'count': 3102, 'mean': 2.7709, 'std': 2.2786, 'min': 0.1383, 'p25': 2.255, 'median': 2.45, 'p75': 2.7468, 'max': 57.0224}\n- 数据质量: 90/100 (high)\n- 异常样本数量: 13\n\n风险解释层:\n- Yield outliers need data and credit checks: A yield outlier may reflect real risk, stale pricing, data quality issues, or a different bond type. It should trigger review rather than direct action.\n- Data coverage limits decision confidence: The Agent can use ChinaMoney spot deals and a local Excel fallback. Each answer should state which source was active and avoid conclusions outside available fields.\n- Credit context is outside the active market feed: The active market feed does not include issuer ratings, financial statements, guarantees, or credit events, so credit conclusions must stay limited.\n- Longer maturity increases rate sensitivity: Longer maturity bonds are usually more sensitive to interest-rate changes. Yield comparisons are more meaningful when maturity buckets are similar.\n\n证据质量:\n- 评分: 67/100\n- 等级: medium\n- 数据新鲜度: static_snapshot\n- 决策置信度: low\n- 摘要: Evidence quality is medium for the active data source, but decision confidence remains low because issuer credit context, macro curve data, and full security master fields are not attached.\n\n分析:\n- 异常检测使用 zscore 方法，共发现 13 条收益率异常样本。\n- 异常分数最高的是 21金地MTN004，收益率 57.0224%，异常分数 23.8091。\n- 异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。\n\n风险提示:\n- 收益率较高可能对应信用、流动性、久期或估值波动风险，需要结合发行人和市场环境进一步判断。\n- 成交量低的债券可能存在流动性不足，样本内排序不等同于可交易机会。\n\n局限:\n- 本报告仅基于当前 Agent 数据源的可用字段计算。\n- 公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。\n- 未接入评级、主体财务、宏观利率曲线或新闻事件。\n- 券种与期限分桶由名称/字段规则推断，不做信用评级结论。\n- 修正久期/DV01 为年付息+票息=YTM 的现金流教学假设，非 OAS/行权树；永续同时给首段与理论 consol 情景。\n- 非投资建议，仅用于学习和研究。",
   "final_answer_source": "deterministic_fallback",
   "analysis": [
     "异常检测使用 zscore 方法，共发现 13 条收益率异常样本。",
@@ -381,7 +381,7 @@
     "公开实时接口可能受交易时段、第三方源稳定性和字段覆盖限制影响。",
     "未接入评级、主体财务、宏观利率曲线或新闻事件。",
     "券种与期限分桶由名称/字段规则推断，不做信用评级结论。",
-    "修正久期/DV01 仅为残期+收益率近似，不是现金流定价结果；永续风格样本通常留空。",
+    "修正久期/DV01 为年付息+票息=YTM 的现金流教学假设，非 OAS/行权树；永续同时给首段与理论 consol 情景。",
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",

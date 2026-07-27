@@ -426,3 +426,85 @@ def test_agent_llm_evidence_includes_peer_spread():
     assert peer.get("spread_vs_peer_mean_bp") == -5.95
     assert peer.get("peer_count") == 12
 
+def test_llm_model_candidates_default_includes_deepseek(monkeypatch):
+    monkeypatch.delenv("OPENAI_MODEL", raising=False)
+    monkeypatch.delenv("OPENAI_MODEL_FALLBACKS", raising=False)
+    monkeypatch.delenv("OPENAI_FALLBACK_MODEL", raising=False)
+    models = BondAnalystAgent(data_mode="static")._llm_model_candidates()
+    assert models[0] == "deepseek-v4-flash-search"
+    assert "gpt-5.4-mini" in models
+
+
+def test_filter_models_by_probe_prefers_listed_ids(monkeypatch):
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://[IP]:31876/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4")
+    monkeypatch.delenv("OPENAI_MODEL_FALLBACKS", raising=False)
+    monkeypatch.setenv("OPENAI_MODEL_PROBE", "1")
+    BondAnalystAgent._probed_model_ids = None
+    BondAnalystAgent._probed_model_base = None
+
+    class _Model:
+        def __init__(self, model_id):
+            self.id = model_id
+
+    class _Listed:
+        def __init__(self):
+            self.data = [_Model("deepseek-v4-flash-search"), _Model("other-local")]
+
+    class _ModelsAPI:
+        def list(self):
+            return _Listed()
+
+    class _Client:
+        models = _ModelsAPI()
+
+    agent = BondAnalystAgent(data_mode="static")
+    ordered = agent._filter_models_by_probe(
+        _Client(),
+        ["gpt-5.4", "deepseek-v4-flash-search", "grok-4.5"],
+    )
+    assert ordered[0] == "deepseek-v4-flash-search"
+    assert "gpt-5.4" in ordered  # still tried as last-resort
+
+
+def test_build_llm_evidence_includes_market_focus_numbers():
+    agent = BondAnalystAgent(data_mode="static")
+    report = {
+        "data_evidence": {
+            "market": {
+                "sample_count": 100,
+                "yield_summary": {"count": 90, "mean": 2.5, "median": 2.4, "p25": 2.0, "p75": 3.0, "min": 1.0, "max": 5.0},
+                "volume_summary": {"mean": 1.2, "median": 0.8},
+                "data_quality": {
+                    "score": 88,
+                    "issues": [{"id": "missing_yield", "message_en": "Missing yield on 10/100 (10.0%)."}],
+                },
+            },
+            "search": {"records": [], "match_count": 0},
+            "comparison": {},
+            "ranking": {},
+            "outliers": {},
+        },
+        "data_source": {
+            "source_name": "static",
+            "runtime_mode": "static",
+            "row_count": 100,
+            "maturity_coverage": {"coverage_ratio": 0.999, "filled_count": 99, "missing_count": 1},
+        },
+        "analysis": [],
+        "risk_notes": [],
+        "limitations": [],
+    }
+    payload = agent._build_llm_evidence(
+        "Give an overview of the current bond market sample.",
+        {"intent": "market_overview"},
+        report,
+    )
+    focus = payload.get("market_focus_numbers") or {}
+    assert focus.get("sample_count") == 100
+    assert focus.get("yield_median") == 2.4
+    assert focus.get("coverage_percent") == 99.9
+    assert any("10.0%" in str(x) for x in (focus.get("allowed_quality_percents") or []))
+    instr = agent._llm_instructions("en")
+    assert "Do NOT invent bare percentages" in instr
+    assert "market_focus_numbers" in instr
