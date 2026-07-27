@@ -3,7 +3,7 @@
   "pack_type": "bond_evidence_pack",
   "id": "demo-market-overview",
   "created_at": "2026-07-27T04:26:36.922786+00:00",
-  "agent": "BondLens AI",
+  "agent": "BondLens",
   "question": "当前样本收益率分布是什么样？",
   "intent": "market_overview",
   "tools_used": [
@@ -332,7 +332,7 @@
       "claim_en": "The final answer was selected through a safety boundary.",
       "evidence_zh": "最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 67/100。",
       "evidence_en": "Final source deterministic_fallback; LLM guardrail not_run; evidence score 67/100.",
-      "source": "BondLens AI response contract",
+      "source": "BondLens response contract",
       "tool": "answer_selection",
       "confidence": "medium",
       "limitations": [

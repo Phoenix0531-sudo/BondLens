@@ -9,7 +9,7 @@ def test_agent_response_validates_against_schema(monkeypatch):
     result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
     validated = AgentResponse.model_validate(result)
 
-    assert validated.agent == "BondLens AI"
+    assert validated.agent == "BondLens"
     assert validated.final_answer_source == "deterministic_fallback"
     assert validated.llm_guardrail.status == "not_run"
     assert validated.answer_judge.status == "not_applicable"

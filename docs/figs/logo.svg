@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="360" viewBox="0 0 720 360" role="img" aria-label="BondLens">
+  <rect width="720" height="360" fill="#fffdf8"/>
+  <circle cx="190" cy="180" r="112" fill="none" stroke="#0f6b5f" stroke-width="10"/>
+  <circle cx="190" cy="180" r="82" fill="none" stroke="#c07a22" stroke-width="4" stroke-dasharray="8 10" opacity="0.9"/>
+  <path d="M100 245 C140 220, 160 190, 190 170 S250 135, 290 128" fill="none" stroke="#0f6b5f" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="290" cy="128" r="8" fill="#c07a22"/>
+  <text x="340" y="178" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="54" font-weight="700" fill="#17211d">BondLens</text>
+  <line x1="340" y1="196" x2="620" y2="196" stroke="#0f6b5f" stroke-width="3"/>
+  <text x="340" y="228" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="16" fill="#65736e">evidence-first bond analysis</text>
+</svg>

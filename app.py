@@ -72,7 +72,7 @@ def inject_language_context():
 
 @app.route("/healthz")
 def healthz():
-    response = HealthResponse(status="ok", service="BondLens AI", checks={"app": "ok"})
+    response = HealthResponse(status="ok", service="BondLens", checks={"app": "ok"})
     return jsonify(response.model_dump(mode="json"))
 
 

@@ -3,7 +3,7 @@
   "pack_type": "bond_evidence_pack",
   "id": "demo-bond-report",
   "created_at": "2026-07-27T04:26:37.067285+00:00",
-  "agent": "BondLens AI",
+  "agent": "BondLens",
   "question": "搜索23附息国债26并给出收益率分析",
   "intent": "bond_report",
   "tools_used": [
@@ -413,7 +413,7 @@
       "claim_en": "The final answer was selected through a safety boundary.",
       "evidence_zh": "最终来源 deterministic_fallback；LLM 护栏状态 not_run；证据评分 85/100。",
       "evidence_en": "Final source deterministic_fallback; LLM guardrail not_run; evidence score 85/100.",
-      "source": "BondLens AI response contract",
+      "source": "BondLens response contract",
       "tool": "answer_selection",
       "confidence": "high",
       "limitations": [

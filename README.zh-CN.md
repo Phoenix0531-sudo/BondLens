@@ -1,22 +1,36 @@
-# BondLens AI
-
-**面向中文债市数据的证据优先分析智能体**
+# BondLens：面向中文债市数据的证据优先分析智能体
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
+![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
+![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
+![Docker](https://img.shields.io/badge/docker-healthz-blue)
+![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
+![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
+![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
+![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
+![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
+
+<div align="center">
+<img align="center" src="docs/figs/logo_white_background.png" width="42%" alt="BondLens logo"/>
+</div>
+
+**BondLens** 是面向**中文债券市场**的轻量分析智能体。
+它只做一件事：把一句自然语言债市问题变成一次可审计运行——实时/快照/本地数据、确定性工具、可选 LLM 叙述，以及面向审查者的 Trust Layer。
+
+与宽泛的多角色股权研究平台不同，BondLens 不试图成为完整投资工作台。
+它的取舍更窄、也更诚实：**数字来自代码**，模型只能在证据上叙述，每次回答都可回放、可裁决、可红队。
 
 ```text
 数字由代码计算。
 叙述可由大模型辅助。
 每次输出都可追溯。
 ```
-
-BondLens AI 是面向**中文债券市场**的轻量级 AI Agent 平台。
-它把确定性计算、可选 LLM 叙述，以及面向审查者的 Trust Layer 合在一起：
-数字可审计、回答可回放、局限性能诚实写出来。
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 
@@ -25,7 +39,6 @@ BondLens AI 是面向**中文债券市场**的轻量级 AI Agent 平台。
 静态 Demo 证据包（无需 API Key）：[docs/demo_runs/](docs/demo_runs/)
 
 ---
-
 ## 设计原则：确定性计算，大模型叙述
 
 BondLens 与 FinRobot 一类研究平台共享同一核心原则：
@@ -379,4 +392,4 @@ MIT
 
 ## 免责声明
 
-BondLens AI 是工程与研究演示。它不提供投资建议，不声称完整市场覆盖，也不能替代专业固收研究工具。
+BondLens 是工程与研究演示。它不提供投资建议，不声称完整市场覆盖，也不能替代专业固收研究工具。

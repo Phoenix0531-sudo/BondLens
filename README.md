@@ -1,22 +1,36 @@
-# BondLens AI
-
-**An evidence-first bond analysis agent for Chinese market data**
+# BondLens: An Evidence-First Bond Analysis Agent for Chinese Market Data
 
 [English](README.md) | [中文](README.zh-CN.md)
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
+![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
+![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
+![Docker](https://img.shields.io/badge/docker-healthz-blue)
+![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
+![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
+![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
+![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
+![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
+
+<div align="center">
+<img align="center" src="docs/figs/logo_white_background.png" width="42%" alt="BondLens logo"/>
+</div>
+
+**BondLens** is a lightweight agent for **Chinese bond market analysis**.
+It focuses on one vertical: turn a natural-language bond question into an auditable run with live/snapshot/static data, deterministic tools, optional LLM narration, and a reviewer-facing Trust Layer.
+
+Unlike broad multi-agent equity research platforms, BondLens does not try to be a full investment desk.
+Its design choice is narrower and more honest: **numbers come from code**, the model may only narrate over evidence, and every answer can be replayed, judged, and red-teamed.
 
 ```text
 Numbers are code-calculated.
 Narratives are LLM-assisted.
 Every output is provenance-tracked.
 ```
-
-BondLens is a lightweight AI agent platform for **Chinese bond market analysis**.
-It unifies deterministic analytics, optional LLM narration, and a reviewer-facing Trust Layer —
-so every number can be audited, every answer can be replayed, and every limitation is stated honestly.
 
 > Non-investment advice. For learning, research, portfolio demonstration, and interview discussion only.
 
@@ -25,7 +39,6 @@ Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531
 Static demo packs (no API key): [docs/demo_runs/](docs/demo_runs/)
 
 ---
-
 ## Design Principle: Deterministic Compute, LLM Narration
 
 A core design principle of BondLens (shared with platforms such as FinRobot) is the strict separation between **deterministic financial computation** and **LLM-based narration**.
@@ -378,5 +391,5 @@ MIT
 
 ## Disclaimer
 
-BondLens AI is an engineering and research demonstration. It does not provide investment advice,
+BondLens is an engineering and research demonstration. It does not provide investment advice,
 does not claim complete market coverage, and does not replace professional fixed-income research tools.

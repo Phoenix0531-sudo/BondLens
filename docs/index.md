@@ -1,4 +1,4 @@
-# BondLens AI
+# BondLens: An Evidence-First Bond Analysis Agent
 
 <div align="center">
 
@@ -12,7 +12,7 @@ Explainable fixed-income analysis agent with live data, evals, and safeguards.
 
 ## Overview
 
-BondLens AI is an explainable bond analysis agent that integrates AkShare live bond data, LLM-powered reasoning with tool calling, and structured evidence into a Flask-based web interface.
+BondLens is an explainable bond analysis agent that integrates AkShare live bond data, LLM-powered reasoning with tool calling, and structured evidence into a Flask-based web interface.
 
 ## Quick Start
 

@@ -39,7 +39,7 @@ LIMITATIONS_TEMPLATE = [
 
 
 class BondAnalystAgent:
-    name = "BondLens AI"
+    name = "BondLens"
 
     def __init__(self, data_path: str | None = None, data_mode: str | None = None, live_fetcher=None) -> None:
         self.data_path = data_path

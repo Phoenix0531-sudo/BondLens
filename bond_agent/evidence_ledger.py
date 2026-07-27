@@ -175,7 +175,7 @@ def build_evidence_ledger(
             f"Final source {final_answer_source}; LLM guardrail {llm_guardrail.get('status')}; "
             f"evidence score {evidence_quality.get('score')}/100."
         ),
-        source="BondLens AI response contract",
+        source="BondLens response contract",
         tool="answer_selection",
         confidence=evidence_quality.get("level", "medium"),
         limitations=evidence_quality.get("penalties", []),

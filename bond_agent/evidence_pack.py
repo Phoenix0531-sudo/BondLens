@@ -43,7 +43,7 @@ def build_evidence_pack(response: dict[str, Any], *, pack_id: str | None = None)
         "pack_type": "bond_evidence_pack",
         "id": pack_id,
         "created_at": created_at,
-        "agent": response.get("agent") or "BondLens AI",
+        "agent": response.get("agent") or "BondLens",
         "question": response.get("question"),
         "intent": (response.get("plan") or {}).get("intent"),
         "tools_used": response.get("tools_used") or [],
@@ -313,7 +313,7 @@ def render_evidence_pack_html(pack: dict[str, Any]) -> str:
       </section>
     </div>
 
-    <p class="footer">BondLens AI · Bond Evidence Pack schema v{esc(pack.get('schema_version'))} · Numbers come from deterministic tools; LLM may only narrate over evidence.</p>
+    <p class="footer">BondLens · Bond Evidence Pack schema v{esc(pack.get('schema_version'))} · Numbers come from deterministic tools; LLM may only narrate over evidence.</p>
   </div>
 </body>
 </html>

@@ -4,7 +4,7 @@
 
 ## English
 
-BondLens AI is a Flask application packaged with Docker. The production entrypoint is gunicorn:
+BondLens is a Flask application packaged with Docker. The production entrypoint is gunicorn:
 
 ```bash
 gunicorn -b 0.0.0.0:5000 app:app
@@ -85,13 +85,13 @@ For Render, Railway, Fly.io, or similar platforms:
 
 ### Runtime Safety Boundary
 
-BondLens AI is not an investment advisory system. The API response includes `disclaimer`, `evidence_quality`, `llm_guardrail`, and `data_source` fields so callers can inspect data freshness, missing context, and LLM safety status.
+BondLens is not an investment advisory system. The API response includes `disclaimer`, `evidence_quality`, `llm_guardrail`, and `data_source` fields so callers can inspect data freshness, missing context, and LLM safety status.
 
 The portfolio UI intentionally renders evidence ledger, answer judge, risk profile, and replay summaries instead of raw JSON/code-like diagnostics. Raw contracts remain available through `/api/agent/query` and `/api/agent/schema`.
 
 ## 中文
 
-BondLens AI 是一个 Flask 应用，通过 Docker 打包。生产入口是 gunicorn：
+BondLens 是一个 Flask 应用，通过 Docker 打包。生产入口是 gunicorn：
 
 ```bash
 gunicorn -b 0.0.0.0:5000 app:app
@@ -172,6 +172,6 @@ docker compose up --build
 
 ### 运行时安全边界
 
-BondLens AI 不是投资顾问系统。API 响应包含 `disclaimer`、`evidence_quality`、`llm_guardrail` 和 `data_source` 字段，调用方可以检查数据新鲜度、缺失上下文和 LLM 安全状态。
+BondLens 不是投资顾问系统。API 响应包含 `disclaimer`、`evidence_quality`、`llm_guardrail` 和 `data_source` 字段，调用方可以检查数据新鲜度、缺失上下文和 LLM 安全状态。
 
 作品集页面默认展示证据账本、答案评审、风险画像和运行回放摘要，不展示原始 JSON/代码式调试面板。机器可读结构仍然通过 `/api/agent/query` 和 `/api/agent/schema` 提供。

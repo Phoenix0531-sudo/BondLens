@@ -88,7 +88,7 @@ def test_healthz():
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert payload == {"checks": {"app": "ok"}, "service": "BondLens AI", "status": "ok"}
+    assert payload == {"checks": {"app": "ok"}, "service": "BondLens", "status": "ok"}
 
 
 def test_agent_schema_endpoint():
@@ -114,7 +114,7 @@ def test_agent_api_smoke():
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert payload["agent"] == "BondLens AI"
+    assert payload["agent"] == "BondLens"
     assert payload["plan"]["intent"] == "ranking"
     assert "rank_bonds" in payload["tools_used"]
     assert "llm_status" in payload
