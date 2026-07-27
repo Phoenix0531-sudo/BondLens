@@ -23,6 +23,9 @@
 **BondLens** 是面向**中文债券市场**的轻量分析智能体。
 它只做一件事：把一句自然语言债市问题变成一次可审计运行——实时/快照/本地数据、确定性工具、可选 LLM 叙述，以及面向审查者的 Trust Layer。
 
+**不是多 Agent 股权研究桌面端。**
+**是面向中文债的 claim 级证据智能体。**
+
 与宽泛的多角色股权研究平台不同，BondLens 不试图成为完整投资工作台。
 它的取舍更窄、也更诚实：**数字来自代码**，模型只能在证据上叙述，每次回答都可回放、可裁决、可红队。
 
@@ -36,7 +39,16 @@
 
 项目主页：[https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
 
-静态 Demo 证据包（无需 API Key）：[docs/demo_runs/](docs/demo_runs/)
+### Example Runs（无需 API Key — 浏览器直接打开）
+
+| 运行 | 你会看到 | 打开 |
+| --- | --- | --- |
+| 市场概览 | 样本收益/成交看板 + 审查向 pack | [demo-market-overview.html](docs/demo_runs/demo-market-overview.html) |
+| 单券报告 | 首券风格报告与证据正文 | [demo-bond-report.html](docs/demo_runs/demo-bond-report.html) |
+| 收益异常 | 截面异常监控 pack | [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html) |
+| LLM 终答矩阵 | 已记录的 deepseek 路径（中英 × 概览/单券） | [llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md) |
+
+同目录还有对应 JSON：[docs/demo_runs/](docs/demo_runs/)。
 
 ---
 ## 设计原则：确定性计算，大模型叙述
@@ -53,6 +65,18 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 | 最终叙述文本 | 确定性报告；或仅在护栏+评审通过后用 LLM | 文本可润色，数字必须对齐证据 |
 
 一句话：工具算数，模型讲故事，信任层做裁决。
+
+### Codebase Snapshot
+
+| 层级 | 包含内容 |
+| --- | --- |
+| **Agent 核心** | 单路径：Planner → Tools → Evidence → Report（非多角色股权 desk） |
+| **确定性工具** | 7 个公开算子：`search_bonds`、`describe_market`、`rank_bonds`、`detect_yield_outliers`、`compare_bond_to_market`、`build_market_monitor`、`generate_bond_report` |
+| **Trust 层** | 数值+语言护栏 · 答案评审 · Trust 分 · Evidence Pack · 回放 · 风险画像 |
+| **评测** | 约 110 个 pytest · agent evals 10/10 · red-team 3/3 · CI Docker `/healthz` |
+| **数据** | AkShare 实时 → 缓存快照 → 静态 Excel，显式血缘与期限覆盖看板 |
+| **产品面** | Flask + Jinja · 默认中文 / 英文切换（query+cookie）· SSE 软渲染 · CI + GitHub Pages |
+| **体量（诚实）** | 项目 Python 约 1 万行（`bond_agent/` + app/tests/evals）——垂直产品，不是 10 万+ 多 Agent 平台 |
 
 ---
 
@@ -89,6 +113,10 @@ Agent Core    Planner → Tools → Evidence → Report
 Trust Layer   Guardrail + Judge + Risk + Trust Score + Replay + Evals
 ```
 
+<div align="center">
+<img src="docs/figs/architecture.png" width="92%" alt="BondLens 架构：问题 → 解析 → 规划 → 工具 → 证据 → 护栏 → Trust">
+</div>
+
 ```mermaid
 flowchart TD
     A[用户问题] --> B[数据源解析]
@@ -110,38 +138,58 @@ flowchart TD
 ## 项目截图
 
 在 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
+叙事：**能答 · 能深 · 会拒 · 可审**。
+
+怎么看这些图：
+
+1. **Trust** 是过程/证据信任，不是买卖信心。
+2. **投顾类** 是策略拦截（不调 LLM），不是只靠免责声明。
+3. **数字** 来自工具；模型过不了护栏时，最终答案回退到确定性报告。
+
 旧工作台图片仍保留在 `docs/screenshots/` 作历史参考。
 
 <table>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/overview-zh.png" alt="中文市场概览：信任分与证据">
-      <br><strong>中文市场概览</strong>
+      <br><strong>能答 — 市场概览</strong>
       <br><code>当前债券市场样本概览如何？</code>
     </td>
     <td width="50%">
       <img src="docs/screenshots/bond-report-zh.png" alt="中文单券报告请求与信任面板">
-      <br><strong>中文单券报告</strong>
+      <br><strong>能深 — 单券报告</strong>
       <br><code>请对样本中第一只债券生成分析报告</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/advisory-refusal.png" alt="投顾类拦截，不调用 LLM">
-      <br><strong>投顾类拦截</strong>
-      <br><code>今天该不该买债？</code> → Trust 72，不调 LLM
+      <br><strong>会拒 — 投顾策略拦截</strong>
+      <br><code>今天该不该买债？</code> → Trust ≤72，不调 LLM
     </td>
     <td width="50%">
-      <img src="docs/screenshots/agent-en.png" alt="切换英文后的主界面">
-      <br><strong>英文主界面</strong>
-      <br>页头切 EN + 市场概览
+      <img src="docs/screenshots/replay-dashboard.png" alt="可审计回放看板">
+      <br><strong>可审 — 回放 / 证据路径</strong>
+      <br>历史运行回放看板（可追溯输出）
     </td>
   </tr>
 </table>
 
+英文 UI（页头 中/EN 切换）见「语言（i18n）」；历史 EN 截图：[agent-en.png](docs/screenshots/agent-en.png)。
+
 ---
 
 ## 快速上手
+
+### 0 分钟（无需安装）
+
+浏览器直接打开预生成 Example Run——无需服务、无需 API Key：
+
+```text
+docs/demo_runs/demo-market-overview.html
+```
+
+或从上方 [Example Runs 表](#example-runs无需-api-key--浏览器直接打开) 跳转。
 
 ### 5 分钟（离线演示）
 
@@ -157,7 +205,7 @@ python app.py
 # 试试：当前样本收益率分布是什么样？
 ```
 
-或直接打开预生成证据包（无需服务）：
+其他 pack：
 
 - [demo-market-overview.html](docs/demo_runs/demo-market-overview.html)
 - [demo-bond-report.html](docs/demo_runs/demo-bond-report.html)

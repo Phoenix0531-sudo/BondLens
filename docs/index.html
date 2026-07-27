@@ -175,6 +175,10 @@
           numeric/language guardrails, and a reviewer-facing Trust Layer.
         </p>
         <p class="pitch">
+          <strong>Not a multi-agent equity research desktop.</strong>
+          <strong>A claim-level evidence agent for Chinese bonds.</strong>
+        </p>
+        <p class="pitch">
           数字由代码计算，叙述可由大模型辅助，每次输出都可追溯。
           不是让 LLM 自由猜金融结论，而是工具先出证据，Agent 再编排、解释、裁决与诚实回退。
         </p>
@@ -194,11 +198,44 @@
         </div>
         <div class="badge-grid">
           <div class="badge"><strong>3</strong>Data layers</div>
-          <div class="badge"><strong>2</strong>Eval suites</div>
-          <div class="badge"><strong>107+</strong>Local tests</div>
+          <div class="badge"><strong>7</strong>Deterministic tools</div>
+          <div class="badge"><strong>110</strong>Local tests</div>
         </div>
       </aside>
     </div>
+
+    <section class="panel">
+      <h2>Example Runs (no API key)</h2>
+      <p>Open in browser — no server required. Same idea as FinRobot-style example reports, scoped to Chinese bonds.</p>
+      <div class="links">
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html">Market overview pack</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html">Single-bond report pack</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html">Yield outliers pack</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_deepseek_v4.md">LLM final-answer matrix</a>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Codebase Snapshot</h2>
+      <div class="feature-grid">
+        <article class="feature">
+          <h3>Agent core</h3>
+          <p>Single path: Planner → Tools → Evidence → Report. Not a multi-role equity desk.</p>
+        </article>
+        <article class="feature">
+          <h3>7 deterministic tools</h3>
+          <p>search / describe / rank / outliers / peer / monitor / bond report — numbers never invented by the model.</p>
+        </article>
+        <article class="feature">
+          <h3>Trust layer + evals</h3>
+          <p>Guardrail · judge · Trust score · Evidence Pack · replay · pytest ~110 · agent 10/10 · red-team 3/3.</p>
+        </article>
+      </div>
+      <div class="links" style="margin-top:14px">
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png">Architecture diagram</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">Full README</a>
+      </div>
+    </section>
 
     <section class="panel">
       <h2>Core workflow</h2>

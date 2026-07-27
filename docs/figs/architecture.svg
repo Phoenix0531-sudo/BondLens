@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="980" height="220" viewBox="0 0 980 220" role="img" aria-label="BondLens architecture flow">
+  <rect width="980" height="220" fill="#f5f3ee"/>
+  <defs>
+    <style>
+      .box { fill: #fffdf8; stroke: #0f6b5f; stroke-width: 2; }
+      .box-alt { fill: #17211d; stroke: #17211d; }
+      .lab { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; font-weight: 700; fill: #17211d; text-anchor: middle; }
+      .lab-w { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 14px; font-weight: 700; fill: #fffdf8; text-anchor: middle; }
+      .sub { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11px; fill: #65736e; text-anchor: middle; }
+      .sub-w { font-family: "Segoe UI", "Microsoft YaHei", sans-serif; font-size: 11px; fill: #c9d8d3; text-anchor: middle; }
+      .arr { stroke: #0f6b5f; stroke-width: 2; fill: none; marker-end: url(#m); }
+    </style>
+    <marker id="m" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L6,3 L0,6 Z" fill="#0f6b5f"/>
+    </marker>
+  </defs>
+  <text x="490" y="28" class="lab" style="font-size:15px">BondLens: Question → evidence path (single agent, not multi-role desk)</text>
+
+  <rect class="box" x="20" y="55" width="120" height="70" rx="8"/>
+  <text class="lab" x="80" y="86">Question</text>
+  <text class="sub" x="80" y="106">NL query</text>
+
+  <rect class="box" x="160" y="55" width="120" height="70" rx="8"/>
+  <text class="lab" x="220" y="86">Resolver</text>
+  <text class="sub" x="220" y="106">live/snap/static</text>
+
+  <rect class="box" x="300" y="55" width="120" height="70" rx="8"/>
+  <text class="lab" x="360" y="86">Planner</text>
+  <text class="sub" x="360" y="106">intent + tools</text>
+
+  <rect class="box" x="440" y="55" width="120" height="70" rx="8"/>
+  <text class="lab" x="500" y="86">Tools</text>
+  <text class="sub" x="500" y="106">7 deterministic</text>
+
+  <rect class="box" x="580" y="55" width="120" height="70" rx="8"/>
+  <text class="lab" x="640" y="86">Evidence</text>
+  <text class="sub" x="640" y="106">ledger + pack</text>
+
+  <rect class="box" x="720" y="55" width="110" height="70" rx="8"/>
+  <text class="lab" x="775" y="86">Guardrail</text>
+  <text class="sub" x="775" y="106">numeric+lang</text>
+
+  <rect class="box-alt" x="850" y="55" width="110" height="70" rx="8"/>
+  <text class="lab-w" x="905" y="86">Trust</text>
+  <text class="sub-w" x="905" y="106">score+replay</text>
+
+  <path class="arr" d="M140 90 H158"/>
+  <path class="arr" d="M280 90 H298"/>
+  <path class="arr" d="M420 90 H438"/>
+  <path class="arr" d="M560 90 H578"/>
+  <path class="arr" d="M700 90 H718"/>
+  <path class="arr" d="M830 90 H848"/>
+
+  <text class="sub" x="490" y="160">Optional LLM narrates only after tools; fail-closed → deterministic fallback</text>
+  <text class="sub" x="490" y="182">Advisory / buy-sell / guarantee intents are policy-blocked before any model call</text>
+  <text class="sub" x="490" y="204">Trust = process/evidence confidence, not trade confidence</text>
+</svg>

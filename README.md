@@ -23,6 +23,9 @@
 **BondLens** is a lightweight agent for **Chinese bond market analysis**.
 It focuses on one vertical: turn a natural-language bond question into an auditable run with live/snapshot/static data, deterministic tools, optional LLM narration, and a reviewer-facing Trust Layer.
 
+**Not a multi-agent equity research desktop.**
+**A claim-level evidence agent for Chinese bonds.**
+
 Unlike broad multi-agent equity research platforms, BondLens does not try to be a full investment desk.
 Its design choice is narrower and more honest: **numbers come from code**, the model may only narrate over evidence, and every answer can be replayed, judged, and red-teamed.
 
@@ -36,7 +39,16 @@ Every output is provenance-tracked.
 
 Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
 
-Static demo packs (no API key): [docs/demo_runs/](docs/demo_runs/)
+### Example Runs (no API key — open in browser)
+
+| Run | What you see | Open |
+| --- | --- | --- |
+| Market overview | Sample yield / volume board + trust-facing pack | [demo-market-overview.html](docs/demo_runs/demo-market-overview.html) |
+| Single-bond report | First-bond style report with evidence body | [demo-bond-report.html](docs/demo_runs/demo-bond-report.html) |
+| Yield outliers | Cross-section outlier monitor pack | [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html) |
+| LLM final-answer matrix | Recorded deepseek path (zh/en × overview/bond) | [llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md) |
+
+Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
 ---
 ## Design Principle: Deterministic Compute, LLM Narration
@@ -52,6 +64,18 @@ A core design principle of BondLens (shared with platforms such as FinRobot) is 
 | Final narrative text | Deterministic report, or LLM only if guardrail + judge pass | Text only; numbers must match evidence |
 
 In short: tools compute, models narrate, trust decides.
+
+### Codebase Snapshot
+
+| Layer | What it includes |
+| --- | --- |
+| **Agent core** | Single path: Planner → Tools → Evidence → Report (not a multi-role equity desk) |
+| **Deterministic tools** | 7 public operators: `search_bonds`, `describe_market`, `rank_bonds`, `detect_yield_outliers`, `compare_bond_to_market`, `build_market_monitor`, `generate_bond_report` |
+| **Trust layer** | Numeric + language guardrail · answer judge · Trust score · Evidence Pack · replay store · risk profile |
+| **Evals** | ~110 pytest cases · agent evals 10/10 · red-team 3/3 · Docker `/healthz` in CI |
+| **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
+| **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
+| **Scale (honest)** | ~10k lines of project Python across `bond_agent/` + app/tests/evals — focused vertical, not a 100k+ multi-agent platform |
 
 ---
 
@@ -88,6 +112,10 @@ Agent Core    Planner → Tools → Evidence → Report
 Trust Layer   Guardrail + Judge + Risk Profile + Trust Score + Replay + Evals
 ```
 
+<div align="center">
+<img src="docs/figs/architecture.png" width="92%" alt="BondLens architecture: Question → Resolver → Planner → Tools → Evidence → Guardrail → Trust">
+</div>
+
 ```mermaid
 flowchart TD
     A[User Question] --> B[Data Source Resolver]
@@ -109,54 +137,74 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 ## Screenshots
 
 Captured on the live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
+Narrative: **can answer · can go deep · will refuse · can audit**.
+
+How to read the shots:
+
+1. **Trust** is process/evidence confidence, not trade confidence.
+2. **Advisory** is a policy block (no LLM), not a disclaimer-only soft refuse.
+3. **Numbers** come from tools; if the model fails guardrail, the final answer is deterministic.
+
 Older workbench images remain under `docs/screenshots/` for history only.
 
 <table>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/overview-zh.png" alt="Chinese market overview with trust score and evidence">
-      <br><strong>Chinese market overview</strong>
+      <br><strong>Can answer — market overview</strong>
       <br><code>当前债券市场样本概览如何？</code>
     </td>
     <td width="50%">
       <img src="docs/screenshots/bond-report-zh.png" alt="Chinese single-bond report request and trust panel">
-      <br><strong>Chinese single-bond report</strong>
+      <br><strong>Can go deep — single-bond report</strong>
       <br><code>请对样本中第一只债券生成分析报告</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/advisory-refusal.png" alt="Advisory policy block without LLM">
-      <br><strong>Advisory policy block</strong>
-      <br><code>今天该不该买债？</code> → Trust 72, no LLM
+      <br><strong>Will refuse — advisory policy block</strong>
+      <br><code>今天该不该买债？</code> → Trust ≤72, no LLM
     </td>
     <td width="50%">
-      <img src="docs/screenshots/agent-en.png" alt="English UI after language switch">
-      <br><strong>English UI</strong>
-      <br>Header switch to EN + market overview
+      <img src="docs/screenshots/replay-dashboard.png" alt="Replay dashboard for auditable run history">
+      <br><strong>Can audit — replay / evidence path</strong>
+      <br>Replay dashboard for past runs (traceable output)
     </td>
   </tr>
 </table>
 
+English UI (header 中/EN switch) is covered under [Language (i18n)](#language-i18n); historical EN shot: [agent-en.png](docs/screenshots/agent-en.png).
+
 ---
 
 ## Quick Start
+
+### 0 minutes (no install)
+
+Open a pre-generated Example Run in the browser — no server, no API key:
+
+```text
+docs/demo_runs/demo-market-overview.html
+```
+
+Or jump from the [Example Runs table](#example-runs-no-api-key--open-in-browser) above.
 
 ### 5 minutes (offline demo)
 
 ```bash
 pip install -r requirements.txt
 # preferred local demo bind
-export FLASK_RUN_HOST=127.0.0.1
+export FLASK_RUN_HOST=[IP]
 export PORT=8765
 export BOND_DATA_MODE=static
 export SECRET_KEY=local-dev
 python app.py
-# open http://127.0.0.1:8765/agent
+# open http://[IP]:8765/agent
 # try: 当前样本收益率分布是什么样？
 ```
 
-Or open a pre-generated pack with no server:
+Other packs:
 
 - [demo-market-overview.html](docs/demo_runs/demo-market-overview.html)
 - [demo-bond-report.html](docs/demo_runs/demo-bond-report.html)

@@ -18,15 +18,35 @@
 BondLens is a lightweight agent for **Chinese bond market analysis**.
 It turns a natural-language question into an auditable run with live/snapshot/static data, deterministic tools, optional LLM narration under guardrails, and a reviewer-facing Trust Layer.
 
-Unlike broad multi-agent equity research platforms, BondLens does not try to be a full investment desk.
-Its design choice is narrower and more honest: **numbers come from code**, the model may only narrate over evidence, and every answer can be replayed, judged, and red-teamed.
+**Not a multi-agent equity research desktop.**
+**A claim-level evidence agent for Chinese bonds.**
+
+## Example Runs (no API key — open in browser)
+
+| Run | Open |
+| --- | --- |
+| Market overview | [demo-market-overview.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html) |
+| Single-bond report | [demo-bond-report.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html) |
+| Yield outliers | [demo-yield-outliers.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html) |
+| LLM final-answer matrix | [llm_matrix_deepseek_v4.md](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_deepseek_v4.md) |
+
+## Codebase Snapshot
+
+| Layer | What it includes |
+| --- | --- |
+| Agent core | Planner → Tools → Evidence → Report (single path) |
+| Deterministic tools | 7 public operators |
+| Trust layer | Guardrail · judge · Trust score · Evidence Pack · replay |
+| Evals | ~110 pytest · agent 10/10 · red-team 3/3 · Docker healthz |
+| Data | live → snapshot → static with lineage |
+| Product | Flask + Jinja · zh/en · SSE soft-render · CI + Pages |
 
 ## Quick links
 
 - Repository: <https://github.com/Phoenix0531-sudo/BondLens>
 - English README: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md>
 - 中文 README: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md>
-- Static demo packs (no API key): <https://github.com/Phoenix0531-sudo/BondLens/tree/main/docs/demo_runs>
+- Architecture diagram: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png>
 - CI: <https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml>
 
 ## Local quick start
