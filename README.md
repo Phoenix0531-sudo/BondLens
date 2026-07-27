@@ -95,45 +95,35 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 
 ## Screenshots
 
-> UI screenshots will be recaptured after the product surface is fully stabilized.
-> Current images under `docs/screenshots/` still reflect an earlier workbench revision.
-> The table below keeps those files so README links do not 404 before replacements land.
+Captured on the live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
+Older workbench images remain under `docs/screenshots/` for history only.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/agent-workbench.png" alt="BondLens AI agent workbench">
-      <br><strong>Agent Workbench</strong>
+      <img src="docs/screenshots/overview-zh.png" alt="Chinese market overview with trust score and evidence">
+      <br><strong>Chinese market overview</strong>
+      <br><code>当前债券市场样本概览如何？</code>
     </td>
     <td width="50%">
-      <img src="docs/screenshots/agent-answer-evidence.png" alt="Agent answer and evidence view">
-      <br><strong>Answer, Tool Trace, and Evidence</strong>
+      <img src="docs/screenshots/bond-report-zh.png" alt="Chinese single-bond report request and trust panel">
+      <br><strong>Chinese single-bond report</strong>
+      <br><code>请对样本中第一只债券生成分析报告</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/risk-profile-judge.png" alt="Risk profile and answer judge">
-      <br><strong>Risk Profile and Answer Judge</strong>
+      <img src="docs/screenshots/advisory-refusal.png" alt="Advisory policy block without LLM">
+      <br><strong>Advisory policy block</strong>
+      <br><code>今天该不该买债？</code> → Trust 72, no LLM
     </td>
     <td width="50%">
-      <img src="docs/screenshots/replay-dashboard.png" alt="Agent replay dashboard">
-      <br><strong>Replay Dashboard</strong>
+      <img src="docs/screenshots/agent-en.png" alt="English UI after language switch">
+      <br><strong>English UI</strong>
+      <br>Header switch to EN + market overview
     </td>
   </tr>
 </table>
-
-### Recommended recapture checklist (local capture, then replace files)
-
-Demo service: `BOND_DATA_MODE=auto` or `static`, open `http://[IP]:8765/agent`.
-
-| Target file | Content | Suggested question |
-| --- | --- | --- |
-| `docs/screenshots/overview-zh.png` | Chinese market overview | `当前债券市场样本概览如何？` |
-| `docs/screenshots/bond-report-zh.png` | Chinese single-bond report | `请对样本中第一只债券生成分析报告` |
-| `docs/screenshots/advisory-refusal.png` | Advisory policy block (no LLM) | `今天该不该买债？` |
-| `docs/screenshots/agent-en.png` | English UI after header switch | `Give an overview of the current bond market sample.` |
-
-After capture, drop the PNGs on those paths and repoint the screenshot table.
 
 ---
 

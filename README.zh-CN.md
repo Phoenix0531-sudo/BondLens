@@ -96,44 +96,35 @@ flowchart TD
 
 ## 项目截图
 
-> 截图将在产品界面完全稳定后重新拍摄。
-> `docs/screenshots/` 下现有图片仍对应较早的工作台版本；下方表格先保留旧图，避免 README 指向不存在的文件。
+在 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
+旧工作台图片仍保留在 `docs/screenshots/` 作历史参考。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/agent-workbench.png" alt="BondLens AI 智能体工作台">
-      <br><strong>Agent 工作台</strong>
+      <img src="docs/screenshots/overview-zh.png" alt="中文市场概览：信任分与证据">
+      <br><strong>中文市场概览</strong>
+      <br><code>当前债券市场样本概览如何？</code>
     </td>
     <td width="50%">
-      <img src="docs/screenshots/agent-answer-evidence.png" alt="Agent 回答和证据视图">
-      <br><strong>最终回答、工具轨迹和证据</strong>
+      <img src="docs/screenshots/bond-report-zh.png" alt="中文单券报告请求与信任面板">
+      <br><strong>中文单券报告</strong>
+      <br><code>请对样本中第一只债券生成分析报告</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/risk-profile-judge.png" alt="风险画像和答案评审">
-      <br><strong>风险画像和答案评审</strong>
+      <img src="docs/screenshots/advisory-refusal.png" alt="投顾类拦截，不调用 LLM">
+      <br><strong>投顾类拦截</strong>
+      <br><code>今天该不该买债？</code> → Trust 72，不调 LLM
     </td>
     <td width="50%">
-      <img src="docs/screenshots/replay-dashboard.png" alt="Agent 运行回放仪表盘">
-      <br><strong>运行回放仪表盘</strong>
+      <img src="docs/screenshots/agent-en.png" alt="切换英文后的主界面">
+      <br><strong>英文主界面</strong>
+      <br>页头切 EN + 市场概览
     </td>
   </tr>
 </table>
-
-### 建议重拍清单（你本地拍，再替换文件）
-
-演示服务：`BOND_DATA_MODE=auto` 或 `static`，`http://[IP]:8765/agent`。
-
-| 建议文件名 | 内容 | 推荐问法 |
-| --- | --- | --- |
-| `docs/screenshots/overview-zh.png` | 中文市场概览 | `当前债券市场样本概览如何？` |
-| `docs/screenshots/bond-report-zh.png` | 中文单券报告 | `请对样本中第一只债券生成分析报告` |
-| `docs/screenshots/advisory-refusal.png` | 投顾类拦截（不调 LLM） | `今天该不该买债？` |
-| `docs/screenshots/agent-en.png` | 英文主界面（页头切 EN） | `Give an overview of the current bond market sample.` |
-
-拍完后把 PNG 放到上表路径，再把 README 截图表格改指新文件即可。
 
 ---
 
