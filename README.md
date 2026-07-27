@@ -314,23 +314,35 @@ If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallba
 
 ## Appendix: LLM final-answer matrix (recorded)
 
-Recorded against local **new-api** with model **`grok-4.5`**, `BOND_DATA_MODE=static`.
+### Current working path (2026-07)
+
+Recorded against local **new-api** (`http://127.0.0.1:31876/v1`) with model
+**`deepseek-v4-flash-search`**, `BOND_DATA_MODE=static`, `temperature=0`, one-shot
+numeric repair when guardrail fails.
 Stable first bond for report questions: **06国开24** (bond-name ascending, mergesort).
 
-Full table: [docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md) · raw: [llm_matrix_grok45.json](docs/demo_runs/llm_matrix_grok45.json)
+Full table: [docs/demo_runs/llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md)
+· raw: [llm_matrix_deepseek_v4.json](docs/demo_runs/llm_matrix_deepseek_v4.json)
 
 | Scenario | Lang | Threshold | Result | Notes |
 | --- | --- | --- | --- | --- |
-| overview | zh | 3/3 final LLM | **3/3** | 1 provider 500 mid-run; recovered |
-| bond report | zh | 3/3 final LLM | **3/3** | provider 500 / rate-limit on some attempts |
-| overview | en | >=2/3 | **2 successes** | early attempts rate-limited |
-| bond report | en | >=2/3 | **2 successes** | 1 guardrail reject on unsupported `5.95` |
+| overview | zh | 3/3 final LLM | **3/3** | direct pass |
+| bond report | zh | 3/3 final LLM | **3/3** | direct pass |
+| overview | en | >=2/3 | **2/3** | 1 residual invented `5%`; repair may recover |
+| bond report | en | >=2/3 | **3/3** | residual duration%/percentile invents caught by guardrail + repair |
+
+Historical `grok-4.5` matrix (same thresholds, earlier channel):
+[docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md).
+On this host, `gpt-5.4*` / `grok-4.5` channels are often unavailable or timeout;
+**deepseek-v4-flash-search** is the currently verified chat model.
 
 Honest residuals:
 
-- Provider rate limits / occasional 500s still force deterministic fallback
+- Provider channel churn still forces deterministic fallback when models vanish
 - Guardrails stay on; unsupported numbers never become final
-- End-to-end latency often 35–90s; outliers can exceed 2 minutes under load
+- English overviews may invent bare shares like `5%` and fall back once in three
+- One-shot repair rewrites only after a failed numeric check; not a free pass
+- End-to-end latency often 8–25s on deepseek; repair path can exceed 40s
 - Soft-render shows a summary card; full dashboard tables remain on `result_url`
 - Not implemented: WebSocket tick feed, true OAS / full call-tree perpetual pricing, desktop GUI/CLI
 

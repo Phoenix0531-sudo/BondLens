@@ -202,3 +202,99 @@ def test_llm_guardrail_negated_risk_free_is_safe_but_positive_claim_fails():
     assert bad["language_status"] == "failed"
     rule_ids = {item["rule_id"] for item in bad["unsafe_phrases"]}
     assert "english_guarantee" in rule_ids
+
+def test_llm_guardrail_accepts_coverage_ratio_percent_and_iso_date():
+    """Dual: 0–1 coverage_ratio may be cited as 99.94%; inventing 88.8% fails. ISO dates ignored."""
+    report = {
+        "data_source": {
+            "maturity_coverage": {
+                "filled_count": 3363,
+                "missing_count": 2,
+                "coverage_ratio": 0.9994,
+                "coverage_percent": 99.94,
+            }
+        },
+        "data_evidence": {
+            "market": {
+                "sample_count": 3365,
+                "yield_summary": {"mean": 2.7709, "median": 2.45, "count": 3102},
+                "volume_summary": {"mean": 4.934, "median": 1.0},
+            }
+        },
+    }
+    ok = assess_llm_faithfulness(
+        "覆盖率 99.94%（3363/3365）。成交量均值 4.934 亿元。样本 3365。Report date 2026-07-26 is context only.",
+        report,
+    )
+    assert ok["status"] == "passed"
+    assert ok["numeric_status"] == "passed"
+    assert ok["unsupported_numbers"] == []
+
+    # Ratio form also OK
+    ok_ratio = assess_llm_faithfulness("maturity coverage_ratio=0.9994. sample 3365. mean 2.7709%.", report)
+    assert ok_ratio["status"] == "passed"
+
+    bad = assess_llm_faithfulness("覆盖率 88.8%。", report)
+    assert bad["status"] == "failed"
+    assert any(item["text"] == "88.8%" for item in bad["unsupported_numbers"])
+
+
+def test_llm_guardrail_rejects_unit_converted_volume_and_duration_as_percent():
+    """Dual: volume stays in 亿元; duration years must not be re-labeled as percent."""
+    report = {
+        "data_evidence": {
+            "market": {"volume_summary": {"mean": 4.934, "median": 1.0, "count": 3363}},
+            "search": {
+                "records": [
+                    {
+                        "收盘到期收益率(%)": 2.5647,
+                        "修正久期(现金流假设)": 10.9372,
+                        "交易量(亿元)": 3.8,
+                    }
+                ]
+            },
+            "comparison": {
+                "rate_sensitivity": {"modified_duration": 10.9372, "dv01": 0.109372},
+            },
+        }
+    }
+    ok = assess_llm_faithfulness(
+        "volume mean 4.934 亿元; modified duration 10.9372 years; yield 2.5647%.",
+        report,
+    )
+    assert ok["status"] == "passed"
+    assert ok["unsupported_numbers"] == []
+
+    bad_vol = assess_llm_faithfulness("average turnover is 493.4 million CNY.", report)
+    assert bad_vol["status"] == "failed"
+    assert any(item["text"] == "493.4" for item in bad_vol["unsupported_numbers"])
+
+    bad_dur = assess_llm_faithfulness("modified duration is 10.94%.", report)
+    assert bad_dur["status"] == "failed"
+    assert any(item["text"] == "10.94%" for item in bad_dur["unsupported_numbers"])
+
+def test_llm_guardrail_accepts_truncated_dv01_and_ratio_bare_number():
+    """Dual: truncated DV01 / bare coverage percent OK; invented values fail."""
+    report = {
+        "data_source": {"maturity_coverage": {"coverage_ratio": 0.9994, "coverage_percent": 99.94}},
+        "data_evidence": {
+            "comparison": {
+                "rate_sensitivity": {"dv01": 0.109372, "modified_duration": 10.9372},
+                "peer_comparison": {"spread_vs_peer_mean_bp": -5.95, "peer_yield_percentile": 28.57},
+            },
+            "search": {"records": [{"收盘到期收益率(%)": 2.5647, "交易量(亿元)": 3.8}]},
+        },
+    }
+    ok = assess_llm_faithfulness(
+        "coverage 99.94; dv01 0.1093; duration 10.9372 years; yield 2.5647%; volume 3.8.",
+        report,
+    )
+    assert ok["status"] == "passed", ok["unsupported_numbers"]
+    ok_bp_pct = assess_llm_faithfulness("peer spread about -0.0595%. yield 2.5647%.", report)
+    assert ok_bp_pct["status"] == "passed", ok_bp_pct["unsupported_numbers"]
+    bad = assess_llm_faithfulness("coverage 88.8; dv01 0.2222; yield 2.5647%.", report)
+    assert bad["status"] == "failed"
+    texts = {item["text"] for item in bad["unsupported_numbers"]}
+    assert "88.8" in texts or "88.8%" in texts
+    assert "0.2222" in texts
+

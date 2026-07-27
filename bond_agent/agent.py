@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import time
@@ -133,6 +134,22 @@ class BondAnalystAgent:
                 if llm_result["status"] == "success"
                 else assess_llm_faithfulness(None, report)
             )
+            if (
+                llm_result["status"] == "success"
+                and llm_guardrail["status"] != "passed"
+                and llm_result.get("text")
+            ):
+                repaired = self._try_repair_llm_answer(
+                    question, plan, report, llm_result["text"], llm_guardrail
+                )
+                if repaired.get("status") == "success" and repaired.get("text"):
+                    repaired_guard = assess_llm_faithfulness(repaired["text"], report)
+                    tool_trace.append(
+                        f"-> llm_guardrail_repair(status={repaired_guard['status']})"
+                    )
+                    if repaired_guard["status"] == "passed":
+                        llm_result = repaired
+                        llm_guardrail = repaired_guard
             if llm_result["status"] == "success":
                 tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
             else:
@@ -333,7 +350,84 @@ class BondAnalystAgent:
             "model": models[-1] if models else None,
         }
 
+    def _try_repair_llm_answer(
+        self,
+        question: str,
+        plan: dict,
+        report: dict,
+        draft_text: str,
+        guardrail: dict,
+    ) -> dict:
+        """One-shot rewrite when numeric guardrail fails on residual unit/invention issues."""
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        api_key = os.environ.get("OPENAI_API_KEY") or ("local-not-needed" if base_url else None)
+        if not api_key or not draft_text:
+            return {"text": None, "status": "disabled", "error": None}
+
+        unsupported = guardrail.get("unsupported_numbers") or []
+        bad = ", ".join(
+            str(item.get("text") or item.get("value")) for item in unsupported[:12]
+        ) or "(unknown)"
+        lang = self._detect_answer_lang(question)
+        lang_rule = (
+            "Write the entire repaired answer in Chinese (简体中文)."
+            if lang == "zh"
+            else "Write the entire repaired answer in English."
+        )
+        repair_instructions = (
+            "You are repairing a fixed-income analysis draft that failed numeric evidence checks. "
+            "Rewrite the draft so EVERY number appears in the JSON evidence. "
+            f"Remove or correct these unsupported tokens: {bad}. "
+            "Hard rules: "
+            "1) 交易量(亿元)/volume is already in 亿元 — cite 3.8 or 4.934 as-is, never 380/493.4. "
+            "2) modified_duration is years (e.g. 10.9372), never percent (never 10.94%). "
+            "3) Do not invent peer percentiles such as 35%; use evidence values only "
+            "(e.g. 28.57 / 63.8 / 71.43 / 83.2 / 96.7 when present). "
+            "4) Prefer focused_numbers values exactly when present. "
+            "5) Do not invent calendar dates or unit conversions. "
+            "6) Keep the same bond focus and structure; no buy/sell advice. "
+            f"{lang_rule} "
+            f"Always include this disclaimer in Chinese: {DISCLAIMER}"
+        )
+        evidence_payload = self._build_llm_evidence(question, plan, report)
+        evidence_payload = {
+            **evidence_payload,
+            "draft_to_repair": draft_text[:6000],
+            "unsupported_tokens": [item.get("text") for item in unsupported[:12]],
+        }
+        evidence_json = json.dumps(evidence_payload, ensure_ascii=False)
+        models = self._llm_model_candidates()
+        model = models[0] if models else (os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini").strip()
+        try:
+            client = self._create_openai_client(api_key, base_url=base_url)
+            api_style = os.environ.get("OPENAI_API_STYLE", "auto").lower()
+            text_out = self._call_llm(
+                client, model, repair_instructions, evidence_json, api_style, prefer_chat=bool(base_url)
+            )
+            if not text_out:
+                return {
+                    "text": None,
+                    "status": "failed",
+                    "error": "empty_repair_output",
+                    "model": model,
+                }
+            return {
+                "text": self._ensure_disclaimer(text_out.strip()),
+                "status": "success",
+                "error": None,
+                "model": model,
+                "repaired": True,
+            }
+        except Exception as exc:  # noqa: BLE001 - vendor SDK/network surface is broad
+            return {
+                "text": None,
+                "status": "failed",
+                "error": f"OpenAI repair failed: {type(exc).__name__}",
+                "model": model,
+            }
+
     def _llm_model_candidates(self) -> list[str]:
+
         primary = (os.environ.get("OPENAI_MODEL") or "gpt-5.4-mini").strip()
         fallback_raw = os.environ.get("OPENAI_MODEL_FALLBACKS") or os.environ.get("OPENAI_FALLBACK_MODEL") or ""
         fallbacks = [part.strip() for part in fallback_raw.split(",") if part.strip()]
@@ -370,21 +464,31 @@ class BondAnalystAgent:
             "(e.g. p25=2.255). Do not invent 25%/75% market-share claims. "
             "Yield fields like 收盘到期收益率(%) are already in percent units: cite them as "
             "2.5647% only when that exact value appears in evidence. "
+            "coverage_ratio is 0–1; prefer maturity_coverage.coverage_percent (e.g. 99.94) "
+            "or write coverage_ratio=0.9994. Do not invent other coverage percentages. "
+            "volume_summary and 交易量(亿元) are already in 亿元. Cite 4.934 or 3.8 as-is; "
+            "never convert units (do not invent 493.4 or 380). "
             "Quality notes may already contain percentages such as 7.8% / 7.4%; copy them "
             "verbatim if needed, never recompute shares. "
             "For signed peer spreads / z-scores / bp fields, prefer ASCII hyphen-minus "
             "(e.g. -5.95 bp). If you describe magnitude only, keep the same absolute value "
             "that appears in evidence and say it is the absolute peer-mean spread. "
             "Never invent spreads that are not present. "
+            "Do not invent calendar dates, years, or report timestamps. "
             "Do not create new percentages, ranges, ratings, issuer details, market facts, "
             "or investment advice. "
             "Do not recommend buying, selling, adding position, guaranteed returns, "
             "or very safe conclusions. "
             "Avoid the bare phrase risk-free entirely; if needed, write 'not free of risk' "
             "or 'no investment advice' instead of 'not risk-free'. "
-            "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as cashflow "
-            "teaching values under annual coupon=YTM assumptions, not OAS. For perpetual-style, "
-            "mention first-leg vs theoretical consol scenarios when present. "
+            "If evidence includes modified_duration / dv01 / macaulay_duration, quote them as "
+            "cashflow teaching values under annual coupon=YTM assumptions, not OAS. "
+            "Write durations as years (e.g. 10.9372), never as percent (never 10.94%). "
+            "Do not invent peer percentiles such as 35% unless that exact value is in evidence. "
+            "When focused_numbers is present, prefer those exact values for the subject bond. "
+            "Cite peer_yield_percentile as 28.57% only if evidence has 28.57; never invent 35%. "
+            "Cite volume as 3.8 (亿元), never 380. Cite DV01 as 0.109372 or a 4-dp truncation, not percent. "
+            "For perpetual-style, mention first-leg vs theoretical consol scenarios when present. "
             "The yield_distribution values are counts, not percentages. "
             "If a requested bond is present under data_evidence.search.records, focus on that bond "
             "and quote its 收盘到期收益率(%) / 加权收益率(%) / 待偿期 exactly. "
@@ -466,9 +570,26 @@ class BondAnalystAgent:
         data_source = report.get("data_source") or {}
         quality = market.get("data_quality") or {}
         coverage = data_source.get("maturity_coverage") or {}
+        coverage_ratio = coverage.get("coverage_ratio")
+        coverage_percent = None
+        if isinstance(coverage_ratio, int | float) and math.isfinite(float(coverage_ratio)):
+            # Explicit percent form so models can cite 99.94% without inventing scale.
+            coverage_percent = round(float(coverage_ratio) * 100.0, 4)
+
         compact_market = {
             "sample_count": market.get("sample_count"),
             "yield_summary": market.get("yield_summary"),
+            # Volume stays in 亿元 — never convert units in the answer.
+            "volume_summary": market.get("volume_summary"),
+            "volume_unit": "亿元",
+            "volume_unit_note": "Values are already in 亿元; do not convert to million/100m CNY.",
+            "maturity_summary_years": market.get("maturity_summary_years"),
+            "segments": {
+                "by_bond_type": ((market.get("segments") or {}).get("by_bond_type") or [])[:6],
+                "by_maturity_bucket": ((market.get("segments") or {}).get("by_maturity_bucket") or [])[:6],
+            }
+            if market.get("segments")
+            else None,
             "data_quality": {
                 "score": quality.get("score"),
                 "level": quality.get("level"),
@@ -544,7 +665,8 @@ class BondAnalystAgent:
                 "maturity_coverage": {
                     "filled_count": coverage.get("filled_count"),
                     "missing_count": coverage.get("missing_count"),
-                    "coverage_ratio": coverage.get("coverage_ratio"),
+                    "coverage_ratio": coverage_ratio,
+                    "coverage_percent": coverage_percent,
                 },
             },
             "data_evidence": {
@@ -559,6 +681,38 @@ class BondAnalystAgent:
                     "outlier_count": outliers.get("outlier_count"),
                     "items": (outliers.get("items") or outliers.get("records") or [])[:5],
                 },
+            },
+            "citation_rules": {
+                "volume_unit": "亿元",
+                "do_not_convert_volume": True,
+                "duration_is_years_not_percent": True,
+                "only_cite_evidence_numbers": True,
+                "forbid_invented_percentiles": True,
+            },
+            # Preferred citation targets for single-bond reports (copy exactly).
+            "focused_numbers": {
+                "bond_name": ((search.get("records") or [{}])[0] or {}).get("债券简称")
+                or comparison.get("bond_name"),
+                "yield_pct": ((search.get("records") or [{}])[0] or {}).get("收盘到期收益率(%)"),
+                "volume_yi": ((search.get("records") or [{}])[0] or {}).get("交易量(亿元)"),
+                "maturity_years": ((search.get("records") or [{}])[0] or {}).get("待偿期(年)"),
+                "clean_price": ((search.get("records") or [{}])[0] or {}).get("收盘净价(元)"),
+                "modified_duration_years": (comparison.get("rate_sensitivity") or {}).get(
+                    "modified_duration"
+                ),
+                "dv01": (comparison.get("rate_sensitivity") or {}).get("dv01"),
+                "yield_percentile": comparison.get("yield_percentile"),
+                "volume_percentile": comparison.get("volume_percentile"),
+                "maturity_percentile": comparison.get("maturity_percentile"),
+                "peer_yield_percentile": (comparison.get("peer_comparison") or {}).get(
+                    "peer_yield_percentile"
+                ),
+                "spread_vs_peer_mean_bp": (comparison.get("peer_comparison") or {}).get(
+                    "spread_vs_peer_mean_bp"
+                ),
+                "coverage_percent": coverage_percent
+                if coverage_percent is not None
+                else coverage.get("coverage_percent"),
             },
             # Keep short analysis bullets; they already carry audited numbers.
             "analysis": (report.get("analysis") or [])[:8],
@@ -600,6 +754,7 @@ class BondAnalystAgent:
     def _call_chat_completions(self, client, model: str, instructions: str, evidence_json: str) -> str | None:
         response = client.chat.completions.create(
             model=model,
+            temperature=0,
             messages=[
                 {"role": "system", "content": instructions},
                 {"role": "user", "content": evidence_json},
@@ -780,6 +935,28 @@ class BondAnalystAgent:
                 if llm_result.get("status") == "success"
                 else assess_llm_faithfulness(None, report)
             )
+            if (
+                llm_result.get("status") == "success"
+                and llm_guardrail.get("status") != "passed"
+                and llm_result.get("text")
+            ):
+                yield {
+                    "type": "status",
+                    "stage": "llm_repair",
+                    "message_zh": "护栏未通过，尝试一次数值修复重写…",
+                    "message_en": "Guardrail failed; attempting one numeric repair rewrite…",
+                }
+                repaired = self._try_repair_llm_answer(
+                    question, plan, report, llm_result.get("text") or "", llm_guardrail
+                )
+                if repaired.get("status") == "success" and repaired.get("text"):
+                    repaired_guard = assess_llm_faithfulness(repaired["text"], report)
+                    tool_trace.append(
+                        f"-> llm_guardrail_repair(status={repaired_guard['status']})"
+                    )
+                    if repaired_guard["status"] == "passed":
+                        llm_result = repaired
+                        llm_guardrail = repaired_guard
             if llm_result["status"] == "success":
                 tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
                 if llm_guardrail["status"] != "passed":

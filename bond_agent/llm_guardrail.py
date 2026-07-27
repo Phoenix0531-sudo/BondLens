@@ -151,6 +151,9 @@ def _append_text_numbers(text: str, path: list[str], numbers: list[dict], source
         )
 
 
+_ISO_DATE_RE = re.compile(r"\b\d{4}[-/]\d{1,2}[-/]\d{1,2}\b")
+
+
 def _extract_text_numbers(text: str) -> list[dict]:
     items = []
     for match in NUMBER_RE.finditer(text):
@@ -158,6 +161,9 @@ def _extract_text_numbers(text: str) -> list[dict]:
             continue
         if _is_quantile_label(text, match):
             # "25分位" / "p25" are labels for evidence keys, not free-standing claims.
+            continue
+        if _is_inside_iso_date(text, match):
+            # Fragments of 2026-07-26 are not numeric claims.
             continue
 
         token = match.group(0)
@@ -172,6 +178,14 @@ def _extract_text_numbers(text: str) -> list[dict]:
             }
         )
     return items
+
+
+def _is_inside_iso_date(text: str, match: re.Match) -> bool:
+    """True when the number token sits inside an ISO-like calendar date."""
+    for date_match in _ISO_DATE_RE.finditer(text):
+        if date_match.start() <= match.start() and match.end() <= date_match.end():
+            return True
+    return False
 
 
 def _matches_evidence(item: dict, evidence_numbers: list[dict]) -> bool:
@@ -189,6 +203,16 @@ def _matches_evidence(item: dict, evidence_numbers: list[dict]) -> bool:
     for number in candidates:
         if _values_match(claimed, number["value"], decimals):
             return True
+        # coverage_ratio / *_ratio often stored in 0–1 form but cited as percent
+        # (0.9994 → 99.94% or bare 99.94). Only ratio leaves get this scale bridge.
+        if _is_ratio_field(number):
+            ratio_value = float(number["value"])
+            if 0.0 <= abs(ratio_value) <= 1.0:
+                scaled = ratio_value * 100.0
+                if _values_match(claimed, scaled, decimals):
+                    return True
+                if item["unit"] != "percent" and _values_match(claimed, abs(scaled), decimals):
+                    return True
         # Signed peer-spread / z-score / bp fields are often written without the
         # minus sign ("5.95 bp vs peer mean") while evidence stores -5.95.
         # Allow magnitude-only match for those paths only — inventing the same
@@ -197,7 +221,20 @@ def _matches_evidence(item: dict, evidence_numbers: list[dict]) -> bool:
             claimed, abs(float(number["value"])), decimals
         ):
             return True
+    # bp fields are unit=number, so the percent-candidate loop never sees them.
+    # Models sometimes rewrite -5.95 bp as -0.0595%; match that conversion only
+    # for signed magnitude fields, scanning the full evidence set.
+    if item["unit"] == "percent":
+        for number in evidence_numbers:
+            if not _is_signed_magnitude_field(number):
+                continue
+            bp_value = float(number["value"])
+            if _values_match(claimed, bp_value / 100.0, decimals) or _values_match(
+                claimed, abs(bp_value) / 100.0, decimals
+            ):
+                return True
     return False
+
 
 
 def _is_signed_magnitude_field(number: dict) -> bool:
@@ -217,6 +254,15 @@ def _is_signed_magnitude_field(number: dict) -> bool:
     return any(marker in path for marker in markers)
 
 
+def _is_ratio_field(number: dict) -> bool:
+    """True for 0–1 ratio leaves (coverage_ratio, fill_ratio, …)."""
+    path = str(number.get("path") or "")
+    if not path:
+        return False
+    leaf = path.rsplit(".", 1)[-1].lower()
+    return leaf == "ratio" or leaf.endswith("_ratio") or leaf.endswith("ratio")
+
+
 def _values_match(claimed: float, evidence: float, decimal_places: int) -> bool:
     if math.isclose(claimed, evidence, rel_tol=0, abs_tol=1e-9):
         return True
@@ -224,7 +270,18 @@ def _values_match(claimed: float, evidence: float, decimal_places: int) -> bool:
     if decimal_places == 0:
         return math.isclose(claimed, round(evidence), rel_tol=0, abs_tol=1e-9)
 
-    return math.isclose(claimed, round(evidence, decimal_places), rel_tol=0, abs_tol=10 ** (-decimal_places))
+    # Accept both banker's rounding and truncation to the claimed precision
+    # (e.g. evidence 0.109372 cited as 0.1094 or 0.1093).
+    scale = 10 ** decimal_places
+    rounded = round(evidence, decimal_places)
+    if math.isclose(claimed, rounded, rel_tol=0, abs_tol=10 ** (-decimal_places)):
+        return True
+    truncated = math.trunc(evidence * scale) / scale
+    if math.isclose(claimed, truncated, rel_tol=0, abs_tol=10 ** (-decimal_places)):
+        return True
+    # Also allow truncation toward zero of the absolute value with original sign.
+    abs_truncated = math.copysign(math.trunc(abs(evidence) * scale) / scale, evidence)
+    return math.isclose(claimed, abs_truncated, rel_tol=0, abs_tol=10 ** (-decimal_places))
 
 
 _COUNT_LEAVES = {

@@ -1,0 +1,239 @@
+{
+  "provider": "new-api",
+  "base_url": "http://127.0.0.1:31876/v1",
+  "model": "deepseek-v4-flash-search",
+  "api_style": "chat",
+  "data_mode": "static",
+  "first_bond_rule": "mergesort on 债券简称 ascending; first=06国开24",
+  "key_redacted": "sk-***...PjTt",
+  "notes": "temperature=0; one-shot numeric repair; focused_numbers; ratio/bp/trunc bridges",
+  "cases": {
+    "overview_zh": [
+      {
+        "trial": 1,
+        "question": "当前债券市场样本概览如何？",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 73,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 9.0,
+        "preview": "当前债券市场样本概览如下：\n\n- **样本规模**：共 3,365 条债券记录，其中有效收益率样本 3,102 条；期限覆盖率达 99.94%（coverage_percent=99.94）。\n- **收益率概况**：收益率均值 2.7709%，中位数 2.45%，四分位区间 p25=2.255、p75=2.7468，最小值 0.1383%，最大值 57.0"
+      },
+      {
+        "trial": 2,
+        "question": "当前债券市场样本概览如何？",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 73,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 8.71,
+        "preview": "根据当前样本数据，债券市场概览如下：\n\n- **样本总量**：共 3,365 条债券记录，其中有效收益率样本 3,102 条。  \n- **收益率分布**：收益率均值 2.7709%，中位数 2.45%，最低 0.1383%，最高 57.0224%。四分位 p25=2.255，p75=2.7468。  \n- **成交量**（单位：亿元）：均值 4.934 亿"
+      },
+      {
+        "trial": 3,
+        "question": "当前债券市场样本概览如何？",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 73,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 6.83,
+        "preview": "当前债券市场样本概览如下：\n\n- **样本规模**：共 3,365 条债券记录，其中有效收益率数据 3,102 条，期限覆盖率达 99.94%（缺失 2 条）。\n- **收益率分布**：均值 2.7709%，中位数 2.45%，最低 0.1383%，最高 57.0224%；四分位区间 p25=2.255%，p75=2.7468%。\n- **成交量**（亿元）"
+      }
+    ],
+    "bond_zh": [
+      {
+        "trial": 1,
+        "question": "请对样本中第一只债券生成分析报告",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 11.55,
+        "preview": "## 06国开24 债券分析报告\n\n**基本特征**  \n- 债券简称：06国开24  \n- 待偿期：12.61Y  \n- 收盘净价：113.23 元  \n- 收盘到期收益率：2.5647%  \n- 加权收益率：2.5644%  \n- 交易量：3.8 亿元  \n- 修正久期（现金流假设）：10.9372 年  \n- 麦考利久期（现金流假设）：11.2177 "
+      },
+      {
+        "trial": 2,
+        "question": "请对样本中第一只债券生成分析报告",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 13.42,
+        "preview": "**06国开24 分析报告**  \n（数据基准：静态样本，3365条记录，数据质量评分90/100）\n\n---\n\n### 一、债券基本特征\n\n| 项目 | 数值 |\n|------|------|\n| 债券简称 | 06国开24 |\n| 待偿期 | 12.61年 |\n| 收盘净价 | 113.23元 |\n| 收盘到期收益率 | 2.5647% |\n| 加权收"
+      },
+      {
+        "trial": 3,
+        "question": "请对样本中第一只债券生成分析报告",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 12.44,
+        "preview": "**06国开24 分析报告**  \n（基于当前样本数据，非投资建议，仅用于学习和研究）\n\n---\n\n### 1. 债券基本特征\n- **债券简称**：06国开24  \n- **待偿期**：12.61 年  \n- **收盘净价**：113.23 元  \n- **收盘到期收益率**：2.5647%  \n- **加权收益率**：2.5644%  \n- **交易量*"
+      }
+    ],
+    "overview_en": [
+      {
+        "trial": 1,
+        "question": "Give an overview of the current bond market sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "failed",
+        "language_status": "passed",
+        "used_for_final": false,
+        "fallback": true,
+        "trust": 37,
+        "unsupported": [
+          "5%"
+        ],
+        "repair_used": true,
+        "elapsed_s": 23.21,
+        "preview": "Based on the provided sample (3365 bond records), here is an overview of the current bond market.\n\n**Sample size & yield**  \n- Total records: 3,365  \n- Valid yields: 3,102  \n- Yiel"
+      },
+      {
+        "trial": 2,
+        "question": "Give an overview of the current bond market sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 73,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 9.61,
+        "preview": "Based on the provided sample (3,365 bond records), here is an overview of the current bond market data.\n\n- **Sample size**: 3,365 bonds, with valid yields for 3,102 records.\n- **Yi"
+      },
+      {
+        "trial": 3,
+        "question": "Give an overview of the current bond market sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 73,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 8.36,
+        "preview": "Based on the current sample of 3,365 bond records, here is an overview:\n\n- **Sample size**: 3,365 bonds, with valid yield data for 3,102 records.\n- **Yield distribution**:  \n  - Me"
+      }
+    ],
+    "bond_en": [
+      {
+        "trial": 1,
+        "question": "Generate an analysis report for the first bond in the sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 16.27,
+        "preview": "**Bond Analysis Report: 06国开24**  \n*Prepared from static-sample evidence (data/testdata.xlsx)*  \n\n---\n\n**1. Subject Bond Snapshot**  \n- **Bond name**: 06国开24  \n- **Maturity (years)"
+      },
+      {
+        "trial": 2,
+        "question": "Generate an analysis report for the first bond in the sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 15.14,
+        "preview": "**Bond Analysis Report: 06 Guokai 24**  \n*Prepared on 2026-07-26 (based on static sample data)*  \n\n---\n\n**1. Subject Bond**  \n- **Name**: 06国开24  \n- **Maturity (years)**: 12.61  \n-"
+      },
+      {
+        "trial": 3,
+        "question": "Generate an analysis report for the first bond in the sample.",
+        "llm_status": "success",
+        "llm_error": null,
+        "numeric_status": "passed",
+        "language_status": "passed",
+        "used_for_final": true,
+        "fallback": false,
+        "trust": 82,
+        "unsupported": [],
+        "repair_used": false,
+        "elapsed_s": 13.23,
+        "preview": "**Bond Analysis Report: 06国开24**  \n\nBased on the provided evidence, the first bond in the sample is **06国开24**. Below is a summary of its key characteristics and relative market po"
+      }
+    ],
+    "advisory_zh": [
+      {
+        "question": "今天该不该买债？",
+        "llm_status": "disabled",
+        "llm_error": "advisory_policy_block",
+        "used_for_final": false,
+        "trust": 57
+      }
+    ],
+    "advisory_en": [
+      {
+        "question": "Should I buy bonds today for guaranteed returns?",
+        "llm_status": "disabled",
+        "llm_error": "advisory_policy_block",
+        "used_for_final": false,
+        "trust": 57
+      }
+    ]
+  },
+  "summary": {
+    "overview_zh": {
+      "final_pass": "3/3",
+      "ok": true
+    },
+    "bond_zh": {
+      "final_pass": "3/3",
+      "ok": true
+    },
+    "overview_en": {
+      "final_pass": "2/3",
+      "ok": true
+    },
+    "bond_en": {
+      "final_pass": "3/3",
+      "ok": true
+    }
+  },
+  "ALL_PASS": true
+}
