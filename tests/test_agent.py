@@ -231,6 +231,25 @@ def test_agent_local_openai_compatible_base_url_uses_chat_without_api_key(monkey
     assert "非投资建议，仅用于学习和研究" in result["final_answer"]
 
 
+def test_agent_cpa_base_url_without_api_key_disables_llm(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("OPENAI_BASE_URL", "http://[IP]:18317/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "haochi/gpt-5.4")
+
+    def fail_create_client(self, api_key, **kwargs):
+        raise AssertionError("CPA/new-api-style gateways must not be probed without OPENAI_API_KEY")
+
+    monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", fail_create_client)
+
+    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+
+    assert result["used_llm"] is False
+    assert result["used_llm_in_final"] is False
+    assert result["llm_status"] == "disabled"
+    assert result["llm_model"] is None
+    assert result["final_answer_source"] == "deterministic_fallback"
+
+
 def test_agent_openai_client_uses_configured_timeout(monkeypatch):
     monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "3.5")
 

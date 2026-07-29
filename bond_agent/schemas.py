@@ -211,6 +211,7 @@ class AgentResponse(BaseModel):
     used_llm: bool
     used_llm_in_final: bool
     llm_status: LLMStatus
+    llm_model: str | None = None
     llm_error: str | None = None
     disclaimer: str
     replay_id: str | None = None

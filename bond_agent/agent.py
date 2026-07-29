@@ -46,6 +46,23 @@ class BondAnalystAgent:
         self.data_mode = data_mode or os.environ.get("BOND_DATA_MODE", "auto")
         self.live_fetcher = live_fetcher
 
+    def _resolve_api_key(self, base_url: str | None) -> str | None:
+        """Resolve LLM credentials without probing paid/local gateways keylessly."""
+        explicit_key = os.environ.get("OPENAI_API_KEY")
+        if explicit_key:
+            return explicit_key
+        if self._base_url_allows_keyless_llm(base_url):
+            return "local-not-needed"
+        return None
+
+    @staticmethod
+    def _base_url_allows_keyless_llm(base_url: str | None) -> bool:
+        """Allow keyless local runtimes such as Ollama, not CPA/new-api-style gateways."""
+        if not base_url:
+            return False
+        normalized = base_url.strip().lower()
+        return any(host in normalized for host in ("localhost", "127.0.0.1", "[::1]")) or ":11434" in normalized
+
     def answer(self, question: str) -> dict:
         question = question.strip() or "请概览当前债券市场样本。"
         data_frame, data_source = resolve_bond_data(
@@ -225,6 +242,7 @@ class BondAnalystAgent:
             "used_llm": llm_result["status"] == "success",
             "used_llm_in_final": use_llm_final,
             "llm_status": llm_result["status"],
+            "llm_model": llm_result.get("model"),
             "llm_error": llm_result["error"],
             "disclaimer": DISCLAIMER,
             "replay_id": None,
@@ -298,7 +316,7 @@ class BondAnalystAgent:
 
     def _try_llm_answer(self, question: str, plan: dict, report: dict) -> dict:
         base_url = os.environ.get("OPENAI_BASE_URL")
-        api_key = os.environ.get("OPENAI_API_KEY") or ("local-not-needed" if base_url else None)
+        api_key = self._resolve_api_key(base_url)
         if not api_key:
             return {"text": None, "status": "disabled", "error": None}
 
@@ -360,7 +378,7 @@ class BondAnalystAgent:
     ) -> dict:
         """One-shot rewrite when numeric guardrail fails on residual unit/invention issues."""
         base_url = os.environ.get("OPENAI_BASE_URL")
-        api_key = os.environ.get("OPENAI_API_KEY") or ("local-not-needed" if base_url else None)
+        api_key = self._resolve_api_key(base_url)
         if not api_key or not draft_text:
             return {"text": None, "status": "disabled", "error": None}
 
@@ -1163,6 +1181,7 @@ class BondAnalystAgent:
             "used_llm": llm_result["status"] == "success",
             "used_llm_in_final": use_llm_final,
             "llm_status": llm_result["status"],
+            "llm_model": llm_result.get("model"),
             "llm_error": llm_result["error"],
             "disclaimer": DISCLAIMER,
             "replay_id": None,
@@ -1188,7 +1207,7 @@ class BondAnalystAgent:
     def _iter_llm_answer_events(self, question: str, plan: dict, report: dict):
         """Yield token events then a final llm_result event for streaming UIs."""
         base_url = os.environ.get("OPENAI_BASE_URL")
-        api_key = os.environ.get("OPENAI_API_KEY") or ("local-not-needed" if base_url else None)
+        api_key = self._resolve_api_key(base_url)
         if not api_key:
             yield {"type": "llm_result", "result": {"text": None, "status": "disabled", "error": None}}
             return

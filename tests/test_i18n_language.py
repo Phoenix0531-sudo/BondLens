@@ -39,6 +39,24 @@ def test_agent_page_lang_en_sets_cookie_and_html_lang():
     assert "window.applyLanguage = applyLanguage" in body
 
 
+def test_rendered_result_carries_bilingual_dynamic_panels():
+    client = app.test_client()
+    response = client.post(
+        "/agent",
+        data={"question": "当前样本收益率分布是什么样？", "data_mode": "static", "lang": "zh"},
+    )
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "data-lineage-translations" in body
+    assert "Repository static sample; not a live market clock." in body
+    assert "data-maturity-board-title" in body
+    assert "Maturity Enrichment Board" in body
+    assert "data-maturity-board-note" in body
+    assert "LLM 模型" in body
+    assert "LLM model" in body
+
+
 def test_advisory_refusal_english_skeleton():
     from bond_agent.agent import BondAnalystAgent
 

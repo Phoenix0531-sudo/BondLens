@@ -302,6 +302,48 @@
                     }
                 }
 
+                const lineageTranslations = document.getElementById("data-lineage-translations");
+                if (lineageTranslations) {
+                    try {
+                        const payload = JSON.parse(lineageTranslations.textContent || "{}");
+                        const active = payload[activeLang] || payload.zh || {};
+                        const title = document.querySelector("[data-lineage-title]");
+                        const subtitle = document.querySelector("[data-lineage-freshness]");
+                        const runtime = document.querySelector("[data-lineage-runtime]");
+                        const fetched = document.querySelector("[data-lineage-fetched]");
+                        if (title && active.title) title.textContent = active.title;
+                        if (subtitle && active.freshness) subtitle.textContent = active.freshness;
+                        if (runtime && active.runtime_label) runtime.textContent = active.runtime_label;
+                        if (fetched && active.fetched_at_label) {
+                            fetched.textContent = activeLang === "en"
+                                ? `Fetched ${active.fetched_at_label}`
+                                : `获取 ${active.fetched_at_label}`;
+                        }
+                        document.querySelectorAll("[data-lineage-lines] li").forEach((item, index) => {
+                            const line = (active.lines || [])[index];
+                            if (line) item.textContent = line;
+                        });
+                    } catch {
+                        /* keep current text */
+                    }
+                }
+
+                const maturityTranslations = document.getElementById("maturity-board-translations");
+                if (maturityTranslations) {
+                    try {
+                        const payload = JSON.parse(maturityTranslations.textContent || "{}");
+                        const active = payload[activeLang] || payload.zh || {};
+                        const title = document.querySelector("[data-maturity-board-title]");
+                        const subtitle = document.querySelector("[data-maturity-board-subtitle]");
+                        const note = document.querySelector("[data-maturity-board-note]");
+                        if (title && active.title) title.textContent = active.title;
+                        if (subtitle && active.subtitle) subtitle.textContent = active.subtitle;
+                        if (note && active.note) note.textContent = active.note;
+                    } catch {
+                        /* keep current text */
+                    }
+                }
+
                 document.querySelectorAll("[data-language-option]").forEach((button) => {
                     button.setAttribute("aria-pressed", button.dataset.languageOption === activeLang ? "true" : "false");
                 });

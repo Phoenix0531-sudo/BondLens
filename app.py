@@ -439,6 +439,16 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
     trust = result.get("trust_score") or {}
     stress = result.get("stress_view") or {}
     pack_id = result.get("evidence_pack_id")
+    data_lineage = _build_data_lineage_view(data_source, lang)
+    data_lineage_by_lang = {
+        "zh": _build_data_lineage_view(data_source, "zh"),
+        "en": _build_data_lineage_view(data_source, "en"),
+    }
+    maturity_board = _build_maturity_board(data_source, lang)
+    maturity_board_by_lang = {
+        "zh": _build_maturity_board(data_source, "zh"),
+        "en": _build_maturity_board(data_source, "en"),
+    }
     return {
         "metrics": [
             _metric("Trust Score", "信任分", trust.get("score"), lang, "/100"),
@@ -449,8 +459,10 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             _metric("Median Yield", "收益率中位数", summary.get("median"), lang, "%"),
             _metric("Evidence Score", "证据评分", result.get("evidence_quality", {}).get("score"), lang, "/100"),
             _metric("Final Source", "最终来源", _localized_status(result.get("final_answer_source", "unknown"), lang), lang),
+            _metric("LLM model", "LLM 模型", result.get("llm_model") or "N/A", lang),
         ],
-        "data_lineage": _build_data_lineage_view(data_source, lang),
+        "data_lineage": data_lineage,
+        "data_lineage_by_lang": data_lineage_by_lang,
         "answer_provenance": _build_answer_provenance_view(result, lang),
         "trust_score": trust.get("score"),
         "trust_level": trust.get("level"),
@@ -518,7 +530,8 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             "zh": _maturity_honesty_note(data_source, "zh"),
             "en": _maturity_honesty_note(data_source, "en"),
         },
-        "maturity_board": _build_maturity_board(data_source, lang),
+        "maturity_board": maturity_board,
+        "maturity_board_by_lang": maturity_board_by_lang,
         "maturity_unmatched_records": _localize_bond_records((maturity_coverage.get("unmatched_records") or [])[:20], lang),
         "maturity_export_csv_url": _maturity_export_url("csv", data_source),
         "maturity_export_json_url": _maturity_export_url("json", data_source),

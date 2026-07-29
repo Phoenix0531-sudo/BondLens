@@ -1571,6 +1571,7 @@
           {% if view.data_lineage and view.data_lineage.fetched_at_label %}
             <span class="badge" data-lang-zh="获取 {{ view.data_lineage.fetched_at_label }}" data-lang-en="Fetched {{ view.data_lineage.fetched_at_label }}">获取 {{ view.data_lineage.fetched_at_label }}</span>
           {% endif %}
+          <span class="badge" data-lang-zh="LLM 模型 {{ result.llm_model or 'N/A' }}" data-lang-en="LLM model {{ result.llm_model or 'N/A' }}">LLM 模型 {{ result.llm_model or 'N/A' }}</span>
           {% if view.answer_provenance %}
             <span class="badge {% if view.answer_provenance.tone == 'good' %}good{% elif view.answer_provenance.tone == 'warn' %}warn{% endif %}" data-lang-zh="{{ view.answer_provenance.headline }}" data-lang-en="{{ view.answer_provenance.headline }}">{{ view.answer_provenance.headline }}</span>
           {% endif %}
@@ -1636,20 +1637,21 @@
       <section class="surface" style="margin:0">
         <div class="surface-header">
           <div>
-            <h2 class="surface-title" data-lang-zh="数据新鲜度" data-lang-en="Data freshness">数据新鲜度</h2>
-            <p class="surface-subtitle">{{ view.data_lineage.freshness }}</p>
+            <h2 class="surface-title" data-lineage-title data-lang-zh="数据新鲜度" data-lang-en="Data freshness">数据新鲜度</h2>
+            <p class="surface-subtitle" data-lineage-freshness>{{ view.data_lineage.freshness }}</p>
           </div>
           <div class="badge-row" style="margin-top:0">
-            <span class="badge">{{ view.data_lineage.runtime_label }}</span>
-            <span class="badge" data-lang-zh="获取 {{ view.data_lineage.fetched_at_label }}" data-lang-en="Fetched {{ view.data_lineage.fetched_at_label }}">获取 {{ view.data_lineage.fetched_at_label }}</span>
+            <span class="badge" data-lineage-runtime>{{ view.data_lineage.runtime_label }}</span>
+            <span class="badge" data-lineage-fetched data-lang-zh="获取 {{ view.data_lineage.fetched_at_label }}" data-lang-en="Fetched {{ view.data_lineage.fetched_at_label }}">获取 {{ view.data_lineage.fetched_at_label }}</span>
           </div>
         </div>
         <div class="surface-body">
-          <ul class="quality-issue-list">
+          <ul class="quality-issue-list" data-lineage-lines>
             {% for item in view.data_lineage.lines %}
               <li>{{ item }}</li>
             {% endfor %}
           </ul>
+          <script id="data-lineage-translations" type="application/json">{{ view.data_lineage_by_lang | tojson }}</script>
         </div>
       </section>
       {% endif %}
@@ -1973,8 +1975,8 @@
     <section class="surface">
       <div class="surface-header">
         <div>
-          <h2 class="surface-title" data-lang-zh="期限补全看板" data-lang-en="Maturity Enrichment Board">期限补全看板</h2>
-          <p class="surface-subtitle">{{ view.maturity_board.subtitle }}</p>
+          <h2 class="surface-title" data-maturity-board-title data-lang-zh="期限补全看板" data-lang-en="Maturity Enrichment Board">期限补全看板</h2>
+          <p class="surface-subtitle" data-maturity-board-subtitle>{{ view.maturity_board.subtitle }}</p>
         </div>
         <div class="badge-row" style="margin-top:0">
           <span class="badge {% if view.maturity_board.coverage_ratio is not none and view.maturity_board.coverage_ratio >= 0.8 %}good{% elif view.maturity_board.coverage_ratio is not none and view.maturity_board.coverage_ratio < 0.5 %}warn{% endif %}">{{ view.maturity_board.coverage_text }}</span>
@@ -2041,8 +2043,9 @@
         <div class="maturity-board-actions">
           <a class="action-link" href="{{ view.maturity_export_csv_url }}" data-lang-zh="导出未匹配 CSV" data-lang-en="Export unmatched CSV">导出未匹配 CSV</a>
           <a class="action-link" href="{{ view.maturity_export_json_url }}" data-lang-zh="导出未匹配 JSON" data-lang-en="Export unmatched JSON">导出未匹配 JSON</a>
-          <span class="badge" data-lang-zh="{{ view.maturity_board.note }}" data-lang-en="{{ view.maturity_note_by_lang.en }}">{{ view.maturity_board.note }}</span>
+          <span class="badge" data-maturity-board-note data-lang-zh="{{ view.maturity_board_by_lang.zh.note }}" data-lang-en="{{ view.maturity_board_by_lang.en.note }}">{{ view.maturity_board.note }}</span>
         </div>
+        <script id="maturity-board-translations" type="application/json">{{ view.maturity_board_by_lang | tojson }}</script>
       </div>
     </section>
     {% endif %}
