@@ -24,14 +24,24 @@ def test_agent_page_exposes_language_switch():
     assert 'data-language-option="en"' in html
     assert "智能体控制台" in html
     assert "Agent Console" in html
-    # Console config (not only header) must expose language controls.
-    assert 'id="ui_lang"' in html
-    assert "data-language-select" in html
-    assert "界面语言" in html
-    assert "UI language" in html
+    # The header is the single language switch; the console should not duplicate it.
+    assert 'id="ui_lang"' not in html
+    assert "data-language-select" not in html
+    assert "界面语言" not in html
     assert "window.applyLanguage = applyLanguage" in html
-    assert html.count('data-language-option="zh"') >= 2
-    assert html.count('data-language-option="en"') >= 2
+    assert html.count('data-language-option="zh"') == 1
+    assert html.count('data-language-option="en"') == 1
+
+
+def test_common_agent_url_typo_redirects():
+    client = app.test_client()
+
+    response = client.get("/agen?lang=zh&data_mode=static")
+
+    assert response.status_code == 302
+    assert "/agent" in response.headers["Location"]
+    assert "lang=zh" in response.headers["Location"]
+    assert "data_mode=static" in response.headers["Location"]
 
 
 def test_agent_page_shows_submit_busy_state_hooks():

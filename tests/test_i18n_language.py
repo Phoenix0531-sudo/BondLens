@@ -32,10 +32,11 @@ def test_agent_page_lang_en_sets_cookie_and_html_lang():
     body = response.get_data(as_text=True)
     assert 'data-initial-lang="en"' in body
     assert "bondlens_lang=en" in response.headers.get("Set-Cookie", "")
-    # Console language select mirrors active language.
-    assert 'id="ui_lang"' in body
-    assert 'option value="en"' in body
-    assert 'selected' in body
+    # Only the global header switch remains; the console no longer duplicates language controls.
+    assert 'id="ui_lang"' not in body
+    assert "data-language-select" not in body
+    assert body.count('data-language-option="zh"') == 1
+    assert body.count('data-language-option="en"') == 1
     assert "window.applyLanguage = applyLanguage" in body
 
 

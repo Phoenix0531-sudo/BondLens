@@ -124,39 +124,13 @@
 
   .console-config-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(140px, 0.85fr);
+    grid-template-columns: 1fr;
     gap: 12px;
     margin-bottom: 16px;
   }
 
   .console-config-grid .form-field {
     margin-bottom: 0;
-  }
-
-  .language-field-row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .language-field-row select {
-    flex: 1 1 auto;
-    min-width: 0;
-  }
-
-  .query-console .language-switch {
-    flex: 0 0 auto;
-    border-color: rgba(255, 253, 248, 0.24);
-    background: rgba(16, 26, 22, 0.92);
-  }
-
-  .query-console .language-option {
-    color: #b7c7c1;
-  }
-
-  .query-console .language-option[aria-pressed="true"] {
-    background: var(--amber);
-    color: #17120b;
   }
 
   .config-hint {
@@ -973,20 +947,6 @@
             <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="Live：中国货币网现券成交（原生待偿期）" data-lang-en="Live: ChinaMoney spot deals (native residual maturity)">Live：中国货币网现券成交（原生待偿期）</option>
             <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
           </select>
-        </div>
-        <div class="form-field">
-          <label for="ui_lang" data-lang-zh="界面语言" data-lang-en="UI language">界面语言</label>
-          <div class="language-field-row">
-            <select id="ui_lang" data-language-select aria-label="UI language">
-              <option value="zh" {% if lang != 'en' %}selected{% endif %} data-lang-zh="中文" data-lang-en="Chinese">中文</option>
-              <option value="en" {% if lang == 'en' %}selected{% endif %} data-lang-zh="English" data-lang-en="English">English</option>
-            </select>
-            <div class="language-switch compact" aria-label="Language switch">
-              <button class="language-option" type="button" data-language-option="zh" aria-pressed="{{ 'true' if lang != 'en' else 'false' }}">中</button>
-              <button class="language-option" type="button" data-language-option="en" aria-pressed="{{ 'true' if lang == 'en' else 'false' }}">EN</button>
-            </div>
-          </div>
-          <p class="config-hint" data-lang-zh="与页头切换同步；记忆 query / cookie / localStorage，默认中文。" data-lang-en="Synced with the header switch; remembers query / cookie / localStorage; default Chinese.">与页头切换同步；记忆 query / cookie / localStorage，默认中文。</p>
         </div>
       </div>
       <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>

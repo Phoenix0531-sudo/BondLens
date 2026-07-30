@@ -33,6 +33,8 @@ from bond_agent.schemas import AgentQueryRequest, ApiError, HealthResponse, api_
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key-change-me")
+app.config["TEMPLATES_AUTO_RELOAD"] = True
+app.jinja_env.auto_reload = True
 DATA_MODES = {"auto", "live", "static"}
 LANGUAGES = {"zh", "en"}
 
@@ -63,6 +65,15 @@ _RESULT_CACHE_LOCK = Lock()
 @app.route("/")
 def index():
     return redirect(url_for("agent_page"))
+
+
+@app.route("/agen")
+def agent_page_typo_redirect():
+    """Redirect the common missing-`t` demo URL typo back to the agent page."""
+    target = url_for("agent_page")
+    if request.query_string:
+        target = f"{target}?{request.query_string.decode('utf-8', errors='ignore')}"
+    return redirect(target)
 
 
 @app.context_processor
