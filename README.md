@@ -46,7 +46,7 @@ Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531
 | Market overview | Sample yield / volume board + trust-facing pack | [demo-market-overview.html](docs/demo_runs/demo-market-overview.html) |
 | Single-bond report | First-bond style report with evidence body | [demo-bond-report.html](docs/demo_runs/demo-bond-report.html) |
 | Yield outliers | Cross-section outlier monitor pack | [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html) |
-| LLM final-answer matrix | Recorded deepseek path (zh/en × overview/bond) | [llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md) |
+| LLM final-answer matrix | Recorded CPA path (zh/en × overview/bond) | [llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md) |
 
 Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
@@ -136,45 +136,68 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 
 ## Screenshots
 
-Captured on the live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
-Narrative: **can answer · can go deep · will refuse · can audit**.
+Captured on the current live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
+Narrative: **can answer · can go deep · will refuse · can rank · can switch languages · can audit**.
 
 How to read the shots:
 
 1. **Trust** is process/evidence confidence, not trade confidence.
 2. **Advisory** is a policy block (no LLM), not a disclaimer-only soft refuse.
 3. **Numbers** come from tools; if the model fails guardrail, the final answer is deterministic.
+4. **Language** is controlled by the single header `中 / EN` switch with query/cookie memory.
 
-Older workbench images remain under `docs/screenshots/` for history only.
+Older workbench images remain under `docs/screenshots/` for history only. Current product shots live in `docs/screenshots/current/`.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/overview-zh.png" alt="Chinese market overview with trust score and evidence">
-      <br><strong>Can answer — market overview</strong>
-      <br><code>当前债券市场样本概览如何？</code>
+      <img src="docs/screenshots/current/01-agent-zh-home.png" alt="Chinese BondLens agent console with a single header language switch">
+      <br><strong>Default Chinese — clean agent console</strong>
+      <br>Single header language switch; no duplicate console selector.
     </td>
     <td width="50%">
-      <img src="docs/screenshots/bond-report-zh.png" alt="Chinese single-bond report request and trust panel">
-      <br><strong>Can go deep — single-bond report</strong>
-      <br><code>请对样本中第一只债券生成分析报告</code>
+      <img src="docs/screenshots/current/02-overview-zh-live.png" alt="Chinese market overview with live trust score, evidence, monitor board and data lineage">
+      <br><strong>Can answer — market overview</strong>
+      <br><code>当前债券市场样本概览如何？</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/advisory-refusal.png" alt="Advisory policy block without LLM">
+      <img src="docs/screenshots/current/03-bond-report-zh-clean.png" alt="Chinese single-bond report request and trust panel">
+      <br><strong>Can go deep — single-bond report</strong>
+      <br><code>请对样本中第一只债券生成分析报告</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/04-advisory-refusal-zh.png" alt="Advisory policy block without LLM">
       <br><strong>Will refuse — advisory policy block</strong>
       <br><code>今天该不该买债？</code> → Trust ≤72, no LLM
     </td>
+  </tr>
+  <tr>
     <td width="50%">
-      <img src="docs/screenshots/replay-dashboard.png" alt="Replay dashboard for auditable run history">
+      <img src="docs/screenshots/current/05-ranking-zh-live.png" alt="Chinese highest-yield ranking result with evidence metrics">
+      <br><strong>Can rank — high-yield evidence list</strong>
+      <br><code>收益率最高的债券是哪只？</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/06-agent-en-home.png" alt="English BondLens agent console with EN selected">
+      <br><strong>English UI — same console, switched language</strong>
+      <br>Header `EN` drives the product surface.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/current/07-overview-en-live.png" alt="English market overview result with trust score and deterministic final source">
+      <br><strong>English answer path — overview</strong>
+      <br><code>Give an overview of the current bond market sample.</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="Replay dashboard for auditable run history">
       <br><strong>Can audit — replay / evidence path</strong>
-      <br>Replay dashboard for past runs (traceable output)
+      <br>Replay dashboard for past runs (traceable output).
     </td>
   </tr>
 </table>
-
-English UI (header 中/EN switch) is covered under [Language (i18n)](#language-i18n); historical EN shot: [agent-en.png](docs/screenshots/agent-en.png).
 
 ---
 
@@ -224,11 +247,10 @@ python app.py
 Optional LLM polish (never required):
 
 ```bash
-export OPENAI_API_KEY=[密钥]
-export OPENAI_BASE_URL=http://[IP]:31876/v1   # example: local OpenAI-compatible gateway (new-api)
-export OPENAI_MODEL=deepseek-v4-flash-search  # verified on this host; gpt/grok often unavailable
+export OPENAI_API_KEY=... OPENAI_BASE_URL=http://127.0.0.1:18317/v1   # example: local CPA/OpenAI-compatible gateway
+export OPENAI_MODEL=haochi/gpt-5.4
 export OPENAI_API_STYLE=chat
-export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # optional; /models probe reorders live ids
+export OPENAI_MODEL_FALLBACKS=haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search   # optional
 # Keys stay in process env only. Do not commit secrets.
 ```
 
@@ -237,7 +259,7 @@ export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # optional; /models probe 
 ## Language (i18n)
 
 - Default UI language: **Chinese**
-- Explicit switch in two places: page header (中 / EN) and Agent console config (**UI language** next to data mode)
+- Explicit switch in one place: the page header (`中 / EN`)
 - Persistence: `?lang=zh|en` query wins, then `bondlens_lang` cookie, else `zh` (localStorage mirrors client-side)
 - Covers templates, intent/tool labels, deterministic report skeleton, advisory refusal, and flash/error copy
 - LLM system prompts follow the active language; logs stay developer-facing and are not fully bilingual
@@ -391,37 +413,27 @@ If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallba
 
 ### Current working path (2026-07)
 
-Recorded against local **new-api** (`http://127.0.0.1:31876/v1`) with model
-**`deepseek-v4-flash-search`**, `BOND_DATA_MODE=static`, `temperature=0`, one-shot
-numeric repair when guardrail fails.
+Recorded against local **CPA/OpenAI-compatible gateway** (`http://127.0.0.1:18317/v1`) with model
+**`haochi/gpt-5.4`**, `BOND_DATA_MODE=static`, `OPENAI_API_STYLE=chat`, and fallback candidates
+`haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search`.
 Stable first bond for report questions: **06国开24** (bond-name ascending, mergesort).
 
-Full table: [docs/demo_runs/llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md)
-· raw: [llm_matrix_deepseek_v4.json](docs/demo_runs/llm_matrix_deepseek_v4.json)
+Full table: [docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md).
 
 | Scenario | Lang | Threshold | Result | Notes |
 | --- | --- | --- | --- | --- |
-| overview | zh | 3/3 final LLM | **3/3** | direct pass |
-| bond report | zh | 3/3 final LLM | **3/3** | direct pass |
-| overview | en | >=2/3 | **2/3** | 1 residual invented `5%`; repair may recover |
-| bond report | en | >=2/3 | **3/3** | residual duration%/percentile invents caught by guardrail + repair |
-
-Historical `grok-4.5` matrix (same thresholds, earlier channel):
-[docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md).
-On this host, `gpt-5.4*` / `grok-4.5` channels are often unavailable or timeout;
-**deepseek-v4-flash-search** is the currently verified chat model.
+| overview | zh | 3/3 final LLM | **3/3** | `haochi/gpt-5.4`, guardrail passed |
+| bond report | zh | 3/3 final LLM | **3/3** | stable first bond `06国开24` |
+| overview | en | >=2/3 | **3/3** | stronger than the threshold |
+| bond report | en | >=2/3 | **3/3** | stronger than the threshold |
+| advisory block | zh/en | never final LLM | **2/2 blocked** | deterministic policy refusal, no LLM final |
 
 Honest residuals:
 
-- Provider channel churn still forces deterministic fallback when models vanish
-- Guardrails stay on; unsupported numbers never become final
-- English overviews may still invent bare shares like `5%` under channel noise; prompt + `market_focus_numbers` reduce this, guardrail still fails closed
-- One-shot repair rewrites only after a failed numeric check; not a free pass
-- End-to-end latency often 8–25s on deepseek; repair path can exceed 40s
-- Soft-render shows a summary card; full dashboard tables remain on `result_url`
-- Not implemented: WebSocket tick feed, true OAS / full call-tree perpetual pricing, desktop GUI/CLI
-
-This matrix is evidence of a working path, **not** a zero-bug claim.
+- Provider channel churn can still force deterministic fallback when models vanish.
+- Guardrails stay on; unsupported numbers never become final.
+- The product still works without an API key through deterministic reports.
+- This is evidence of a working path, **not** a zero-bug claim.
 
 ---
 

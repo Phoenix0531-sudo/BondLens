@@ -46,7 +46,7 @@
 | 市场概览 | 样本收益/成交看板 + 审查向 pack | [demo-market-overview.html](docs/demo_runs/demo-market-overview.html) |
 | 单券报告 | 首券风格报告与证据正文 | [demo-bond-report.html](docs/demo_runs/demo-bond-report.html) |
 | 收益异常 | 截面异常监控 pack | [demo-yield-outliers.html](docs/demo_runs/demo-yield-outliers.html) |
-| LLM 终答矩阵 | 已记录的 deepseek 路径（中英 × 概览/单券） | [llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md) |
+| LLM 终答矩阵 | 已记录的 CPA 路径（中英 × 概览/单券） | [llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md) |
 
 同目录还有对应 JSON：[docs/demo_runs/](docs/demo_runs/)。
 
@@ -92,17 +92,6 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 6. 可选 LLM 润色（需通过数值与语言护栏）
 7. 打信任分、导出 Evidence Pack、写入回放摘要
 
-### 产品界面（答案优先）
-
-- **首屏答案摘要**：3 句结论 + 关键指标；完整正文默认折叠
-- **SSE 流式 + 软渲染终态**：工具阶段进度、token 预览、最终摘要卡无需强制整页跳转；完整看板仍可通过 `result_url`
-- **双语 UI（默认中文）**：query/cookie 记忆语言，显式中/英切换，溯源行双语
-- **券种结构 + 期限分桶**：保守名称规则，不做评级推断
-- **同业可比**：同券种 + 同期限分桶相对利差
-- **截面监控面板**：高收益 / 低成交 / 收益异常 / 缺期限
-- **期限 / 残期看板**：覆盖率、现金流教学久期/DV01、永续双情景（首段有限 + 理论永续）
-- **信任分 + 运行压力 + 审计折叠**：护栏 / 评审 / 风险 / 账本默认收起
-
 ---
 
 ## 架构
@@ -137,45 +126,68 @@ flowchart TD
 
 ## 项目截图
 
-在 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
-叙事：**能答 · 能深 · 会拒 · 可审**。
+在当前 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
+叙事：**能答 · 能深 · 会拒 · 会排序 · 可双语 · 可审**。
 
 怎么看这些图：
 
 1. **Trust** 是过程/证据信任，不是买卖信心。
 2. **投顾类** 是策略拦截（不调 LLM），不是只靠免责声明。
 3. **数字** 来自工具；模型过不了护栏时，最终答案回退到确定性报告。
+4. **语言** 只由页头 `中 / EN` 控制，并通过 query/cookie 记忆。
 
-旧工作台图片仍保留在 `docs/screenshots/` 作历史参考。
+旧工作台图片仍保留在 `docs/screenshots/` 作历史参考；当前产品图集中在 `docs/screenshots/current/`。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/overview-zh.png" alt="中文市场概览：信任分与证据">
-      <br><strong>能答 — 市场概览</strong>
-      <br><code>当前债券市场样本概览如何？</code>
+      <img src="docs/screenshots/current/01-agent-zh-home.png" alt="中文 BondLens 智能体控制台，只有页头语言切换">
+      <br><strong>默认中文 — 干净控制台</strong>
+      <br>只有页头语言切换；控制台不再重复放语言选择器。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/bond-report-zh.png" alt="中文单券报告请求与信任面板">
-      <br><strong>能深 — 单券报告</strong>
-      <br><code>请对样本中第一只债券生成分析报告</code>
+      <img src="docs/screenshots/current/02-overview-zh-live.png" alt="中文市场概览：实时信任分、证据、监控面板与数据血缘">
+      <br><strong>能答 — 市场概览</strong>
+      <br><code>当前债券市场样本概览如何？</code>
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/advisory-refusal.png" alt="投顾类拦截，不调用 LLM">
+      <img src="docs/screenshots/current/03-bond-report-zh-clean.png" alt="中文单券报告请求与信任面板">
+      <br><strong>能深 — 单券报告</strong>
+      <br><code>请对样本中第一只债券生成分析报告</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/04-advisory-refusal-zh.png" alt="投顾类拦截，不调用 LLM">
       <br><strong>会拒 — 投顾策略拦截</strong>
       <br><code>今天该不该买债？</code> → Trust ≤72，不调 LLM
     </td>
+  </tr>
+  <tr>
     <td width="50%">
-      <img src="docs/screenshots/replay-dashboard.png" alt="可审计回放看板">
+      <img src="docs/screenshots/current/05-ranking-zh-live.png" alt="中文最高收益排序结果与证据指标">
+      <br><strong>会排序 — 高收益证据清单</strong>
+      <br><code>收益率最高的债券是哪只？</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/06-agent-en-home.png" alt="英文 BondLens 智能体控制台，EN 已选中">
+      <br><strong>英文界面 — 同一控制台切换语言</strong>
+      <br>页头 `EN` 驱动产品界面。
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="docs/screenshots/current/07-overview-en-live.png" alt="英文市场概览结果：信任分与确定性最终来源">
+      <br><strong>英文问答链路 — 市场概览</strong>
+      <br><code>Give an overview of the current bond market sample.</code>
+    </td>
+    <td width="50%">
+      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="可审计回放看板">
       <br><strong>可审 — 回放 / 证据路径</strong>
-      <br>历史运行回放看板（可追溯输出）
+      <br>历史运行回放看板（可追溯输出）。
     </td>
   </tr>
 </table>
-
-英文 UI（页头 中/EN 切换）见「语言（i18n）」；历史 EN 截图：[agent-en.png](docs/screenshots/agent-en.png)。
 
 ---
 
@@ -225,11 +237,10 @@ python app.py
 可选 LLM 润色（非必需）：
 
 ```bash
-export OPENAI_API_KEY=[密钥]
-export OPENAI_BASE_URL=http://[IP]:31876/v1   # 示例：本地 OpenAI 兼容网关（new-api）
-export OPENAI_MODEL=deepseek-v4-flash-search  # 本机已验证；gpt/grok 通道常不可用
+export OPENAI_API_KEY=... OPENAI_BASE_URL=http://127.0.0.1:18317/v1   # 示例：本地 CPA/OpenAI 兼容网关
+export OPENAI_MODEL=haochi/gpt-5.4
 export OPENAI_API_STYLE=chat
-export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # 可选；/models 探测会重排可用 id
+export OPENAI_MODEL_FALLBACKS=haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search   # 可选
 # 密钥仅放进程环境变量，禁止写入仓库
 ```
 
@@ -238,7 +249,7 @@ export OPENAI_MODEL_FALLBACKS=gpt-5.4-mini,grok-4.5   # 可选；/models 探测�
 ## 语言（i18n）
 
 - 默认界面语言：**中文**
-- 两处显式切换：页头（中 / EN）+ Agent 控制台配置区（**界面语言**，与数据源模式并排）
+- 一处显式切换：页头 `中 / EN`
 - 记忆优先级：`?lang=zh|en` 查询参数 > `bondlens_lang` cookie > 默认 `zh`（前端 localStorage 同步）
 - 覆盖范围：模板文案、意图/工具标签、确定性报告骨架、投顾类拒绝文案、flash/error 提示
 - LLM 系统提示跟随当前语言；日志仍面向开发者，不追求全双语
@@ -393,36 +404,27 @@ static -> 仅本地 Excel
 
 ### 当前可用路径（2026-07）
 
-基于本地 **new-api**（`http://[IP]:31876/v1`）、模型 **`deepseek-v4-flash-search`**、
-`BOND_DATA_MODE=static`、`temperature=0`；护栏失败时允许一次数值修复重写。
+基于本地 **CPA/OpenAI 兼容网关**（`http://127.0.0.1:18317/v1`）、模型 **`haochi/gpt-5.4`**、
+`BOND_DATA_MODE=static`、`OPENAI_API_STYLE=chat`；备用候选为
+`haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search`。
 单券报告稳定第一只债：**06国开24**（债券简称升序，mergesort）。
 
-完整表：[docs/demo_runs/llm_matrix_deepseek_v4.md](docs/demo_runs/llm_matrix_deepseek_v4.md)
-· 原始行：[llm_matrix_deepseek_v4.json](docs/demo_runs/llm_matrix_deepseek_v4.json)
+完整表：[docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md)。
 
 | 场景 | 语言 | 门槛 | 结果 | 备注 |
 | --- | --- | --- | --- | --- |
-| 市场概览 | 中文 | 3/3 final LLM | **3/3** | 直接通过 |
-| 单券报告 | 中文 | 3/3 final LLM | **3/3** | 直接通过 |
-| 市场概览 | 英文 | >=2/3 | **2/3** | 1 次残留发明 `5%`；repair 可能救回 |
-| 单券报告 | 英文 | >=2/3 | **3/3** | 久期%/分位发明被护栏 + repair 拦住 |
-
-历史 `grok-4.5` 矩阵（相同门槛、更早通道）：
-[docs/demo_runs/llm_matrix_grok45.md](docs/demo_runs/llm_matrix_grok45.md)。
-在本机，`gpt-5.4*` / `grok-4.5` 通道常不可用或超时；
-**deepseek-v4-flash-search** 是当前已验证的 chat 模型。
+| 市场概览 | 中文 | 3/3 final LLM | **3/3** | `haochi/gpt-5.4`，护栏通过 |
+| 单券报告 | 中文 | 3/3 final LLM | **3/3** | 稳定第一只债 `06国开24` |
+| 市场概览 | 英文 | >=2/3 | **3/3** | 高于门槛 |
+| 单券报告 | 英文 | >=2/3 | **3/3** | 高于门槛 |
+| 投顾拦截 | 中/英 | 永不 final LLM | **2/2 拦截** | 确定性策略拒绝，不采用 LLM 终答 |
 
 诚实残留：
 
-- Provider 通道漂移仍会在模型消失时落到确定性回退
-- 护栏保持开启；证据外数字不会成为最终答案
-- 英文概览在通道噪声下仍可能发明 `5%` 一类 bare share；prompt + `market_focus_numbers` 降低概率，护栏仍失败关闭
-- 一次 repair 只在数值护栏失败后重写；不是无条件放行
-- deepseek 端到端延迟常见 8–25s；走 repair 时可能超过 40s
-- 软渲染是摘要卡；完整看板表格仍在 `result_url`
-- 未实现：WebSocket 行情、真 OAS / 完整含权永续定价、桌面 GUI/CLI
-
-该矩阵证明主路径可用，**不是**零缺陷声明。
+- Provider 通道漂移仍会在模型消失时落到确定性回退。
+- 护栏保持开启；证据外数字不会成为最终答案。
+- 无 API Key 时，项目仍能用确定性报告正常运行。
+- 该矩阵证明主路径可用，**不是**零缺陷声明。
 
 ---
 
