@@ -146,7 +146,7 @@ How to read the shots:
 3. **Numbers** come from tools; if the model fails guardrail, the final answer is deterministic.
 4. **Language** is controlled by the single header `中 / EN` switch with query/cookie memory.
 
-Older workbench images remain under `docs/screenshots/` for history only. Current product shots live in `docs/screenshots/current/`.
+Current product shots live in `docs/screenshots/current/`; the root screenshots folder now only keeps the GitHub social preview asset.
 
 <table>
   <tr>

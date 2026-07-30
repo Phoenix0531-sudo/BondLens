@@ -136,7 +136,7 @@ flowchart TD
 3. **数字** 来自工具；模型过不了护栏时，最终答案回退到确定性报告。
 4. **语言** 只由页头 `中 / EN` 控制，并通过 query/cookie 记忆。
 
-旧工作台图片仍保留在 `docs/screenshots/` 作历史参考；当前产品图集中在 `docs/screenshots/current/`。
+当前产品图集中在 `docs/screenshots/current/`；根截图目录只保留 GitHub social preview 资产。
 
 <table>
   <tr>
