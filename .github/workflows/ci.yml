@@ -22,7 +22,7 @@ jobs:
 
     env:
       FLASK_ENV: testing
-      SECRET_KEY: ci-secret-key
+      SECRET_KEY: ci-secret
       OPENAI_API_KEY: ""
       OPENAI_MODEL: gpt-5.4-mini
       BOND_DATA_MODE: static
@@ -65,24 +65,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build image
-        run: docker build -t bondlens-ai:ci .
+        run: docker build -t bondlens:ci .
       - name: Run container and hit /healthz
         run: |
           set -e
-          docker run -d --name bondlens-ci -p 5000:5000 \
+          docker rm -f bondlens-ci >/dev/null 2>&1 || true
+          docker run -d --name bondlens-ci -p 8765:5000 \
             -e FLASK_ENV=testing \
             -e BOND_DATA_MODE=static \
             -e SECRET_KEY=ci-secret \
             -e OPENAI_API_KEY= \
-            bondlens-ai:ci
+            bondlens:ci
+          cleanup() { docker rm -f bondlens-ci >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:5000/healthz; then
+            if curl -fsS http://127.0.0.1:8765/healthz; then
               echo "health OK"
-              docker rm -f bondlens-ci
               exit 0
             fi
             sleep 2
           done
           docker logs bondlens-ci || true
-          docker rm -f bondlens-ci || true
           exit 1

@@ -207,14 +207,15 @@ docs/demo_runs/demo-market-overview.html
 
 ```bash
 pip install -r requirements.txt
-# 本地演示推荐绑定
-export FLASK_RUN_HOST=[IP]
-export PORT=8765
-export BOND_DATA_MODE=static
-export SECRET_KEY=local-dev
-python app.py
-# 打开 http://[IP]:8765/agent
+./scripts/run_demo.sh
+# 打开 http://127.0.0.1:8765/agent
 # 试试：当前样本收益率分布是什么样？
+```
+
+Windows 也可以直接运行：
+
+```bat
+scripts\run_demo.bat
 ```
 
 其他 pack：
@@ -226,7 +227,7 @@ python app.py
 ### 30 分钟（实时链路与降级）
 
 ```bash
-export FLASK_RUN_HOST=[IP]
+export FLASK_RUN_HOST=127.0.0.1
 export PORT=8765
 export BOND_DATA_MODE=auto   # 实时优先，失败后快照/本地
 python app.py
@@ -242,6 +243,17 @@ export OPENAI_MODEL=haochi/gpt-5.4
 export OPENAI_API_STYLE=chat
 export OPENAI_MODEL_FALLBACKS=haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search   # 可选
 # 密钥仅放进程环境变量，禁止写入仓库
+```
+
+### Docker 演示
+
+BondLens 已提供 Docker 打包，但作品集演示不强依赖 Docker。
+Compose 服务名固定为 `bondlens`，容器名 `bondlens-demo`，镜像名 `bondlens:local`，宿主机 `8765` 映射到容器内 `5000`。
+
+```bash
+docker compose up --build
+# 打开 http://localhost:8765/agent
+# 健康检查：http://localhost:8765/healthz
 ```
 
 ---

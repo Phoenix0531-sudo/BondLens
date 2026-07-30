@@ -1,21 +1,24 @@
 services:
-  bondlens-ai:
+  bondlens:
+    container_name: bondlens-demo
     build: .
+    image: bondlens:local
     ports:
-      - "5000:5000"
+      - "${BOND_HOST_PORT:-8765}:5000"
     environment:
       FLASK_ENV: ${FLASK_ENV:-production}
-      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-me}
+      SECRET_KEY: ${SECRET_KEY:-local-dev}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      OPENAI_MODEL: ${OPENAI_MODEL:-haochi/gpt-5.4}
+      OPENAI_MODEL_FALLBACKS: ${OPENAI_MODEL_FALLBACKS:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
-      OPENAI_API_STYLE: ${OPENAI_API_STYLE:-auto}
+      OPENAI_API_STYLE: ${OPENAI_API_STYLE:-chat}
       OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-20}
       BOND_DATA_MODE: ${BOND_DATA_MODE:-auto}
       BOND_LIVE_CACHE_PATH: ${BOND_LIVE_CACHE_PATH:-}
       BOND_LIVE_CACHE_MAX_AGE_HOURS: ${BOND_LIVE_CACHE_MAX_AGE_HOURS:-24}
       BOND_REPLAY_ENABLED: ${BOND_REPLAY_ENABLED:-true}
-      BOND_REPLAY_DIR: ${BOND_REPLAY_DIR:-}
+      BOND_REPLAY_DIR: ${BOND_REPLAY_DIR:-/tmp/bondlens-replays}
       FLASK_RUN_HOST: 0.0.0.0
       PORT: 5000
     healthcheck:

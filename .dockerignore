@@ -1,10 +1,13 @@
-.git/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
 .tmp/
+.tmp_ocr/
 .env
-db.db
-instance/
-tasks/
+.venv/
+.git/
+.idea/
+.DS_Store
+agent_page.html
+*.ocr.txt

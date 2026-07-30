@@ -217,14 +217,15 @@ Or jump from the [Example Runs table](#example-runs-no-api-key--open-in-browser)
 
 ```bash
 pip install -r requirements.txt
-# preferred local demo bind
-export FLASK_RUN_HOST=[IP]
-export PORT=8765
-export BOND_DATA_MODE=static
-export SECRET_KEY=local-dev
-python app.py
-# open http://[IP]:8765/agent
+./scripts/run_demo.sh
+# open http://127.0.0.1:8765/agent
 # try: 当前样本收益率分布是什么样？
+```
+
+Windows users can run the same deterministic demo with:
+
+```bat
+scripts\run_demo.bat
 ```
 
 Other packs:
@@ -252,6 +253,17 @@ export OPENAI_MODEL=haochi/gpt-5.4
 export OPENAI_API_STYLE=chat
 export OPENAI_MODEL_FALLBACKS=haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search   # optional
 # Keys stay in process env only. Do not commit secrets.
+```
+
+### Docker demo
+
+BondLens is Docker-packaged, but the portfolio demo does not require Docker.
+The Compose service is intentionally named `bondlens`, with container name `bondlens-demo`, image `bondlens:local`, and host port `8765` mapped to container port `5000`.
+
+```bash
+docker compose up --build
+# open http://localhost:8765/agent
+# health: http://localhost:8765/healthz
 ```
 
 ---
