@@ -2,42 +2,40 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
+<div align="center">
+
+<img src="docs/figs/voxel_icon.png" width="168" alt="BondLens voxel icon — lens over bond yield bars and evidence pipeline"/>
+
+**A claim-level evidence agent for Chinese bonds**  
+Not a multi-agent equity research desktop.
+
+`Numbers are code-calculated` · `Narratives are LLM-assisted` · `Every output is provenance-tracked`
+
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
 ![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
+![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
+<br/>
+
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Docker](https://img.shields.io/badge/docker-healthz-blue)
 ![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
 ![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
 ![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
-![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
 ![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
 
-<div align="center">
-<img align="center" src="docs/figs/logo_white_background.png" width="42%" alt="BondLens logo"/>
-</div>
+**BondLens** turns a natural-language bond question into an **auditable analysis run**:  
+live / snapshot / static data → deterministic tools → optional LLM narration → Trust Layer.
 
-**BondLens** is a lightweight agent for **Chinese bond market analysis**.
-It focuses on one vertical: turn a natural-language bond question into an auditable run with live/snapshot/static data, deterministic tools, optional LLM narration, and a reviewer-facing Trust Layer.
-
-**Not a multi-agent equity research desktop.**
-**A claim-level evidence agent for Chinese bonds.**
-
-Unlike broad multi-agent equity research platforms, BondLens does not try to be a full investment desk.
-Its design choice is narrower and more honest: **numbers come from code**, the model may only narrate over evidence, and every answer can be replayed, judged, and red-teamed.
-
-```text
-Numbers are code-calculated.
-Narratives are LLM-assisted.
-Every output is provenance-tracked.
-```
+[Project page](https://phoenix0531-sudo.github.io/BondLens/) · [Social preview](docs/figs/voxel_social.png) · classic wordmark: [logo](docs/figs/logo_white_background.png)
 
 > Non-investment advice. For learning, research, portfolio demonstration, and interview discussion only.
 
-Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
+</div>
 
 ### Example Runs (no API key — open in browser)
 
@@ -51,6 +49,43 @@ Project page: [https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531
 Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
 ---
+
+## Table of Contents
+
+- [Scope](#scope)
+- [Design Principle](#design-principle-deterministic-compute-llm-narration)
+- [What BondLens Does](#what-bondlens-does)
+- [Architecture](#architecture)
+- [Screenshots](#screenshots)
+- [Quick Start](#quick-start)
+- [Language (i18n)](#language-i18n)
+- [Tool Catalog](#tool-catalog-deterministic-operators)
+- [Trust Score & Evidence Pack](#trust-score--evidence-pack)
+- [Example Questions](#example-questions)
+- [API](#api)
+- [Data Source Boundary](#data-source-boundary)
+- [Appendix: LLM matrix](#appendix-llm-final-answer-matrix-recorded)
+- [Background](#background)
+- [License](#license)
+- [Disclaimer](#disclaimer)
+
+---
+
+## Scope
+
+| In scope | Out of scope |
+| --- | --- |
+| Chinese bond market questions in natural language | Multi-agent equity research desktop |
+| Live / snapshot / static data with explicit lineage | Issuer ratings, financials, guarantees, credit events |
+| Deterministic yield / volume / ranking / outlier tools | Trade recommendations or buy/sell signals |
+| Optional LLM narration under numeric + language guardrails | Model inventing numbers outside tool evidence |
+| Trust score, Evidence Pack, replay, red-team evals | Full OAS / call-tree valuation desk |
+| Bilingual UI (zh default) + portable demo packs | Complete market coverage claims |
+
+**Honest scale:** ~10k lines of project Python (`bond_agent/` + app/tests/evals) — a focused vertical, not a 100k+ multi-agent platform.
+
+---
+
 ## Design Principle: Deterministic Compute, LLM Narration
 
 A core design principle of BondLens (shared with platforms such as FinRobot) is the strict separation between **deterministic financial computation** and **LLM-based narration**.
@@ -63,7 +98,20 @@ A core design principle of BondLens (shared with platforms such as FinRobot) is 
 | Evidence ledger claims | Built from tool outputs | No |
 | Final narrative text | Deterministic report, or LLM only if guardrail + judge pass | Text only; numbers must match evidence |
 
-In short: tools compute, models narrate, trust decides.
+In short: **tools compute, models narrate, trust decides.**
+
+### Why this is an agent, not a chatbot
+
+1. **Data resolver** chooses live / snapshot / static with honest lineage
+2. **Planner** classifies multi-intent and selects tools
+3. **Tools** run pure Python analytics over the active frame
+4. **Evidence** is structured and ledger-backed
+5. **Report** is composed from evidence with risks and limitations
+6. **Optional LLM** may narrate only after local evidence exists
+7. **Guardrail + judge** accept or reject model text
+8. **Trust score + Evidence Pack + replay** make the run reviewable without dumping raw JSON
+
+If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallback output.
 
 ### Codebase Snapshot
 
@@ -75,7 +123,6 @@ In short: tools compute, models narrate, trust decides.
 | **Evals** | ~110 pytest cases · agent evals 10/10 · red-team 3/3 · Docker `/healthz` in CI |
 | **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
 | **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
-| **Scale (honest)** | ~10k lines of project Python across `bond_agent/` + app/tests/evals — focused vertical, not a 100k+ multi-agent platform |
 
 ---
 
@@ -403,21 +450,6 @@ auto   -> live first, cached snapshot second, local fallback third
 live   -> live source requested; fallback reason shown if it degrades
 static -> local Excel only
 ```
-
----
-
-## Why This Is An Agent, Not A Chatbot
-
-1. **Data resolver** chooses live / snapshot / static with honest lineage
-2. **Planner** classifies multi-intent and selects tools
-3. **Tools** run pure Python analytics over the active frame
-4. **Evidence** is structured and ledger-backed
-5. **Report** is composed from evidence with risks and limitations
-6. **Optional LLM** may narrate only after local evidence exists
-7. **Guardrail + judge** accept or reject model text
-8. **Trust score + Evidence Pack + replay** make the run reviewable without dumping raw JSON
-
-If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallback output.
 
 ---
 

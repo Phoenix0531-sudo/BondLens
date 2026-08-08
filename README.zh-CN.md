@@ -2,42 +2,40 @@
 
 [English](README.md) | [中文](README.zh-CN.md)
 
+<div align="center">
+
+<img src="docs/figs/voxel_icon.png" width="168" alt="BondLens voxel icon — 透镜覆盖债市收益柱与证据流水线"/>
+
+**面向中文债的 claim 级证据智能体**  
+不是多 Agent 股权研究桌面端。
+
+`数字由代码计算` · `叙述可由大模型辅助` · `每次输出都可追溯`
+
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
 ![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
+![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
+<br/>
+
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Docker](https://img.shields.io/badge/docker-healthz-blue)
 ![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
 ![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
 ![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
-![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
 ![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
 
-<div align="center">
-<img align="center" src="docs/figs/logo_white_background.png" width="42%" alt="BondLens logo"/>
-</div>
+**BondLens** 把一句自然语言债市问题变成一次**可审计的分析运行**：  
+实时 / 快照 / 本地数据 → 确定性工具 → 可选 LLM 叙述 → Trust Layer。
 
-**BondLens** 是面向**中文债券市场**的轻量分析智能体。
-它只做一件事：把一句自然语言债市问题变成一次可审计运行——实时/快照/本地数据、确定性工具、可选 LLM 叙述，以及面向审查者的 Trust Layer。
-
-**不是多 Agent 股权研究桌面端。**
-**是面向中文债的 claim 级证据智能体。**
-
-与宽泛的多角色股权研究平台不同，BondLens 不试图成为完整投资工作台。
-它的取舍更窄、也更诚实：**数字来自代码**，模型只能在证据上叙述，每次回答都可回放、可裁决、可红队。
-
-```text
-数字由代码计算。
-叙述可由大模型辅助。
-每次输出都可追溯。
-```
+[项目主页](https://phoenix0531-sudo.github.io/BondLens/) · [社交预览图](docs/figs/voxel_social.png) · 经典字标：[logo](docs/figs/logo_white_background.png)
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 
-项目主页：[https://phoenix0531-sudo.github.io/BondLens/](https://phoenix0531-sudo.github.io/BondLens/)
+</div>
 
 ### Example Runs（无需 API Key — 浏览器直接打开）
 
@@ -51,6 +49,43 @@
 同目录还有对应 JSON：[docs/demo_runs/](docs/demo_runs/)。
 
 ---
+
+## 目录
+
+- [范围](#范围)
+- [设计原则](#设计原则确定性计算大模型叙述)
+- [BondLens 能做什么](#bondlens-能做什么)
+- [架构](#架构)
+- [项目截图](#项目截图)
+- [快速上手](#快速上手)
+- [语言（i18n）](#语言i18n)
+- [工具目录](#工具目录确定性算子)
+- [信任分与 Evidence Pack](#信任分与-evidence-pack)
+- [示例问题](#示例问题)
+- [API](#api)
+- [数据源边界](#数据源边界)
+- [附录：LLM 矩阵](#附录llm-最终答案矩阵实测记录)
+- [背景](#背景)
+- [许可证](#许可证)
+- [免责声明](#免责声明)
+
+---
+
+## 范围
+
+| 在范围内 | 不在范围内 |
+| --- | --- |
+| 中文债市自然语言问答 | 多 Agent 股权研究桌面端 |
+| 实时 / 快照 / 本地数据，血缘可追溯 | 主体评级、财报、担保、信用事件 |
+| 确定性收益 / 成交 / 排序 / 异常工具 | 交易推荐或买卖信号 |
+| 可选 LLM 叙述（数值 + 语言护栏） | 模型在证据外编造数字 |
+| 信任分、Evidence Pack、回放、红队评测 | 完整 OAS / 含权树定价 desk |
+| 双语界面（默认中文）+ 便携 demo pack | 完整市场覆盖声明 |
+
+**诚实体量：** 项目 Python 约 1 万行（`bond_agent/` + app/tests/evals）——垂直产品，不是 10 万+ 多 Agent 平台。
+
+---
+
 ## 设计原则：确定性计算，大模型叙述
 
 BondLens 与 FinRobot 一类研究平台共享同一核心原则：
@@ -64,7 +99,20 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 | 证据账本 claim | 由工具输出构建 | 否 |
 | 最终叙述文本 | 确定性报告；或仅在护栏+评审通过后用 LLM | 文本可润色，数字必须对齐证据 |
 
-一句话：工具算数，模型讲故事，信任层做裁决。
+一句话：**工具算数，模型讲故事，信任层做裁决。**
+
+### 为什么是 Agent，不是 Chatbot
+
+1. **数据解析器**选择实时 / 快照 / 本地，并诚实记录血缘
+2. **规划器**识别多意图并选择工具
+3. **工具**对当前数据帧做纯 Python 分析
+4. **证据**结构化并可写入账本
+5. **报告**由证据生成，附带风险与局限性
+6. **可选 LLM** 只能在本地证据之后叙述
+7. **护栏 + 评审** 接受或拒绝模型文本
+8. **信任分 + Evidence Pack + 回放** 让结果可审查，而不是甩原始 JSON
+
+未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
 
 ### Codebase Snapshot
 
@@ -76,7 +124,6 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 | **评测** | 约 110 个 pytest · agent evals 10/10 · red-team 3/3 · CI Docker `/healthz` |
 | **数据** | AkShare 实时 → 缓存快照 → 静态 Excel，显式血缘与期限覆盖看板 |
 | **产品面** | Flask + Jinja · 默认中文 / 英文切换（query+cookie）· SSE 软渲染 · CI + GitHub Pages |
-| **体量（诚实）** | 项目 Python 约 1 万行（`bond_agent/` + app/tests/evals）——垂直产品，不是 10 万+ 多 Agent 平台 |
 
 ---
 
@@ -91,6 +138,17 @@ BondLens 与 FinRobot 一类研究平台共享同一核心原则：
 5. 生成带风险说明与强制局限性的报告
 6. 可选 LLM 润色（需通过数值与语言护栏）
 7. 打信任分、导出 Evidence Pack、写入回放摘要
+
+### 产品面（答案优先）
+
+- **Answer Snapshot**：三句头条 + 关键指标；正文默认折叠
+- **SSE 流式 + 软终渲染**：工具步骤进度、token 预览、最终摘要卡，无需强制整页刷新；完整看板仍走 `result_url`
+- **双语界面（默认中文）**：query/cookie 语言记忆，显式 中/EN 切换，双语血缘行
+- **券种结构 + 期限分桶**：保守名称规则分类（不做评级推断）
+- **同业对比**：同券种 + 同期限分桶利差
+- **截面监控看板**：高收益 / 低成交 / 收益异常 / 缺期限
+- **期限 / 残期看板**：覆盖率、教学级久期/DV01、永续双情景（首段有限 + 理论永续）
+- **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后
 
 ---
 
@@ -394,21 +452,6 @@ auto   -> 实时优先，快照次之，本地兜底
 live   -> 请求实时；降级时展示 fallback 原因
 static -> 仅本地 Excel
 ```
-
----
-
-## 为什么是 Agent，不是 Chatbot
-
-1. **数据解析器**选择实时 / 快照 / 本地，并诚实记录血缘
-2. **规划器**识别多意图并选择工具
-3. **工具**对当前数据帧做纯 Python 分析
-4. **证据**结构化并可写入账本
-5. **报告**由证据生成，附带风险与局限性
-6. **可选 LLM** 只能在本地证据之后叙述
-7. **护栏 + 评审** 接受或拒绝模型文本
-8. **信任分 + Evidence Pack + 回放** 让结果可审查，而不是甩原始 JSON
-
-未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
 
 ---
 
