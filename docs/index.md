@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="figs/logo_white_background.png" width="42%" alt="BondLens logo"/>
+<img src="figs/voxel_icon.png" width="168" alt="BondLens voxel icon — lens over bond yield bars and evidence pipeline"/>
 
 **Numbers are code-calculated. Narratives are LLM-assisted. Every output is provenance-tracked.**
 
@@ -21,6 +21,12 @@ It turns a natural-language question into an auditable run with live/snapshot/st
 **Not a multi-agent equity research desktop.**
 **A claim-level evidence agent for Chinese bonds.**
 
+<div align="center">
+
+Social preview · <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/voxel_social.png>
+
+</div>
+
 ## Example Runs (no API key — open in browser)
 
 | Run | Open |
@@ -28,7 +34,7 @@ It turns a natural-language question into an auditable run with live/snapshot/st
 | Market overview | [demo-market-overview.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html) |
 | Single-bond report | [demo-bond-report.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html) |
 | Yield outliers | [demo-yield-outliers.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html) |
-| LLM final-answer matrix | [llm_matrix_deepseek_v4.md](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_deepseek_v4.md) |
+| LLM final-answer matrix | [llm_matrix_cpa_gpt54.md](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_cpa_gpt54.md) |
 
 ## Codebase Snapshot
 
