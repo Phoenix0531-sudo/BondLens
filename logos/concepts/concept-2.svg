@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BondLens concept 2 — monogram BL aperture">
+  <!-- Abstract B monogram as a lens barrel; L as a cut and amber pupil -->
+  <g id="icon">
+    <rect width="512" height="512" rx="96" fill="#0f6b5f"/>
+    <!-- outer lens rim -->
+    <circle cx="256" cy="256" r="168" fill="none" stroke="#fffdf8" stroke-width="22"/>
+    <!-- B spine -->
+    <path d="M176 140 v232 h72 c62 0 98-28 98-72 0-30-16-52-44-62 22-10 36-32 36-60 0-42-34-68-90-68z
+             M220 178 h28 c28 0 44 12 44 34s-16 34-44 34h-28z
+             M220 282 h36 c32 0 50 14 50 38s-18 38-50 38h-36z"
+          fill="#fffdf8"/>
+    <!-- amber evidence pupil -->
+    <circle cx="330" cy="256" r="28" fill="#c07a22"/>
+    <circle cx="330" cy="256" r="12" fill="#fffdf8"/>
+  </g>
+</svg>

@@ -4,7 +4,7 @@
 
 <div align="center">
 
-<img src="docs/figs/voxel_icon.png" width="168" alt="BondLens voxel icon — lens over bond yield bars and evidence pipeline"/>
+<img src="docs/figs/voxel_icon.png" width="192" alt="BondLens badge — hex prism focusing a yield curve, amber peak marks the inspected claim"/>
 
 **A claim-level evidence agent for Chinese bonds**  
 Not a multi-agent equity research desktop.
@@ -17,9 +17,6 @@ Not a multi-agent equity research desktop.
 ![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-
-<br/>
-
 ![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
 ![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Docker](https://img.shields.io/badge/docker-healthz-blue)
@@ -31,7 +28,7 @@ Not a multi-agent equity research desktop.
 **BondLens** turns a natural-language bond question into an **auditable analysis run**:  
 live / snapshot / static data → deterministic tools → optional LLM narration → Trust Layer.
 
-[Project page](https://phoenix0531-sudo.github.io/BondLens/) · [Social preview](docs/figs/voxel_social.png) · classic wordmark: [logo](docs/figs/logo_white_background.png)
+[Project page](https://phoenix0531-sudo.github.io/BondLens/) · [Social preview](docs/figs/voxel_social.png) · light badge: [logo](docs/figs/logo_white_background.png)
 
 > Non-investment advice. For learning, research, portfolio demonstration, and interview discussion only.
 

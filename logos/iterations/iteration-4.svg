@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BondLens iteration-4 — alt: stepped bars claim">
+  <!-- Alt curve treatment: stepped yield bars inside prism, amber = verified bar -->
+  <g id="icon">
+    <rect width="512" height="512" fill="#fffdf8"/>
+    <!-- hex prism -->
+    <path d="M256 56 L424 152 L424 360 L256 456 L88 360 L88 152 Z"
+          fill="none" stroke="#0f6b5f" stroke-width="22" stroke-linejoin="round"/>
+    <!-- inner facet, faint -->
+    <path d="M256 118 L376 186 L376 326 L256 394 L136 326 L136 186 Z"
+          fill="#0f6b5f" opacity="0.08"/>
+    <!-- stepped yield bars rising then amber peak -->
+    <rect x="150" y="300" width="44" height="60" rx="6" fill="#0f6b5f" opacity="0.55"/>
+    <rect x="206" y="252" width="44" height="108" rx="6" fill="#0f6b5f" opacity="0.8"/>
+    <rect x="262" y="206" width="44" height="154" rx="6" fill="#0f6b5f"/>
+    <rect x="318" y="186" width="44" height="174" rx="6" fill="#c07a22"/>
+    <!-- focus ring on amber bar -->
+    <circle cx="340" cy="186" r="26" fill="none" stroke="#c07a22" stroke-width="8"/>
+    <!-- baseline -->
+    <line x1="150" y1="360" x2="362" y2="360" stroke="#0f6b5f" stroke-width="11" stroke-linecap="round" opacity="0.5"/>
+  </g>
+</svg>

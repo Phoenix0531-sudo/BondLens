@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BondLens iteration-1 — small-size clarity">
+  <!-- Same prism + yield curve, thickened strokes, dropped low-opacity facet, simplified peak -->
+  <g id="icon">
+    <rect width="512" height="512" fill="#fffdf8"/>
+    <!-- hex prism body, thicker -->
+    <path d="M256 60 L416 152 L416 360 L256 452 L96 360 L96 152 Z"
+          fill="#0f6b5f" stroke="#0f6b5f" stroke-width="4" stroke-linejoin="round"/>
+    <!-- inner facet carved out (light) for depth -->
+    <path d="M256 124 L372 190 L372 322 L256 388 L140 322 L140 190 Z"
+          fill="#fffdf8"/>
+    <!-- yield curve, bolder -->
+    <path d="M158 312 C196 296, 214 252, 248 224 S308 182, 354 196"
+          fill="none" stroke="#0f6b5f" stroke-width="22" stroke-linecap="round"/>
+    <!-- single amber peak claim, no inner dot (clears at 16px) -->
+    <circle cx="276" cy="202" r="30" fill="#c07a22"/>
+    <!-- baseline, restrained -->
+    <line x1="150" y1="344" x2="362" y2="344" stroke="#0f6b5f" stroke-width="12" stroke-linecap="round"/>
+  </g>
+</svg>

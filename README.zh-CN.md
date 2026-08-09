@@ -4,7 +4,7 @@
 
 <div align="center">
 
-<img src="docs/figs/voxel_icon.png" width="168" alt="BondLens voxel icon — 透镜覆盖债市收益柱与证据流水线"/>
+<img src="docs/figs/voxel_icon.png" width="192" alt="BondLens 徽章 — 六棱镜聚焦收益率曲线，琉瑠峰标记被检结论"/>
 
 **面向中文债的 claim 级证据智能体**  
 不是多 Agent 股权研究桌面端。
@@ -17,9 +17,6 @@
 ![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
 ![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-
-<br/>
-
 ![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
 ![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
 ![Docker](https://img.shields.io/badge/docker-healthz-blue)
@@ -31,7 +28,7 @@
 **BondLens** 把一句自然语言债市问题变成一次**可审计的分析运行**：  
 实时 / 快照 / 本地数据 → 确定性工具 → 可选 LLM 叙述 → Trust Layer。
 
-[项目主页](https://phoenix0531-sudo.github.io/BondLens/) · [社交预览图](docs/figs/voxel_social.png) · 经典字标：[logo](docs/figs/logo_white_background.png)
+[项目主页](https://phoenix0531-sudo.github.io/BondLens/) · [社交预览图](docs/figs/voxel_social.png) · 浅底徽章：[logo](docs/figs/logo_white_background.png)
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 

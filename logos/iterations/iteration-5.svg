@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="BondLens iteration-5 — alt: simplified apex peak">
+  <!-- Alt curve treatment: ultra-simple — one apex line tilting up to amber peak -->
+  <g id="icon">
+    <rect width="512" height="512" fill="#fffdf8"/>
+    <!-- solid hex silhouette -->
+    <path d="M256 56 L424 152 L424 360 L256 456 L88 360 L88 152 Z"
+          fill="#0f6b5f" stroke="#0f6b5f" stroke-width="6" stroke-linejoin="round"/>
+    <!-- inner facet -->
+    <path d="M256 118 L376 186 L376 326 L256 394 L136 326 L136 186 Z"
+          fill="#fffdf8"/>
+    <!-- single rising line to peak -->
+    <path d="M150 338 L256 200 L362 338"
+          fill="none" stroke="#0f6b5f" stroke-width="22" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- amber peak at apex -->
+    <circle cx="256" cy="200" r="32" fill="#c07a22"/>
+    <!-- baseline -->
+    <line x1="150" y1="338" x2="362" y2="338" stroke="#0f6b5f" stroke-width="11" stroke-linecap="round"/>
+  </g>
+</svg>

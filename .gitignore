@@ -11,3 +11,10 @@ instance/
 agent_page.html
 *.ocr.txt
 .DS_Store
+
+.skills/
+
+# logo work files not for the repo
+.auto/
+docs/figs/_legacy_2026/
+
