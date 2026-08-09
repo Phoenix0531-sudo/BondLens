@@ -18,3 +18,7 @@ agent_page.html
 .auto/
 docs/figs/_legacy_2026/
 
+# local virtual environments (never track ~220MB of venv files)
+.venv/
+.venv-bondlens/
+
