@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="figs/voxel_icon.png" width="168" alt="BondLens voxel icon — lens over bond yield bars and evidence pipeline"/>
+<img src="figs/voxel_icon.png" width="168" alt="BondLens dark-badge identity — hex prism over yield curve, deep teal"/>
 
 **Numbers are code-calculated. Narratives are LLM-assisted. Every output is provenance-tracked.**
 
