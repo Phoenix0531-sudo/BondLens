@@ -7,23 +7,19 @@
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens 徽章 — 六棱镜聚焦收益率曲线，琉瑠峰标记被检结论"/>
 
 **面向中文债的 claim 级证据智能体**  
-不是多 Agent 股权研究桌面端。
+中文债 · 确定性工具 · 可追溯证据 · 护權下的可选 LLM 叙述。
 
-`数字由代码计算` · `叙述可由大模型辅助` · `每次输出都可追溯`
-
-![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
-![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
-![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
-![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
-![Docker](https://img.shields.io/badge/docker-healthz-blue)
-![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
-![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
-![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
-![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
+![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
+![Agent Evals (manual)](https://img.shields.io/badge/agent%20evals%20(manual)-10%2F10-brightgreen?style=flat-square)
+![Red Team (manual)](https://img.shields.io/badge/red--team%20(manual)-3%2F3-brightgreen?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational?style=flat-square)
+![Docker](https://img.shields.io/badge/docker-healthz-blue?style=flat-square)
+![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal?style=flat-square)
+![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange?style=flat-square)
+![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222?style=flat-square)
 
 **BondLens** 把一句自然语言债市问题变成一次**可审计的分析运行**：  
 实时 / 快照 / 本地数据 → 确定性工具 → 可选 LLM 叙述 → Trust Layer。
@@ -51,7 +47,6 @@
 
 - [范围](#范围)
 - [设计原则](#设计原则确定性计算大模型叙述)
-- [BondLens 能做什么](#bondlens-能做什么)
 - [架构](#架构)
 - [项目截图](#项目截图)
 - [快速上手](#快速上手)
@@ -61,7 +56,7 @@
 - [示例问题](#示例问题)
 - [API](#api)
 - [数据源边界](#数据源边界)
-- [附录：LLM 矩阵](#附录llm-最终答案矩阵实测记录)
+- [LLM 实测路径（recorded）](docs/demo_runs/llm_matrix_cpa_gpt54.md)
 - [背景](#背景)
 - [许可证](#许可证)
 - [免责声明](#免责声明)
@@ -85,77 +80,34 @@
 
 ## 设计原则：确定性计算，大模型叙述
 
-BondLens 与 FinRobot 一类研究平台共享同一核心原则：
-严格区分 **确定性金融计算** 与 **LLM 叙述**。
+BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **LLM 叙述**（仅文本，数字必须对齐证据）。详见 [工具目录](#工具目录确定性算子) 的确定性产出与下文 [信任分与 Evidence Pack](#信任分与-evidence-pack) 中控制叙述文本的护栏 + 评审。
 
-| 层级 | 来源 | 能否编造数字 |
-| --- | --- | --- |
-| 收益率 / 成交量 / 分位 / 排序 | 确定性工具 `bond_agent/tools.py` | 否 |
-| 券种 / 期限分桶 / 同业利差 | 规则分类 + 纯 Python 统计 | 否 |
-| 数据血缘（实时 / 快照 / 样本） | 数据解析器 | 否 |
-| 证据账本 claim | 由工具输出构建 | 否 |
-| 最终叙述文本 | 确定性报告；或仅在护栏+评审通过后用 LLM | 文本可润色，数字必须对齐证据 |
-
-一句话：**工具算数，模型讲故事，信任层做裁决。**
-
-### 为什么是 Agent，不是 Chatbot
-
-1. **数据解析器**选择实时 / 快照 / 本地，并诚实记录血缘
-2. **规划器**识别多意图并选择工具
-3. **工具**对当前数据帧做纯 Python 分析
-4. **证据**结构化并可写入账本
-5. **报告**由证据生成，附带风险与局限性
-6. **可选 LLM** 只能在本地证据之后叙述
-7. **护栏 + 评审** 接受或拒绝模型文本
-8. **信任分 + Evidence Pack + 回放** 让结果可审查，而不是甩原始 JSON
-
-未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
+**工具算数，模型讲故事，信任层做裁决。** 未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
 
 ### Codebase Snapshot
 
 | 层级 | 包含内容 |
 | --- | --- |
-| **Agent 核心** | 单路径：Planner → Tools → Evidence → Report（非多角色股权 desk） |
+| **Agent 核心** | 单路径：Planner → Tools → Evidence → Report |
 | **确定性工具** | 7 个公开算子：`search_bonds`、`describe_market`、`rank_bonds`、`detect_yield_outliers`、`compare_bond_to_market`、`build_market_monitor`、`generate_bond_report` |
 | **Trust 层** | 数值+语言护栏 · 答案评审 · Trust 分 · Evidence Pack · 回放 · 风险画像 |
-| **评测** | 约 110 个 pytest · agent evals 10/10 · red-team 3/3 · CI Docker `/healthz` |
+| **评测** | 约 110 个 pytest · CI Docker `/healthz`；详见上方实时 badge。 |
 | **数据** | AkShare 实时 → 缓存快照 → 静态 Excel，显式血缘与期限覆盖看板 |
 | **产品面** | Flask + Jinja · 默认中文 / 英文切换（query+cookie）· SSE 软渲染 · CI + GitHub Pages |
 
 ---
 
-## BondLens 能做什么
-
-把一句自然语言问题变成一次**可审计的分析运行**：
-
-1. 解析数据（AkShare 实时 → 本地快照 → Excel 样本）
-2. 规划意图（概览 / 检索 / 排序 / 异常 / 监控 / 组合 / 单券报告）
-3. 运行确定性工具
-4. 构建结构化证据（市场、同业、监控、质量、期限覆盖）
-5. 生成带风险说明与强制局限性的报告
-6. 可选 LLM 润色（需通过数值与语言护栏）
-7. 打信任分、导出 Evidence Pack、写入回放摘要
-
 ### 产品面（答案优先）
 
-- **Answer Snapshot**：三句头条 + 关键指标；正文默认折叠
-- **SSE 流式 + 软终渲染**：工具步骤进度、token 预览、最终摘要卡，无需强制整页刷新；完整看板仍走 `result_url`
-- **双语界面（默认中文）**：query/cookie 语言记忆，显式 中/EN 切换，双语血缘行
-- **券种结构 + 期限分桶**：保守名称规则分类（不做评级推断）
-- **同业对比**：同券种 + 同期限分桶利差
-- **截面监控看板**：高收益 / 低成交 / 收益异常 / 缺期限
-- **期限 / 残期看板**：覆盖率、教学级久期/DV01、永续双情景（首段有限 + 理论永续）
-- **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后
+- **Answer Snapshot** + SSE 软终渲染：工具步骤进度、token 预览、最终摘要卡，无需强制整页刷新；完整看板仍走 `result_url`
+- **双语界面（默认中文）** + 期限/残期看板：高收益 / 低成交 / 收益异常 / 缺期限；同券种 + 同分桶同业利差
+- **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后；回放看板可查过去运行
+
+详见下文 [项目截图](#项目截图) 中每一项的实际表现。
 
 ---
 
 ## 架构
-
-```text
-Data Ops      实时 / 快照 / 本地样本 + 血缘 + 期限补全
-Agent Core    Planner → Tools → Evidence → Report
-Trust Layer   Guardrail + Judge + Risk + Trust Score + Replay + Evals
-```
 
 <div align="center">
 <img src="docs/figs/architecture.png" width="92%" alt="BondLens 架构：问题 → 解析 → 规划 → 工具 → 证据 → 护栏 → Trust">
@@ -175,7 +127,7 @@ flowchart TD
     I --> J
 ```
 
-吸收业界「确定性计算 + LLM 叙述」原则，BondLens 在**中文债**垂直场景强化 claim 级证据、答案评审、红队评测与审查向 Evidence Pack——不是多角色股权研报桌面端。
+详见 [工具目录](#工具目录确定性算子) 中规划器→工具使用的 7 个确定性算子。
 
 ---
 
@@ -183,13 +135,6 @@ flowchart TD
 
 在当前 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
 叙事：**能答 · 能深 · 会拒 · 会排序 · 可双语 · 可审**。
-
-怎么看这些图：
-
-1. **Trust** 是过程/证据信任，不是买卖信心。
-2. **投顾类** 是策略拦截（不调 LLM），不是只靠免责声明。
-3. **数字** 来自工具；模型过不了护栏时，最终答案回退到确定性报告。
-4. **语言** 只由页头 `中 / EN` 控制，并通过 query/cookie 记忆。
 
 当前产品图集中在 `docs/screenshots/current/`；根截图目录只保留 GitHub social preview 资产。
 
@@ -452,31 +397,9 @@ static -> 仅本地 Excel
 
 ---
 
-## 附录：LLM 最终答案矩阵（实测记录）
+## LLM 实测路径（recorded）
 
-### 当前可用路径（2026-07）
-
-基于本地 **CPA/OpenAI 兼容网关**（`http://127.0.0.1:18317/v1`）、模型 **`haochi/gpt-5.4`**、
-`BOND_DATA_MODE=static`、`OPENAI_API_STYLE=chat`；备用候选为
-`haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search`。
-单券报告稳定第一只债：**06国开24**（债券简称升序，mergesort）。
-
-完整表：[docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md)。
-
-| 场景 | 语言 | 门槛 | 结果 | 备注 |
-| --- | --- | --- | --- | --- |
-| 市场概览 | 中文 | 3/3 final LLM | **3/3** | `haochi/gpt-5.4`，护栏通过 |
-| 单券报告 | 中文 | 3/3 final LLM | **3/3** | 稳定第一只债 `06国开24` |
-| 市场概览 | 英文 | >=2/3 | **3/3** | 高于门槛 |
-| 单券报告 | 英文 | >=2/3 | **3/3** | 高于门槛 |
-| 投顾拦截 | 中/英 | 永不 final LLM | **2/2 拦截** | 确定性策略拒绝，不采用 LLM 终答 |
-
-诚实残留：
-
-- Provider 通道漂移仍会在模型消失时落到确定性回退。
-- 护栏保持开启；证据外数字不会成为最终答案。
-- 无 API Key 时，项目仍能用确定性报告正常运行。
-- 该矩阵证明主路径可用，**不是**零缺陷声明。
+一份基于本地 CPA/OpenAI 兼容网关的 LLM 主路径记录（中/英 × 概览/单券报告）及其诚实残留，见 [docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md)。该矩阵证明主路径可用，**不是**零缺陷声明；Provider 通道漂移仍会在模型消失时落到确定性回退，无 API Key 时项目也能用确定性报告正常运行。
 
 ---
 

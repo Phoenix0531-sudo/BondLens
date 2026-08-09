@@ -7,23 +7,19 @@
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens badge — hex prism focusing a yield curve, amber peak marks the inspected claim"/>
 
 **A claim-level evidence agent for Chinese bonds**  
-Not a multi-agent equity research desktop.
+Chinese bonds · deterministic tools · provenance-tracked · optional LLM narration under guardrail.
 
-`Numbers are code-calculated` · `Narratives are LLM-assisted` · `Every output is provenance-tracked`
-
-![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
-![Agent Evals](https://img.shields.io/badge/agent%20evals-10%2F10-brightgreen)
-![Red Team](https://img.shields.io/badge/red--team-3%2F3-brightgreen)
-![Trust](https://img.shields.io/badge/Trust%20Layer-evidence%20pack-purple)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
-![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
-![Docker](https://img.shields.io/badge/docker-healthz-blue)
-![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
-![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange)
-![LLM](https://img.shields.io/badge/LLM-optional%20%2B%20guardrail-lightgrey)
-![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222)
+![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
+![Agent Evals (manual)](https://img.shields.io/badge/agent%20evals%20(manual)-10%2F10-brightgreen?style=flat-square)
+![Red Team (manual)](https://img.shields.io/badge/red--team%20(manual)-3%2F3-brightgreen?style=flat-square)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=flat-square)
+![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
+![Flask](https://img.shields.io/badge/Flask-3.x-green.svg?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational?style=flat-square)
+![Docker](https://img.shields.io/badge/docker-healthz-blue?style=flat-square)
+![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal?style=flat-square)
+![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange?style=flat-square)
+![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222?style=flat-square)
 
 **BondLens** turns a natural-language bond question into an **auditable analysis run**:  
 live / snapshot / static data → deterministic tools → optional LLM narration → Trust Layer.
@@ -51,7 +47,6 @@ Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
 - [Scope](#scope)
 - [Design Principle](#design-principle-deterministic-compute-llm-narration)
-- [What BondLens Does](#what-bondlens-does)
 - [Architecture](#architecture)
 - [Screenshots](#screenshots)
 - [Quick Start](#quick-start)
@@ -61,7 +56,7 @@ Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 - [Example Questions](#example-questions)
 - [API](#api)
 - [Data Source Boundary](#data-source-boundary)
-- [Appendix: LLM matrix](#appendix-llm-final-answer-matrix-recorded)
+- [LLM matrix (recorded)](docs/demo_runs/llm_matrix_cpa_gpt54.md)
 - [Background](#background)
 - [License](#license)
 - [Disclaimer](#disclaimer)
@@ -85,76 +80,34 @@ Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
 ## Design Principle: Deterministic Compute, LLM Narration
 
-A core design principle of BondLens (shared with platforms such as FinRobot) is the strict separation between **deterministic financial computation** and **LLM-based narration**.
+BondLens strictly separates **deterministic financial computation** (tools never invent numbers) from **LLM-based narration** (text only, numbers must match evidence). See the [Tool Catalog](#tool-catalog-deterministic-operators) for what tools produce deterministically, and the [Trust Score](#trust-score--evidence-pack) layer for the guardrail + judge that gates narrative text.
 
-| Layer | What produces it | Can invent numbers? |
-| --- | --- | --- |
-| Yield / volume / percentiles / rankings | Deterministic tools (`bond_agent/tools.py`) | No |
-| Taxonomy / maturity buckets / peer spread | Rule-based classifiers + pure Python stats | No |
-| Data lineage (live / snapshot / static) | Data resolver | No |
-| Evidence ledger claims | Built from tool outputs | No |
-| Final narrative text | Deterministic report, or LLM only if guardrail + judge pass | Text only; numbers must match evidence |
-
-In short: **tools compute, models narrate, trust decides.**
-
-### Why this is an agent, not a chatbot
-
-1. **Data resolver** chooses live / snapshot / static with honest lineage
-2. **Planner** classifies multi-intent and selects tools
-3. **Tools** run pure Python analytics over the active frame
-4. **Evidence** is structured and ledger-backed
-5. **Report** is composed from evidence with risks and limitations
-6. **Optional LLM** may narrate only after local evidence exists
-7. **Guardrail + judge** accept or reject model text
-8. **Trust score + Evidence Pack + replay** make the run reviewable without dumping raw JSON
-
-If `OPENAI_API_KEY` is not set, the project still runs with deterministic fallback output.
+**Tools compute, models narrate, trust decides.** Without `OPENAI_API_KEY`, the project still runs with deterministic fallback output.
 
 ### Codebase Snapshot
 
 | Layer | What it includes |
 | --- | --- |
-| **Agent core** | Single path: Planner → Tools → Evidence → Report (not a multi-role equity desk) |
+| **Agent core** | Single path: Planner → Tools → Evidence → Report |
 | **Deterministic tools** | 7 public operators: `search_bonds`, `describe_market`, `rank_bonds`, `detect_yield_outliers`, `compare_bond_to_market`, `build_market_monitor`, `generate_bond_report` |
 | **Trust layer** | Numeric + language guardrail · answer judge · Trust score · Evidence Pack · replay store · risk profile |
-| **Evals** | ~110 pytest cases · agent evals 10/10 · red-team 3/3 · Docker `/healthz` in CI |
+| **Evals** | ~110 pytest cases · Docker `/healthz` in CI; see badges above for the live run. |
 | **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
 | **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
 
 ---
 
-## What BondLens Does
-
-BondLens turns a natural-language bond question into an **auditable analysis run**:
-
-1. Resolve data (live AkShare → cached snapshot → local Excel)
-2. Plan intent (overview / search / ranking / outliers / monitor / composite / bond report)
-3. Run deterministic tools
-4. Build structured evidence (market, peer, monitor, quality, maturity coverage)
-5. Compose a report with risk notes and mandatory limitations
-6. Optionally polish with an LLM under numeric + language guardrails
-7. Score trust, export a Bond Evidence Pack, and store a replay summary
-
 ### Product surfaces (answer-first)
 
-- **Answer Snapshot**: 3-sentence headline + key metrics; full body collapsed by default
-- **SSE stream + soft final render**: tool-step progress, token preview, final summary card without forced full-page reload; share/full board still via `result_url`
-- **Bilingual UI (zh default)**: query/cookie language memory, explicit zh/en switch, bilingual provenance lines
-- **Bond type mix + maturity buckets**: conservative name-rule taxonomy (no rating inference)
-- **Peer comparison**: same type + maturity bucket spread vs peers
-- **Cross-section monitor board**: high yield / low volume / yield outliers / missing maturity
-- **Maturity / residual board**: live coverage, cashflow teaching duration/DV01, perpetual dual scenarios (first finite leg + theoretical consol)
-- **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind details
+- **Answer Snapshot** + SSE soft final render: tool-step progress, token preview, final summary card without forced full-page reload; share/full board still via `result_url`
+- **Bilingual UI (zh default)** + maturity/residual boards: high yield / low volume / yield outliers / missing maturity; same-type + same-bucket peer comparison
+- **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind `<details>`; replay dashboard for past runs
+
+See the [Screenshots](#screenshots) below for each of these in action.
 
 ---
 
 ## Architecture
-
-```text
-Data Ops      live / snapshot / static sample + lineage + maturity enrichment
-Agent Core    Planner → Tools → Evidence → Report
-Trust Layer   Guardrail + Judge + Risk Profile + Trust Score + Replay + Evals
-```
 
 <div align="center">
 <img src="docs/figs/architecture.png" width="92%" alt="BondLens architecture: Question → Resolver → Planner → Tools → Evidence → Guardrail → Trust">
@@ -174,7 +127,7 @@ flowchart TD
     I --> J
 ```
 
-Inspired by *deterministic compute, LLM narration* research platforms, BondLens specializes the idea for **Chinese bonds** with claim-level evidence, answer judging, red-team evals, and reviewer-facing evidence packs — not a multi-role equity research desktop.
+See the [Tool Catalog](#tool-catalog-deterministic-operators) for the 7 deterministic operators used by `Planner → Tools`.
 
 ---
 
@@ -182,13 +135,6 @@ Inspired by *deterministic compute, LLM narration* research platforms, BondLens 
 
 Captured on the current live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
 Narrative: **can answer · can go deep · will refuse · can rank · can switch languages · can audit**.
-
-How to read the shots:
-
-1. **Trust** is process/evidence confidence, not trade confidence.
-2. **Advisory** is a policy block (no LLM), not a disclaimer-only soft refuse.
-3. **Numbers** come from tools; if the model fails guardrail, the final answer is deterministic.
-4. **Language** is controlled by the single header `中 / EN` switch with query/cookie memory.
 
 Current product shots live in `docs/screenshots/current/`; the root screenshots folder now only keeps the GitHub social preview asset.
 
@@ -450,31 +396,9 @@ static -> local Excel only
 
 ---
 
-## Appendix: LLM final-answer matrix (recorded)
+## Recorded LLM working path
 
-### Current working path (2026-07)
-
-Recorded against local **CPA/OpenAI-compatible gateway** (`http://127.0.0.1:18317/v1`) with model
-**`haochi/gpt-5.4`**, `BOND_DATA_MODE=static`, `OPENAI_API_STYLE=chat`, and fallback candidates
-`haochi/gpt-5.4-mini,gongyi/deepseek-v4-flash-search`.
-Stable first bond for report questions: **06国开24** (bond-name ascending, mergesort).
-
-Full table: [docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md).
-
-| Scenario | Lang | Threshold | Result | Notes |
-| --- | --- | --- | --- | --- |
-| overview | zh | 3/3 final LLM | **3/3** | `haochi/gpt-5.4`, guardrail passed |
-| bond report | zh | 3/3 final LLM | **3/3** | stable first bond `06国开24` |
-| overview | en | >=2/3 | **3/3** | stronger than the threshold |
-| bond report | en | >=2/3 | **3/3** | stronger than the threshold |
-| advisory block | zh/en | never final LLM | **2/2 blocked** | deterministic policy refusal, no LLM final |
-
-Honest residuals:
-
-- Provider channel churn can still force deterministic fallback when models vanish.
-- Guardrails stay on; unsupported numbers never become final.
-- The product still works without an API key through deterministic reports.
-- This is evidence of a working path, **not** a zero-bug claim.
+A recorded CPA/OpenAI-compatible-gateway LLM path (zh/en x overview/bond-report) and its honest residuals live in [docs/demo_runs/llm_matrix_cpa_gpt54.md](docs/demo_runs/llm_matrix_cpa_gpt54.md). This is evidence of a working path, **not** a zero-bug claim; provider channel churn can still force deterministic fallback when models vanish, and the product still works without an API key.
 
 ---
 
