@@ -5,7 +5,10 @@ __pycache__/
 .tmp/
 .tmp_ocr/
 .env
-.venv/
+.venv*/
+.pi/
+.auto/
+.skills/
 .git/
 .idea/
 .DS_Store

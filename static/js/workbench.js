@@ -1,0 +1,338 @@
+/* Shared workbench runtime: data-source bar, import panel, mapping report,
+ * correction flow, query params, language events. Used by market/screen/bond pages. */
+(() => {
+  const state = {
+    mode: "auto",
+    importId: "",
+    file: null,
+    report: null,
+    source: null,
+    render: null,
+  };
+
+  const lang = () => (document.documentElement.lang || "zh").startsWith("en") ? "en" : "zh";
+  const t = (zh, en) => (lang() === "en" ? en : zh);
+
+  const fmt = (value, digits = 2) => {
+    if (value === null || value === undefined || Number.isNaN(Number(value))) return "—";
+    return Number(value).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  };
+
+  const fmtDate = (value) => (value ? String(value).slice(0, 10) : "—");
+
+  /* Query params carried across API calls and page navigations. */
+  function params() {
+    const query = new URLSearchParams();
+    if (state.mode && state.mode !== "auto") query.set("data_mode", state.mode);
+    if (state.importId) query.set("import_id", state.importId);
+    const activeLang = lang();
+    if (activeLang !== "zh") query.set("lang", activeLang);
+    return query;
+  }
+
+  const paramObject = () => Object.fromEntries(params().entries());
+
+  async function fetchJson(url, options) {
+    const response = await fetch(url, options);
+    let body = null;
+    try { body = await response.json(); } catch { /* non-JSON error body */ }
+    if (!response.ok) {
+      const detail = body && (body.error || body.message || JSON.stringify(body));
+      const error = new Error(typeof detail === "string" ? detail : t("请求失败", "Request failed"));
+      error.status = response.status;
+      error.body = body;
+      throw error;
+    }
+    return body;
+  }
+
+  /* ---------- Import panel ---------- */
+  const el = {};
+  const collect = () => {
+    el.bar = document.querySelector("[data-source-bar]");
+    if (!el.bar) return false;
+    el.mode = el.bar.querySelector("[data-mode-select]");
+    el.file = el.bar.querySelector("[data-import-file]");
+    el.upload = el.bar.querySelector("[data-import-upload]");
+    el.clear = el.bar.querySelector("[data-import-clear]");
+    el.status = el.bar.querySelector("[data-source-status]");
+    el.report = el.bar.querySelector("[data-import-report]");
+    return true;
+  };
+
+  const MISSING_FIELD_LABELS = {
+    "债券简称": { zh: "债券简称（必需）", en: "Bond name (required)" },
+    "收盘到期收益率(%)": { zh: "收盘到期收益率(%)", en: "Close yield (%)" },
+    "待偿期": { zh: "待偿期（年）", en: "Maturity (years)" },
+    "交易量(亿元)": { zh: "交易量(亿元)", en: "Volume (100M)" },
+    "收盘净价(元)": { zh: "收盘净价(元)", en: "Close net price" },
+    "债券代码": { zh: "债券代码", en: "Bond code" },
+  };
+
+  const fieldLabel = (field) => {
+    const entry = MISSING_FIELD_LABELS[field];
+    if (entry) return lang() === "en" ? entry.en : entry.zh;
+    return field;
+  };
+
+  function renderStatus() {
+    if (!el.status) return;
+    el.status.classList.remove("err");
+    if (state.importId) {
+      const report = state.report || {};
+      el.status.innerHTML = "";
+      const text = document.createElement("span");
+      text.textContent = t(`已启用上传样本「${report.file_name || ""}」`, `Using uploaded sample "${report.file_name || ""}"`);
+      const tag = document.createElement("span");
+      tag.className = "mode-tag import-tag";
+      tag.textContent = t("上传样本", "Import");
+      el.status.append(text, tag);
+    } else if (state.mode && state.mode !== "auto") {
+      /* The dropdown itself already shows the selected mode; printing it again
+         here would duplicate “静态样例/实时” three times on one bar. */
+      el.status.textContent = "";
+    } else {
+      el.status.textContent = t("自动（实时不可用时回退快照/样例）", "Auto (falls back to snapshot/sample)");
+    }
+  }
+
+  function renderImportReport() {
+    if (!el.report) return;
+    const report = state.report;
+    if (!report) { el.report.hidden = true; el.report.innerHTML = ""; return; }
+    el.report.hidden = false;
+    el.report.innerHTML = "";
+
+    const title = document.createElement("h3");
+    title.textContent = t("字段映射报告", "Column mapping report");
+    el.report.append(title);
+
+    const meta = document.createElement("p");
+    meta.className = "report-meta";
+    const metaParts = [
+      t(`行数 ${report.row_count ?? "—"}`, `Rows ${report.row_count ?? "—"}`),
+      t(`债券 ${report.bond_count ?? "—"} 只`, `${report.bond_count ?? "—"} bonds`),
+      report.valid_yield_count !== undefined
+        ? t(`有效收益率 ${report.valid_yield_count} 条`, `Valid yields ${report.valid_yield_count}`)
+        : "",
+    ].filter(Boolean);
+    if (report.mixed_timepoints) {
+      metaParts.push(t(
+        `混合时点（${report.distinct_date_count ?? "多"} 个日期）`,
+        `Mixed timepoints (${report.distinct_date_count ?? "multiple"} dates)`
+      ));
+    } else if (report.sample_date) {
+      metaParts.push(t(`样本日期 ${report.sample_date}`, `Sample date ${report.sample_date}`));
+    } else {
+      metaParts.push(t("样本日期未知", "Sample date unknown"));
+    }
+    meta.textContent = metaParts.join(" · ");
+    el.report.append(meta);
+
+    if (report.mixed_timepoints) {
+      const warn = document.createElement("p");
+      warn.className = "report-warn";
+      warn.textContent = t(
+        `样本包含多个日期（${report.quote_date_range || "范围未知"}）：跨日对比收益率水平不可直接解读。`,
+        `Sample spans multiple dates (${report.quote_date_range || "range unknown"}): cross-date yield comparisons are not directly interpretable.`
+      );
+      el.report.append(warn);
+    }
+
+    const fold = document.createElement("details");
+    fold.className = "import-report-details";
+    const summary = document.createElement("summary");
+    const briefBits = [];
+    const missingCount = (report.missing_fields || []).length;
+    if (missingCount) {
+      briefBits.push(t(`缺少 ${missingCount} 个字段，可在此选择来源列`, `${missingCount} field(s) missing; select source columns here`));
+    }
+    if ((report.unsupported_columns || []).length) {
+      briefBits.push(t(
+        `已拒绝 ${report.unsupported_columns.length} 个无法识别的列`,
+        `${report.unsupported_columns.length} unrecognized column(s) rejected`
+      ));
+    }
+    summary.textContent = briefBits.length
+      ? `${t("字段映射详情", "Column-mapping detail")} — ${briefBits.join("；")}`
+      : t("字段映射详情", "Column-mapping detail");
+    fold.append(summary);
+
+    const table = document.createElement("table");
+    table.className = "wb-table";
+    const thead = document.createElement("thead");
+    thead.innerHTML = `<tr><th>${t("标准字段", "Canonical field")}</th><th>${t("来源列", "Source column")}</th><th>${t("状态", "Status")}</th></tr>`;
+    table.append(thead);
+    const tbody = document.createElement("tbody");
+    const mapped = report.mapped_columns || {};
+    const missing = report.missing_fields || [];
+    const unsupported = new Set(report.unsupported_columns || []);
+    const candidates = (report.unmapped_columns || []).filter((column) => !unsupported.has(column));
+
+    Object.entries(mapped).forEach(([field, column]) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>${fieldLabel(field)}</td><td>${column}</td><td><span class="wb-badge good">${t("已映射", "Mapped")}</span></td>`;
+      tbody.append(row);
+    });
+    missing.forEach((field) => {
+      const row = document.createElement("tr");
+      row.className = "field-mapping-row";
+      row.dataset.field = field;
+      const fieldCell = document.createElement("td");
+      fieldCell.textContent = fieldLabel(field);
+      const sourceCell = document.createElement("td");
+      if (candidates.length) {
+        const select = document.createElement("select");
+        select.dataset.target = field;
+        const emptyOption = document.createElement("option");
+        emptyOption.value = "";
+        emptyOption.textContent = t("（不映射）", "(not mapped)");
+        select.append(emptyOption);
+        candidates.forEach((column) => {
+          const option = document.createElement("option");
+          option.value = column;
+          option.textContent = column;
+          select.append(option);
+        });
+        sourceCell.append(select);
+      } else {
+        sourceCell.textContent = "—";
+      }
+      const statusCell = document.createElement("td");
+      statusCell.innerHTML = `<span class="wb-badge warn">${t("缺失", "Missing")}</span>`;
+      row.append(fieldCell, sourceCell, statusCell);
+      tbody.append(row);
+    });
+    (report.unsupported_columns || []).forEach((column) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `<td>—</td><td>${column}</td><td><span class="wb-badge bad">${t("拒绝映射", "Rejected")}</span></td>`;
+      tbody.append(row);
+    });
+    table.append(tbody);
+    fold.append(table);
+
+    const applyRow = document.createElement("div");
+    const applyButton = document.createElement("button");
+    applyButton.type = "button";
+    applyButton.className = "wb-button secondary";
+    applyButton.dataset.applyOverrides = "true";
+    applyButton.textContent = t("按所选映射重新解析", "Re-parse with selected mappings");
+    applyButton.hidden = missing.length === 0 || candidates.length === 0;
+    applyRow.append(applyButton);
+    fold.append(applyRow);
+
+    const notesList = document.createElement("ul");
+    notesList.className = "report-notes";
+    const notes = (lang() === "en" ? report.notes_en : report.notes_zh) || [];
+    notes.forEach((note) => {
+      const item = document.createElement("li");
+      item.textContent = note;
+      notesList.append(item);
+    });
+    if (notes.length) fold.append(notesList);
+    el.report.append(fold);
+  }
+
+  function renderImportError(message) {
+    if (!el.report) return;
+    el.report.hidden = false;
+    el.report.innerHTML = "";
+    const box = document.createElement("p");
+    box.className = "report-error";
+    box.textContent = message;
+    el.report.append(box);
+  }
+
+  function setImportActive(active) {
+    if (!el.bar) return;
+    if (el.file) el.file.disabled = active;
+    if (el.upload) el.upload.disabled = active || !state.file;
+    if (el.mode) el.mode.disabled = active;
+    if (el.clear) el.clear.hidden = !active;
+  }
+
+  async function uploadFile(overrides) {
+    if (!state.file) return;
+    if (el.upload) el.upload.disabled = true;
+    if (el.status) {
+      el.status.classList.remove("err");
+      el.status.textContent = t("正在上传并解析…", "Uploading and parsing…");
+    }
+    const body = new FormData();
+    body.append("file", state.file);
+    if (overrides && Object.keys(overrides).length) {
+      body.append("column_overrides", JSON.stringify(overrides));
+    }
+    try {
+      const payload = await fetchJson("/api/import", { method: "POST", body });
+      state.importId = payload.import_id || "";
+      state.report = payload.report || null;
+      state.source = payload.source || null;
+      renderImportReport();
+      renderStatus();
+      setImportActive(true);
+      if (state.render) state.render();
+    } catch (error) {
+      renderImportError(`${t("上传失败：", "Upload failed: ")}${error.message || error}`);
+      if (el.status) {
+        el.status.classList.add("err");
+        el.status.textContent = t("上传失败，样本未启用", "Upload failed; sample not enabled");
+      }
+      if (el.upload) el.upload.disabled = !state.file;
+    }
+  }
+
+  function readOverrides() {
+    const overrides = {};
+    el.report.querySelectorAll("select[data-target]").forEach((select) => {
+      if (select.value) overrides[select.dataset.target] = select.value;
+    });
+    return overrides;
+  }
+
+  function wireSourceBar() {
+    if (!collect()) return;
+    state.mode = el.mode ? el.mode.value : "auto";
+    el.mode.addEventListener("change", () => {
+      state.mode = el.mode.value;
+      renderStatus();
+      if (state.render) state.render();
+    });
+    el.file.addEventListener("change", () => {
+      state.file = el.file.files && el.file.files.length ? el.file.files[0] : null;
+      el.upload.disabled = !state.file || el.file.disabled;
+    });
+    el.upload.addEventListener("click", () => uploadFile());
+    el.report.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-apply-overrides]");
+      if (button) uploadFile(readOverrides());
+    });
+    el.clear.addEventListener("click", () => {
+      state.importId = "";
+      state.report = null;
+      state.source = null;
+      state.file = null;
+      el.file.value = "";
+      el.report.hidden = true;
+      el.report.innerHTML = "";
+      renderStatus();
+      setImportActive(false);
+      if (state.mode === "import") state.mode = "auto";
+      if (state.render) state.render();
+    });
+    renderStatus();
+  }
+
+  function init(options) {
+    state.render = options && options.render ? options.render : null;
+    wireSourceBar();
+    document.addEventListener("bondlens:language-change", () => {
+      renderStatus();
+      if (state.report) renderImportReport();
+      if (state.render) state.render();
+    });
+    if (state.render) state.render();
+  }
+
+  window.BondLensWorkbench = { init, t, lang, fmt, fmtDate, params, paramObject, fetchJson, state };
+})();

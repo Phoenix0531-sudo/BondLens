@@ -15,7 +15,9 @@ class FlexibleModel(BaseModel):
 
 
 class AgentQueryRequest(BaseModel):
-    question: str = Field(default="", description="Natural-language bond analysis question.")
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    question: str = Field(default="", max_length=4000, description="Natural-language bond analysis question.")
     data_mode: str | None = Field(default=None, description="Data source mode: auto, live, or static.")
 
 

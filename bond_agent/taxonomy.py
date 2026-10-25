@@ -20,6 +20,7 @@ BOND_TYPE_ORDER = [
     "同业存单",
     "金融债",
     "信用债",
+    "待分类",
     "其他",
 ]
 
@@ -71,6 +72,13 @@ _LOCAL_GOV_GEO = (
     "宁波",
 )
 
+# Strict local-gov name pattern: two-digit year + geo + (债+digits | bare digits).
+# e.g. 23湖南101 / 24江苏债05. Geo must sit directly after the year prefix so
+# credit products like 24北京国资SCP001 are never mistaken for local-gov bonds.
+_LOCAL_GOV_PATTERN = re.compile(
+    r"^\d{2}(?:" + "|".join(_LOCAL_GOV_GEO) + r")(?:债\d*|\d{2,})$"
+)
+
 _BANK_ISSUER = (
     "银行",
     "工行",
@@ -88,7 +96,54 @@ _BANK_ISSUER = (
 )
 
 
+# Credit-product markers (non-bank issuers). Checked before local-gov geo rules
+# so that e.g. 24北京国资SCP001 (super short-term commercial paper) is never
+# mistaken for a local-government bond just because it starts with a city name.
+_CREDIT_PRODUCT_RE = re.compile(
+    r"(?:SCP|MTN|PPN|ABN|ABS|CP|GN)\d*",
+    re.IGNORECASE,
+)
+_CREDIT_PRODUCT_TOKENS = (
+    "公司债",
+    "企业债",
+    "中票",
+    "短融",
+    "超短融",
+    "中期票据",
+    "超短期",
+    "铁道",
+    "铁路",
+    "人寿",
+    "证券",
+    "租赁",
+    "经开",
+    "城投",
+    "产投",
+    "水务",
+    "交通投",
+    "城发",
+    "城建",
+    "国资",
+)
+
+
 def classify_bond_type(name: object) -> str:
+    """Bucket a bond short name into a coarse type.
+
+    Boundaries (in evaluation order):
+    1. 同业存单 — CD/NCD markers.
+    2. 国债 — explicit treasury tokens (国开 is NOT treasury).
+    3. 政策性金融债 — 国开/农发/进出口/政策性金融.
+    4. 金融债 — bank-issuer and financial-product markers (二级资本/永续/商金…).
+    5. 信用债 — credit-product markers (SCP/MTN/PPN/公司债/企业债/城投…).
+       城投债 are enterprise/company bonds issued by local financing vehicles,
+       NOT 地方政府债, so the 城投 token routes to 信用债 here.
+    6. 地方政府债 — explicit tokens (地方债/专项债/一般债/再融资债) or the strict
+       "year + geo + (债+digits | digits)" naming pattern.
+    7. 待分类 — anything non-empty that no confident rule claims. We never
+       keyword-guess a type for names we cannot reliably identify.
+    8. 其他 — empty/missing names only.
+    """
     text = str(name or "").strip()
     if not text:
         return "其他"
@@ -131,57 +186,27 @@ def classify_bond_type(name: object) -> str:
         and not any(token in text for token in ("地方债", "专项债", "一般债"))
     ):
         return "金融债"
+    # Bank-issued credit instruments (e.g. 24招商银行MTN001) are 金融债, not 信用债.
+    if any(token in text for token in _BANK_ISSUER) and _CREDIT_PRODUCT_RE.search(text):
+        return "金融债"
     if re.search(r"(银行|农商行|农信)\d{2}", text) or re.search(
         r"(工行|农行|中行|建行|交行|邮储)\d{2}", text
     ):
         return "金融债"
 
-    if any(
-        token in text
-        for token in (
-            "地方债",
-            "专项债",
-            "一般债",
-            "地方政府",
-            "城投",
-            "专项",
-            "再融资债",
-        )
-    ):
-        return "地方政府债"
-
-    # Geo + 债 / bare numeric local-gov series (e.g. 23湖南101, 24江苏债05).
-    if (
-        any(geo in text for geo in _LOCAL_GOV_GEO)
-        and ("债" in text or re.search(r"\d{2,}$", text) or re.search(r"[省市]\d+", text))
-        and not any(token in text for token in ("银行", "国债", "国开", "农发", "进出"))
-    ):
-        return "地方政府债"
-
-    if any(
-        token in text
-        for token in (
-            "公司债",
-            "企业债",
-            "中票",
-            "短融",
-            "超短融",
-            "SCP",
-            "MTN",
-            "PPN",
-            "ABN",
-            "ABS",
-            "中期票据",
-            "超短期",
-            "铁道",
-            "铁路",
-            "人寿",
-            "证券",
-            "租赁",
-            "经开",
-        )
-    ) or re.search(r"CP\d*", text, re.IGNORECASE):
+    if any(token in text for token in _CREDIT_PRODUCT_TOKENS) or _CREDIT_PRODUCT_RE.search(text):
         return "信用债"
+
+    # Explicit local-government tokens. 城投 was removed: city-investment bonds
+    # are credit bonds (see step 5), not local-government bonds.
+    if any(token in text for token in ("地方债", "专项债", "一般债", "地方政府", "再融资债")):
+        return "地方政府债"
+
+    # Strict geo naming pattern: 23湖南101 / 24江苏债05 (geo right after year prefix).
+    if _LOCAL_GOV_PATTERN.match(text) and not any(
+        token in text for token in ("银行", "国债", "国开", "农发", "进出")
+    ):
+        return "地方政府债"
 
     # Bank short names without explicit 债/CD token (e.g. 22上海银行, 23星展银行).
     if any(token in text for token in ("银行", "农商行", "农信")) and not any(
@@ -189,18 +214,8 @@ def classify_bond_type(name: object) -> str:
     ):
         return "金融债"
 
-    # Residual *债* without treasury/policy/bank markers → local-gov series heuristic.
-    if (
-        "债" in text
-        and not any(token in text for token in ("国债", "国开", "农发", "进出", "金融", "公司", "企业", "银行"))
-        and (
-            any(token in text for token in ("省", "市", "专项", "一般"))
-            or (len(text) >= 4 and text[-1].isdigit())
-        )
-    ):
-        return "地方政府债"
-
-    return "其他"
+    # Confident rules are exhausted: never keyword-guess, mark as 待分类.
+    return "待分类"
 
 
 def maturity_bucket(years: object) -> str | None:
@@ -274,26 +289,40 @@ def summarize_segments(df: pd.DataFrame) -> dict[str, Any]:
         int(frame["期限分桶"].isna().sum()) if "期限分桶" in frame.columns else len(frame)
     )
     other_count = int(type_counts.get("其他", 0))
+    unclassified_count = other_count + int(type_counts.get("待分类", 0))
     return {
         "by_bond_type": by_type,
         "by_maturity_bucket": by_bucket,
         "missing_maturity_count": missing_maturity,
         "other_type_count": other_count,
+        "unclassified_type_count": unclassified_count,
         "type_counts": {str(k): int(v) for k, v in type_counts.items()},
     }
 
 
 def peer_bucket_frame(
-    df: pd.DataFrame, target_years: float | None, bond_type: str | None = None
+    df: pd.DataFrame,
+    target_years: float | None,
+    bond_type: str | None = None,
+    exclude_name: str | None = None,
 ) -> pd.DataFrame:
+    """Same-type, same-maturity-bucket peer frame. No cross-type fallback.
+
+    - Bond type must be a reliable label (其他/待分类/None cannot form honest
+      peers) → empty frame; callers must surface that, never widen silently.
+    - Missing target maturity → empty frame (similar-maturity peers undefined).
+    - The target bond itself is excluded by name so it never compares to itself.
+    """
     frame = annotate_frame(df)
-    bucket = maturity_bucket(target_years) if target_years is not None else None
-    if bucket:
-        frame = frame[frame["期限分桶"] == bucket]
-    if bond_type and bond_type != "其他":
-        typed = frame[frame["券种"] == bond_type]
-        if len(typed) >= 5:
-            frame = typed
+    if target_years is None or not bond_type or bond_type in {"其他", "待分类"}:
+        return frame.iloc[0:0]
+    bucket = maturity_bucket(target_years)
+    if bucket is None:
+        return frame.iloc[0:0]
+    frame = frame[frame["期限分桶"] == bucket]
+    frame = frame[frame["券种"] == bond_type]
+    if exclude_name and BOND_NAME in frame.columns:
+        frame = frame[frame[BOND_NAME].astype(str).str.strip() != str(exclude_name).strip()]
     return frame
 
 
@@ -317,10 +346,12 @@ def assess_data_quality(
     )
     duplicates = int(frame[BOND_NAME].duplicated().sum()) if BOND_NAME in frame.columns else 0
     other_count = int((frame["券种"] == "其他").sum()) if "券种" in frame.columns else 0
+    pending_count = int((frame["券种"] == "待分类").sum()) if "券种" in frame.columns else 0
+    unclassified_count = other_count + pending_count
 
     yield_missing_ratio = missing_yield / max(total, 1)
     maturity_missing_ratio = missing_maturity / max(total, 1)
-    other_ratio = other_count / max(total, 1)
+    other_ratio = unclassified_count / max(total, 1)
     extreme_ratio = len(extreme) / max(total, 1)
 
     if missing_yield:
@@ -378,8 +409,8 @@ def assess_data_quality(
             {
                 "id": "unclassified_type",
                 "severity": "medium" if other_ratio > 0.2 else "low",
-                "message_zh": f"券种无法归类为“其他” {other_count}/{total}（{other_ratio:.1%}）。",
-                "message_en": f"Unclassified bond type on {other_count}/{total} ({other_ratio:.1%}).",
+                "message_zh": f"券种无法可靠归类（含待分类）{unclassified_count}/{total}（{other_ratio:.1%}）。",
+                "message_en": f"Unclassifiable bond type (incl. pending) on {unclassified_count}/{total} ({other_ratio:.1%}).",
             }
         )
 
@@ -433,6 +464,7 @@ def assess_data_quality(
         "extreme_yield_count": len(extreme),
         "duplicate_name_count": duplicates,
         "other_type_count": other_count,
+        "unclassified_type_count": unclassified_count,
         "diagnostics": diagnostics,
         "issues": issues,
         "summary_zh": f"数据质量 {score}/100（{level}），共 {len(issues)} 类问题。",

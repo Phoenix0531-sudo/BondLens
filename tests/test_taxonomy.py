@@ -21,6 +21,35 @@ def test_classify_bond_type_rules():
     assert classify_bond_type("24溧水经开CP001") == "信用债"
 
 
+def test_city_investment_bonds_are_credit_not_local_gov():
+    """城投债 belongs to enterprise credit, never 地方政府债."""
+    assert classify_bond_type("23湘潭城投债02") == "信用债"
+    assert classify_bond_type("23城投债01") == "信用债"
+    # Geographic-name enterprises must not trip the strict local-gov pattern.
+    assert classify_bond_type("24北京国资SCP001") == "信用债"
+    assert classify_bond_type("23长沙城发MTN001") == "信用债"
+
+
+def test_unclassifiable_names_go_to_pending_not_guess():
+    """No confident rule -> 待分类, never keyword-guessed into a type."""
+    assert classify_bond_type("17松滋金投债") == "待分类"
+    assert classify_bond_type("23某控股集团债") == "待分类"
+    assert classify_bond_type("") == "其他"
+
+
+def test_data_quality_tracks_unclassified_types():
+    quality = assess_data_quality(load_bond_data())
+    assert "unclassified_type_count" in quality
+    assert quality["unclassified_type_count"] >= 1
+
+
+def test_local_gov_strict_pattern_requires_geo_after_year():
+    """Local-gov pattern: geo directly after the 2-digit year prefix."""
+    assert classify_bond_type("23北京债01") == "地方政府债"
+    assert classify_bond_type("24深圳债3") == "地方政府债"
+    assert classify_bond_type("24北京国资SCP001") != "地方政府债"
+
+
 def test_maturity_buckets():
     assert maturity_bucket(0.5) == "0-1Y"
     assert maturity_bucket(2) == "1-3Y"

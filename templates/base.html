@@ -3,21 +3,26 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}{% endblock %}</title>
+    <title>{% block title %}BondLens{% endblock %}</title>
     <style>
         :root {
-            --ink: #17211d;
-            --muted: #62706b;
-            --line: #d8ded9;
-            --paper: #f5f3ee;
-            --surface: #fffdf8;
-            --surface-strong: #ebe6da;
-            --teal: #0f6b5f;
-            --teal-dark: #084c45;
-            --amber: #c07a22;
+            --ink: #182b40;
+            --muted: #58697b;
+            --line: #d8e0e7;
+            --line-strong: #b9c6d2;
+            --paper: #f3f6f8;
+            --surface: #ffffff;
+            --surface-soft: #eef3f7;
+            --navy: #235a80;
+            --navy-dark: #173f5c;
+            --amber: #a67118;
+            --amber-soft: #fff7e6;
             --red: #a9423a;
             --green: #2f7d55;
-            --shadow: 0 18px 45px rgba(23, 33, 29, 0.09);
+            --shadow: none;
+            /* Legacy aliases: agent.css / replay.html still reference the old names. */
+            --teal: var(--navy);
+            --teal-dark: var(--navy-dark);
         }
 
         * {
@@ -29,28 +34,43 @@
             color: var(--ink);
             background: var(--paper);
             font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+            -webkit-font-smoothing: antialiased;
         }
 
         a {
             color: inherit;
         }
 
+        :focus-visible {
+            outline: 3px solid var(--navy);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation: none !important;
+                transition: none !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
         .topbar {
             position: sticky;
             top: 0;
             z-index: 10;
-            border-bottom: 1px solid rgba(216, 222, 217, 0.9);
-            background: rgba(255, 253, 248, 0.92);
-            backdrop-filter: blur(12px);
+            border-bottom: 1px solid var(--line);
+            background: rgba(255, 255, 255, 0.94);
+            backdrop-filter: blur(10px);
         }
 
         .topbar-inner {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            width: min(1440px, calc(100% - 40px));
+            gap: 16px;
+            width: min(1280px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 14px 0;
+            padding: 10px 0;
         }
 
         .brand {
@@ -58,51 +78,80 @@
             align-items: center;
             gap: 10px;
             text-decoration: none;
-            font-weight: 750;
-            letter-spacing: 0;
+            font-weight: 650;
+            white-space: nowrap;
         }
 
         .brand-mark {
             display: grid;
-            width: 32px;
-            height: 32px;
+            width: 30px;
+            height: 30px;
             place-items: center;
-            border: 1px solid var(--ink);
-            background: var(--ink);
-            color: var(--surface);
+            border-radius: 4px;
+            background: var(--navy);
+            color: #fff;
+            font-size: 12.5px;
+            letter-spacing: 0.02em;
+        }
+
+        .topnav {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 14px;
+            flex-wrap: wrap;
+        }
+
+        .topnav a {
+            padding: 7px 12px;
+            border-radius: 4px;
+            text-decoration: none;
+            color: var(--muted);
+        }
+
+        .topnav a:hover {
+            color: var(--ink);
+            background: var(--surface-soft);
+        }
+
+        .topnav a[aria-current="page"] {
+            color: var(--navy-dark);
+            background: var(--surface-soft);
+            font-weight: 600;
+        }
+
+        .topnav .topnav-sep {
+            width: 1px;
+            height: 18px;
+            margin: 0 10px;
+            background: var(--line-strong);
+        }
+
+        .topnav .topnav-secondary {
+            color: var(--muted);
             font-size: 13px;
         }
 
         .topbar-actions {
             display: flex;
             align-items: center;
-            gap: 18px;
-        }
-
-        .topnav {
-            display: flex;
-            align-items: center;
-            gap: 18px;
-            color: var(--muted);
-            font-size: 14px;
-        }
-
-        .topnav a {
-            text-decoration: none;
+            gap: 14px;
         }
 
         .language-switch {
             display: inline-grid;
             grid-template-columns: 1fr 1fr;
             border: 1px solid var(--line);
-            background: rgba(255, 253, 248, 0.82);
+            border-radius: 4px;
+            background: var(--surface);
+            overflow: hidden;
         }
 
         .language-option {
             min-width: 44px;
             border: 0;
             border-right: 1px solid var(--line);
-            padding: 7px 10px;
+            padding: 6px 10px;
             background: transparent;
             color: var(--muted);
             cursor: pointer;
@@ -115,32 +164,47 @@
         }
 
         .language-option[aria-pressed="true"] {
-            background: var(--ink);
-            color: var(--surface);
-        }
-
-        .language-switch.compact .language-option {
-            min-width: 40px;
-            padding: 6px 8px;
+            background: var(--navy);
+            color: #fff;
         }
 
         .page-shell {
-            width: min(1440px, calc(100% - 40px));
+            width: min(1280px, calc(100% - 32px));
             margin: 0 auto;
-            padding: 28px 0 56px;
+            padding: 22px 0 56px;
         }
 
-        @media (max-width: 760px) {
-            .topbar-inner,
-            .page-shell {
-                width: min(100% - 24px, 1440px);
-            }
+        .page-heading {
+            margin: 0 0 6px;
+            font-size: 24px;
+            font-weight: 650;
+            line-height: 1.3;
+        }
 
-            .topnav {
+        .page-subtitle {
+            margin: 0 0 18px;
+            color: var(--muted);
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 980px) {
+            .topnav .topnav-sep,
+            .topnav a[data-nav-secondary="true"] {
                 display: none;
             }
         }
-    
+
+        @media (max-width: 640px) {
+            .topbar-inner,
+            .page-shell {
+                width: min(100% - 20px, 1280px);
+            }
+
+            .topnav {
+                font-size: 13px;
+            }
+        }
 
         .async-stream-actions {
             display: flex;
@@ -154,14 +218,15 @@
             background: var(--surface);
             color: var(--ink);
             padding: 6px 12px;
+            border-radius: 4px;
             font: inherit;
             font-size: 12px;
             cursor: pointer;
         }
         .cancel-button:hover,
         .ghost-button:hover {
-            border-color: var(--teal);
-            color: var(--teal-dark);
+            border-color: var(--navy);
+            color: var(--navy-dark);
         }
         .cancel-button:disabled {
             opacity: 0.55;
@@ -173,7 +238,7 @@
             overflow: auto;
             padding: 10px 12px;
             border: 1px solid var(--line);
-            background: rgba(255, 253, 248, 0.92);
+            background: var(--surface);
             white-space: pre-wrap;
             font-size: 12px;
             line-height: 1.45;
@@ -188,23 +253,27 @@
                 <span class="brand-mark">BL</span>
                 <span>BondLens</span>
             </a>
-            <div class="topbar-actions">
             <nav class="topnav" aria-label="Primary">
-                <a href="/agent" data-lang-zh="智能体" data-lang-en="Agent">智能体</a>
-                <a href="/replay" data-lang-zh="回放" data-lang-en="Replay">回放</a>
-                <a href="https://github.com/Phoenix0531-sudo/BondLens">GitHub</a>
-                <a href="https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml">CI</a>
+                <a href="/market" {% if request.path.startswith('/market') %}aria-current="page"{% endif %} data-lang-zh="市场观察" data-lang-en="Market">市场观察</a>
+                <a href="/screen" {% if request.path.startswith('/screen') %}aria-current="page"{% endif %} data-lang-zh="债券筛选" data-lang-en="Screener">债券筛选</a>
+                <a href="/bond" {% if request.path.startswith('/bond') %}aria-current="page"{% endif %} data-lang-zh="单券研究" data-lang-en="Bond Study">单券研究</a>
+                <a href="/replay" {% if request.path.startswith('/replay') %}aria-current="page"{% endif %} data-lang-zh="研究历史" data-lang-en="History">研究历史</a>
+                <span class="topnav-sep" aria-hidden="true"></span>
+                <a href="/agent" data-nav-secondary="true" {% if request.path.startswith('/agent') %}aria-current="page"{% endif %} data-lang-zh="智能体问答" data-lang-en="Agent Q&A">智能体问答</a>
+                <a href="https://github.com/Phoenix0531-sudo/BondLens" data-nav-secondary="true" data-lang-zh="GitHub" data-lang-en="GitHub">GitHub</a>
             </nav>
-            <div class="language-switch" aria-label="Language switch">
-                <button class="language-option" type="button" data-language-option="zh" aria-pressed="{{ 'true' if current_lang == 'zh' else 'false' }}">中</button>
-                <button class="language-option" type="button" data-language-option="en" aria-pressed="{{ 'true' if current_lang == 'en' else 'false' }}">EN</button>
-            </div>
+            <div class="topbar-actions">
+                <div class="language-switch" aria-label="Language switch">
+                    <button class="language-option" type="button" data-language-option="zh" aria-pressed="{{ 'true' if current_lang == 'zh' else 'false' }}">中</button>
+                    <button class="language-option" type="button" data-language-option="en" aria-pressed="{{ 'true' if current_lang == 'en' else 'false' }}">EN</button>
+                </div>
             </div>
         </div>
     </header>
     <main class="page-shell">
         {% block content %}{% endblock %}
     </main>
+    {% block scripts %}{% endblock %}
     <script>
         (() => {
             const storageKey = "bondlens.language";
@@ -354,6 +423,9 @@
                     // Mirror into cookie so server-rendered pages keep language after refresh.
                     document.cookie = `bondlens_lang=${activeLang}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
                 }
+
+                // Workbench pages re-render client-side content on language switch.
+                document.dispatchEvent(new CustomEvent("bondlens:language-change", { detail: { lang: activeLang } }));
             }
 
             // Soft-render / console scripts call this after async results.

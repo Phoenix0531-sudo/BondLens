@@ -387,7 +387,7 @@ def test_llm_guardrail_rejects_cjk_numeral_bypass_attack():
     guardrail as '7.8%'. Without _normalize_cjk_numerals, the regex scanner
     would only see ASCII digits and let the invented 7.8 pass as innocent
     prose while the backed evidence has yield 2.45% and duration 7.8 years."""
-    from bond_agent.llm_guardrail import _has_cjk_numerals, _normalize_cjk_numerals
+    from bond_agent.llm_guardrail import _has_cjk_numerals
 
     assert _has_cjk_numerals("收益率约百分之七点八") is True
     assert _has_cjk_numerals("久期 7.8 年") is False

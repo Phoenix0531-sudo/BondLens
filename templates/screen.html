@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}债券筛选 · BondLens{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workbench.css') }}">
+
+<h1 class="page-heading" data-lang-zh="债券筛选" data-lang-en="Bond Screener">债券筛选</h1>
+<p class="page-subtitle" data-lang-zh="按名称、券种、期限、收益率与成交量筛选当前样本，点击行进入单券研究。"
+   data-lang-en="Filter the active sample by name, type, maturity, yield and volume; click a row to open single-bond research.">
+    按名称、券种、期限、收益率与成交量筛选当前样本，点击行进入单券研究。
+</p>
+
+<section class="source-bar" data-source-bar>
+    <div class="source-bar-main">
+        <label class="source-bar-label" for="screen-mode" data-lang-zh="数据源" data-lang-en="Data source">数据源</label>
+        <select id="screen-mode" data-mode-select aria-label="Data source mode">
+            <option value="auto" {% if data_mode != 'live' and data_mode != 'static' %}selected{% endif %} data-lang-zh="自动" data-lang-en="Auto">自动</option>
+            <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="实时" data-lang-en="Live">实时</option>
+            <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="静态样例" data-lang-en="Sample">静态样例</option>
+        </select>
+        <input type="file" id="screen-import-file" data-import-file hidden
+               accept=".csv,.xlsx,.xls" aria-label="Upload bond data file">
+        <label class="ghost-button" for="screen-import-file" tabindex="0" role="button"
+               data-lang-zh="选择文件…" data-lang-en="Choose file…">选择文件…</label>
+        <button type="button" class="wb-button secondary" data-import-upload disabled
+                data-lang-zh="上传并使用" data-lang-en="Upload & use">上传并使用</button>
+        <button type="button" class="ghost-button" data-import-clear hidden
+                data-lang-zh="恢复内置数据源" data-lang-en="Restore built-in source">恢复内置数据源</button>
+        <span class="source-bar-status" data-source-status role="status"></span>
+    </div>
+    <div class="import-report" data-import-report hidden></div>
+</section>
+
+<form class="wb-panel" data-screen-filters aria-label="Screener filters">
+    <div class="wb-filters">
+        <div class="wb-filter-field">
+            <label for="filter-name" data-lang-zh="名称 / 代码包含" data-lang-en="Name / code contains">名称 / 代码包含</label>
+            <input type="text" id="filter-name" data-filter="name" autocomplete="off"
+                   data-placeholder-zh="如：国债 或 230026" data-placeholder-en="e.g. CGB or 230026">
+        </div>
+        <div class="wb-filter-field">
+            <label for="filter-type" data-lang-zh="券种" data-lang-en="Bond type">券种</label>
+            <select id="filter-type" data-filter="bond_type">
+                <option value="" data-lang-zh="全部" data-lang-en="All">全部</option>
+            </select>
+        </div>
+        <div class="wb-filter-field">
+            <label data-lang-zh="待偿期（年）" data-lang-en="Maturity (yrs)">待偿期（年）</label>
+            <div class="wb-filter-pair">
+                <input type="number" step="any" min="0" data-filter="min_maturity" data-ph-min aria-label="Min maturity">
+                <span>—</span>
+                <input type="number" step="any" min="0" data-filter="max_maturity" aria-label="Max maturity">
+            </div>
+        </div>
+        <div class="wb-filter-field">
+            <label data-lang-zh="收益率（%）" data-lang-en="Yield (%)">收益率（%）</label>
+            <div class="wb-filter-pair">
+                <input type="number" step="any" data-filter="min_yield" aria-label="Min yield">
+                <span>—</span>
+                <input type="number" step="any" data-filter="max_yield" aria-label="Max yield">
+            </div>
+        </div>
+        <div class="wb-filter-field">
+            <label data-lang-zh="成交量 ≥（亿元）" data-lang-en="Volume ≥ (100M)">成交量 ≥（亿元）</label>
+            <input type="number" step="any" min="0" data-filter="min_volume" aria-label="Min volume">
+        </div>
+        <button type="submit" class="wb-button" data-lang-zh="筛选" data-lang-en="Filter">筛选</button>
+        <button type="reset" class="wb-button secondary" data-filter-reset
+                data-lang-zh="重置" data-lang-en="Reset">重置</button>
+    </div>
+</form>
+
+<div class="wb-panel" data-screen-results>
+    <div class="wb-panel-body">
+        <p class="wb-loading" data-lang-zh="正在加载…" data-lang-en="Loading…">正在加载…</p>
+    </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workbench.js') }}"></script>
+<script src="{{ url_for('static', filename='js/screen.js') }}"></script>
+{% endblock %}

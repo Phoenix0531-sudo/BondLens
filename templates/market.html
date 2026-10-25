@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}市场观察 · BondLens{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workbench.css') }}">
+
+<h1 class="page-heading" data-lang-zh="市场观察" data-lang-en="Market Overview">市场观察</h1>
+<p class="page-subtitle" data-lang-zh="当前数据样本的整体画像：来源与口径如实标注，仅呈现同一快照内自洽的统计。"
+   data-lang-en="A profile of the active data sample: source and caliber stated honestly, statistics consistent within the same snapshot.">
+    当前数据样本的整体画像：来源与口径如实标注，仅呈现同一快照内自洽的统计。
+</p>
+
+<section class="source-bar" data-source-bar>
+    <div class="source-bar-main">
+        <label class="source-bar-label" for="market-mode" data-lang-zh="数据源" data-lang-en="Data source">数据源</label>
+        <select id="market-mode" data-mode-select aria-label="Data source mode">
+            <option value="auto" {% if data_mode != 'live' and data_mode != 'static' %}selected{% endif %} data-lang-zh="自动" data-lang-en="Auto">自动</option>
+            <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="实时" data-lang-en="Live">实时</option>
+            <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="静态样例" data-lang-en="Sample">静态样例</option>
+        </select>
+        <input type="file" id="market-import-file" data-import-file hidden
+               accept=".csv,.xlsx,.xls" aria-label="Upload bond data file">
+        <label class="ghost-button" for="market-import-file" tabindex="0" role="button"
+               data-lang-zh="选择文件…" data-lang-en="Choose file…">选择文件…</label>
+        <button type="button" class="wb-button secondary" data-import-upload disabled
+                data-lang-zh="上传并使用" data-lang-en="Upload & use">上传并使用</button>
+        <button type="button" class="ghost-button" data-import-clear hidden
+                data-lang-zh="恢复内置数据源" data-lang-en="Restore built-in source">恢复内置数据源</button>
+        <span class="source-bar-status" data-source-status role="status"></span>
+    </div>
+    <div class="import-report" data-import-report hidden></div>
+</section>
+
+<div data-market-root>
+    <p class="wb-loading" data-lang-zh="正在加载市场概览…" data-lang-en="Loading market overview…">正在加载市场概览…</p>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/workbench.js') }}"></script>
+<script src="{{ url_for('static', filename='js/market.js') }}"></script>
+{% endblock %}

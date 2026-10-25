@@ -3,942 +3,38 @@
 {% block title %}BondLens{% endblock %}
 
 {% block content %}
-<style>
-  .agent-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1.1fr) minmax(340px, 0.9fr);
-    gap: 18px;
-    align-items: stretch;
-  }
-
-  .hero-copy {
-    min-height: 0;
-    padding: 28px 30px;
-    border: 1px solid var(--line);
-    background: linear-gradient(145deg, rgba(255, 253, 248, 0.98), rgba(235, 230, 218, 0.88));
-    box-shadow: var(--shadow);
-  }
-
-  .eyebrow {
-    margin: 0 0 12px;
-    color: var(--teal);
-    font-size: 13px;
-    font-weight: 760;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  h1 {
-    margin: 0;
-    max-width: 760px;
-    font-family: Georgia, "Times New Roman", serif;
-    font-size: clamp(32px, 4.8vw, 52px);
-    font-weight: 500;
-    line-height: 1.05;
-    letter-spacing: 0;
-  }
-
-  .hero-lead {
-    max-width: 720px;
-    margin: 16px 0 0;
-    color: var(--muted);
-    font-size: 15px;
-    line-height: 1.65;
-  }
-
-  .principle-list {
-    display: grid;
-    gap: 8px;
-    margin: 16px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .principle-list li {
-    padding: 10px 12px;
-    border-left: 3px solid var(--teal);
-    background: rgba(255, 253, 248, 0.72);
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .query-console {
-    padding: 24px;
-    border: 1px solid var(--ink);
-    background: var(--ink);
-    color: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  .console-title {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    margin-bottom: 18px;
-    color: #dfe9e5;
-    font-size: 13px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .status-pill {
-    padding: 5px 9px;
-    border: 1px solid rgba(255, 253, 248, 0.24);
-    color: #e9d5b2;
-    font-size: 12px;
-  }
-
-  .form-field {
-    display: grid;
-    gap: 8px;
-    margin-bottom: 16px;
-  }
-
-  .form-field label {
-    color: #b7c7c1;
-    font-size: 13px;
-  }
-
-  textarea,
-  select {
-    width: 100%;
-    border: 1px solid rgba(255, 253, 248, 0.24);
-    border-radius: 0;
-    background: #101a16;
-    color: var(--surface);
-    font: inherit;
-  }
-
-  textarea {
-    min-height: 138px;
-    padding: 14px;
-    resize: vertical;
-    line-height: 1.55;
-  }
-
-  select {
-    padding: 12px 14px;
-  }
-
-  .console-config-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
-  }
-
-  .console-config-grid .form-field {
-    margin-bottom: 0;
-  }
-
-  .config-hint {
-    margin: 6px 0 0;
-    color: #8fa39b;
-    font-size: 11px;
-    line-height: 1.45;
-  }
-
-  @media (max-width: 760px) {
-    .console-config-grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  .run-button {
-    width: 100%;
-    border: 0;
-    padding: 14px 18px;
-    background: var(--amber);
-    color: #17120b;
-    cursor: pointer;
-    font-weight: 780;
-  }
-
-  .run-button:hover {
-    background: #d6933d;
-  }
-
-  .run-button:disabled {
-    cursor: wait;
-    opacity: 0.78;
-  }
-
-  .form-wait-note {
-    margin: 12px 0 0;
-    color: #c7d4cf;
-    font-size: 12px;
-    line-height: 1.5;
-  }
-
-  .form-error {
-    margin: 0 0 14px;
-    padding: 10px 12px;
-    border-left: 3px solid var(--red);
-    background: rgba(169, 66, 58, 0.16);
-    color: #f7d8d4;
-    font-size: 13px;
-  }
-
-  .example-strip {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 18px;
-  }
-
-  .example-chip {
-    min-height: 76px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    background: rgba(255, 253, 248, 0.8);
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.45;
-  }
-
-  .dashboard {
-    margin-top: 22px;
-  }
-
-  .metric-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-    margin-bottom: 18px;
-  }
-
-  .metric {
-    min-height: 96px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    background: var(--surface);
-  }
-
-  .metric-label {
-    margin: 0 0 12px;
-    color: var(--muted);
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .metric-value {
-    margin: 0;
-    color: var(--ink);
-    font-size: 24px;
-    font-weight: 760;
-    line-height: 1.1;
-    overflow-wrap: anywhere;
-  }
-
-  .workbench {
-    display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
-    gap: 18px;
-  }
-
-  .surface {
-    border: 1px solid var(--line);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  .surface-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--line);
-    background: rgba(235, 230, 218, 0.55);
-  }
-
-  .surface-title {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 760;
-  }
-
-  .surface-subtitle {
-    margin: 6px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .surface-body {
-    padding: 20px;
-  }
-
-  .answer-box {
-    white-space: pre-wrap;
-    color: #23322d;
-    font-size: 15px;
-    line-height: 1.7;
-  }
-
-  .trace-list {
-    display: grid;
-    gap: 8px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .trace-list li {
-    padding: 9px 11px;
-    border-left: 3px solid var(--teal);
-    background: #f3f0e8;
-    color: #293832;
-    font-size: 13px;
-    line-height: 1.45;
-  }
-
-  .badge-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 14px;
-  }
-
-  .badge {
-    padding: 6px 9px;
-    border: 1px solid var(--line);
-    background: #f7f4ed;
-    color: var(--muted);
-    font-size: 12px;
-  }
-
-  .badge.good {
-    border-color: rgba(47, 125, 85, 0.35);
-    color: var(--green);
-  }
-
-  .badge.warn {
-    border-color: rgba(192, 122, 34, 0.35);
-    color: var(--amber);
-  }
-
-  .insight-grid {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
-    gap: 18px;
-    margin-top: 18px;
-  }
-
-  .bar-chart {
-    display: grid;
-    gap: 12px;
-  }
-
-  .bar-row {
-    display: grid;
-    grid-template-columns: minmax(120px, 0.48fr) minmax(160px, 1fr) 58px;
-    gap: 12px;
-    align-items: center;
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .bar-track {
-    height: 12px;
-    border: 1px solid rgba(15, 107, 95, 0.18);
-    background: #eee8dc;
-  }
-
-  .bar-fill {
-    height: 100%;
-    min-width: 2px;
-    background: linear-gradient(90deg, var(--teal), var(--amber));
-  }
-
-  .data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-  }
-
-  .data-table th,
-  .data-table td {
-    padding: 10px 8px;
-    border-bottom: 1px solid var(--line);
-    text-align: left;
-    vertical-align: top;
-  }
-
-  .data-table th {
-    color: var(--muted);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .split-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .risk-item {
-    padding: 14px;
-    border: 1px solid var(--line);
-    background: #f9f6ef;
-  }
-
-  .risk-item h3 {
-    margin: 0 0 8px;
-    font-size: 16px;
-  }
-
-  .risk-item p,
-  .risk-item li {
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.55;
-  }
-
-  .detail-panel {
-    margin-top: 18px;
-  }
-
-  details.audit-fold {
-    margin-top: 18px;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  details.audit-fold > summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 16px 20px;
-    border-bottom: 1px solid transparent;
-    color: var(--teal-dark);
-    font-weight: 720;
-    background: rgba(235, 230, 218, 0.55);
-  }
-
-  details.audit-fold[open] > summary {
-    border-bottom-color: var(--line);
-  }
-
-  details.audit-fold > summary::-webkit-details-marker {
-    display: none;
-  }
-
-  details.audit-fold .fold-body {
-    padding: 18px 20px 20px;
-  }
-
-  .monitor-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 14px;
-    margin-top: 18px;
-  }
-
-  .quality-issue-list {
-    display: grid;
-    gap: 8px;
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .quality-issue-list li {
-    padding: 10px 12px;
-    border-left: 3px solid var(--amber);
-    background: #f7f4ed;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .answer-first {
-    margin-bottom: 18px;
-  }
-
-  .answer-hero {
-    border: 1px solid var(--line);
-    background: linear-gradient(180deg, rgba(245, 241, 232, 0.95), var(--surface));
-    box-shadow: var(--shadow);
-    margin-bottom: 18px;
-  }
-
-  .answer-hero .surface-body {
-    display: grid;
-    gap: 14px;
-  }
-
-  .summary-sentences {
-    margin: 0;
-    padding-left: 18px;
-    color: var(--ink);
-    font-size: 15px;
-    line-height: 1.7;
-  }
-
-  .summary-sentences li + li {
-    margin-top: 6px;
-  }
-
-  details.answer-body-fold {
-    border: 1px solid var(--line);
-    background: #fbf9f4;
-  }
-
-  details.answer-body-fold > summary {
-    list-style: none;
-    cursor: pointer;
-    padding: 12px 14px;
-    color: var(--teal-dark);
-    font-weight: 700;
-  }
-
-  details.answer-body-fold > summary::-webkit-details-marker {
-    display: none;
-  }
-
-  details.answer-body-fold .fold-body {
-    padding: 0 14px 14px;
-  }
-
-  .maturity-board-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  details {
-    border-top: 1px solid var(--line);
-  }
-
-  summary {
-    cursor: pointer;
-    padding: 14px 0;
-    color: var(--teal-dark);
-    font-weight: 720;
-  }
-
-  .risk-profile-grid,
-  .ledger-grid,
-  .judge-grid {
-    display: grid;
-    gap: 12px;
-  }
-
-  .risk-profile-grid {
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  }
-
-  .risk-profile-card,
-  .ledger-card,
-  .judge-card {
-    padding: 14px;
-    border: 1px solid var(--line);
-    background: #f9f6ef;
-  }
-
-  .risk-profile-card h3,
-  .ledger-card h3,
-  .judge-card h3 {
-    margin: 0 0 8px;
-    font-size: 15px;
-  }
-
-  .risk-profile-card p,
-  .ledger-card p,
-  .judge-card p,
-  .finding-list li {
-    margin: 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.55;
-  }
-
-  .severity {
-    display: inline-block;
-    margin-bottom: 10px;
-    padding: 4px 8px;
-    border: 1px solid var(--line);
-    color: var(--muted);
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-  }
-
-  .severity.high {
-    border-color: rgba(169, 66, 58, 0.35);
-    color: var(--red);
-  }
-
-  .severity.medium {
-    border-color: rgba(192, 122, 34, 0.35);
-    color: var(--amber);
-  }
-
-  .severity.low {
-    border-color: rgba(47, 125, 85, 0.35);
-    color: var(--green);
-  }
-
-  .trust-bar {
-    display: grid;
-    grid-template-columns: minmax(180px, 0.55fr) minmax(0, 1.45fr);
-    gap: 16px;
-    margin-bottom: 18px;
-    padding: 18px 20px;
-    border: 1px solid var(--line);
-    background: linear-gradient(120deg, rgba(15, 107, 95, 0.08), rgba(255, 253, 248, 0.96));
-    box-shadow: var(--shadow);
-  }
-
-  .trust-score-big {
-    margin: 0;
-    font-size: 42px;
-    font-weight: 780;
-    color: var(--teal);
-    line-height: 1;
-  }
-
-  .trust-score-big span {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--muted);
-  }
-
-  .action-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 12px;
-  }
-
-  .action-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border: 1px solid var(--line);
-    background: #f4f0e7;
-    color: var(--ink);
-    text-decoration: none;
-    font-size: 13px;
-  }
-
-  .action-link:hover {
-    border-color: var(--teal);
-    color: var(--teal-dark);
-  }
-
-  .stress-panel {
-    margin-top: 14px;
-    padding: 14px 16px;
-    border: 1px solid var(--line);
-    background: #f9f6ef;
-  }
-
-  .stress-panel.high {
-    border-color: rgba(169, 66, 58, 0.35);
-    background: rgba(169, 66, 58, 0.06);
-  }
-
-  .stress-panel.medium {
-    border-color: rgba(192, 122, 34, 0.35);
-    background: rgba(192, 122, 34, 0.06);
-  }
-
-  .stress-list {
-    margin: 10px 0 0;
-    padding-left: 18px;
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .stress-list li {
-    margin: 4px 0;
-  }
-
-  .trust-reason-list {
-    display: grid;
-    gap: 6px;
-    margin: 10px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .trust-reason-list li {
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.45;
-  }
-
-  .trace-list li {
-    display: grid;
-    grid-template-columns: 28px 1fr;
-    gap: 10px;
-    align-items: start;
-  }
-
-  .trace-step {
-    display: inline-grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 999px;
-    background: var(--teal);
-    color: #fff;
-    font-size: 11px;
-    font-weight: 700;
-  }
-
-  .example-chip {
-    cursor: pointer;
-    transition: border-color 0.15s ease, background 0.15s ease;
-  }
-
-  .example-chip:hover {
-    border-color: rgba(15, 107, 95, 0.45);
-    background: rgba(15, 107, 95, 0.06);
-    color: var(--ink);
-  }
-
-  .finding-list {
-    display: grid;
-    gap: 8px;
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  @media (max-width: 900px) {
-    .trust-bar {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 1120px) {
-    .agent-hero,
-    .workbench,
-    .insight-grid {
-      grid-template-columns: 1fr;
-    }
-
-    .metric-grid,
-    .example-strip {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (max-width: 720px) {
-    .hero-copy,
-    .query-console,
-    .surface-body,
-    .surface-header {
-      padding: 18px;
-    }
-
-    .metric-grid,
-    .example-strip {
-      grid-template-columns: 1fr;
-    }
-
-    .bar-row {
-      grid-template-columns: 1fr;
-      gap: 6px;
-    }
-  }
-
-  .form-wait-note {
-    margin: 10px 0 0;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-
-  .async-progress {
-    margin-top: 14px;
-    padding: 14px 16px;
-    border: 1px solid rgba(15, 107, 95, 0.18);
-    background: rgba(15, 107, 95, 0.06);
-    border-radius: 12px;
-  }
-
-  .async-progress[hidden] {
-    display: none !important;
-  }
-
-  .async-progress-title {
-    margin: 0 0 6px;
-    font-weight: 700;
-    color: var(--teal);
-  }
-
-  .async-progress-meta {
-    margin: 0;
-    color: var(--muted);
-    font-size: 13px;
-  }
-
-  .async-progress-bar {
-    margin-top: 12px;
-    height: 8px;
-    border-radius: 999px;
-    background: rgba(15, 107, 95, 0.12);
-    overflow: hidden;
-  }
-
-  .async-progress-bar > span {
-    display: block;
-    height: 100%;
-    width: 35%;
-    border-radius: inherit;
-    background: linear-gradient(90deg, rgba(15, 107, 95, 0.35), var(--teal), rgba(15, 107, 95, 0.35));
-    background-size: 200% 100%;
-    animation: bondlens-progress 1.4s linear infinite;
-  }
-
-  @keyframes bondlens-progress {
-    0% { transform: translateX(-120%); }
-    100% { transform: translateX(320%); }
-  }
-
-
-  .async-tool-steps {
-    margin: 12px 0 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 6px;
-  }
-  .async-tool-steps li {
-    display: flex;
-    gap: 8px;
-    align-items: flex-start;
-    padding: 8px 10px;
-    border-left: 3px solid rgba(15, 107, 95, 0.35);
-    background: rgba(15, 107, 95, 0.05);
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.45;
-  }
-  .async-tool-steps li.active {
-    border-left-color: var(--amber);
-    color: var(--ink);
-    background: rgba(192, 122, 34, 0.08);
-  }
-  .async-tool-steps li.done {
-    border-left-color: rgba(47, 125, 85, 0.65);
-    opacity: 0.9;
-  }
-  .async-tool-steps .step-mark {
-    min-width: 1.2em;
-    color: var(--teal);
-    font-weight: 700;
-  }
-  .soft-result-shell {
-    margin-top: 18px;
-  }
-  .soft-result-shell[hidden] { display: none !important; }
-  .soft-result-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  .soft-result-answer {
-    white-space: pre-wrap;
-    font-size: 15px;
-    line-height: 1.7;
-    color: #23322d;
-  }
-  .soft-result-lines {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: grid;
-    gap: 8px;
-  }
-  .soft-result-lines li {
-    padding: 10px 12px;
-    border-left: 3px solid var(--teal);
-    background: #f7f4ed;
-    color: var(--muted);
-    font-size: 13px;
-    line-height: 1.5;
-  }
-  .async-stream-preview {
-    margin-top: 12px;
-    max-height: 220px;
-    overflow: auto;
-    padding: 12px;
-    border: 1px solid rgba(15, 107, 95, 0.18);
-    background: #101a16;
-    color: #e8f0ec;
-    font-size: 12px;
-    line-height: 1.5;
-    white-space: pre-wrap;
-  }
-  .async-stream-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 12px;
-  }
-  .cancel-button, .ghost-button {
-    border: 1px solid rgba(15, 107, 95, 0.28);
-    background: #fffdf8;
-    color: var(--ink);
-    padding: 8px 12px;
-    cursor: pointer;
-    font: inherit;
-    font-size: 13px;
-  }
-  .cancel-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-  .async-error {
-    margin-top: 12px;
-    color: #8a2f1f;
-    font-size: 13px;
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/agent.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
 
 <div class="agent-hero">
   <section class="hero-copy">
-    <p class="eyebrow" data-lang-zh="证据优先 · 中文债市 Agent" data-lang-en="Evidence-first · Chinese bond agent">证据优先 · 中文债市 Agent</p>
-    <h1 data-lang-zh="数字只来自确定性工具" data-lang-en="Numbers from tools only">数字只来自确定性工具</h1>
-    <p class="hero-lead" data-lang-zh="面向中文债券数据的证据优先分析 Agent：工具出数，大模型只能在证据上叙述；每次回答可回放、可裁决、可导出 Bond Evidence Pack。" data-lang-en="Evidence-first bond analysis agent for Chinese market data. Tools compute numbers; the LLM may only narrate over evidence. Every answer is replayable, judged, and exportable as a Bond Evidence Pack.">面向中文债券数据的证据优先分析 Agent：工具出数，大模型只能在证据上叙述；每次回答可回放、可裁决、可导出 Bond Evidence Pack。</p>
-    <ul class="principle-list">
-      <li data-lang-zh="数字由代码计算，不经 LLM 生成。" data-lang-en="Numbers are code-calculated, never invented by the LLM.">数字由代码计算，不经 LLM 生成。</li>
-      <li data-lang-zh="叙述可经 LLM，但必须通过护栏与评审。" data-lang-en="Narration may use an LLM, only after guardrails and judge.">叙述可经 LLM，但必须通过护栏与评审。</li>
-      <li data-lang-zh="每次输出可追溯：血缘、账本、信任分、局限性。" data-lang-en="Every output is provenance-tracked: lineage, ledger, trust, limitations.">每次输出可追溯：血缘、账本、信任分、局限性。</li>
-    </ul>
+    <p class="eyebrow" data-lang-zh="BondLens / 债券研究" data-lang-en="BondLens / Fixed income research">BondLens / 债券研究</p>
+    <h1 data-lang-zh="从问题到证据" data-lang-en="From question to evidence">从问题到证据</h1>
+    <p class="hero-lead" data-lang-zh="查询收益与成交，比较债券，追踪异常。每个结论均可核对来源和计算证据。" data-lang-en="Explore yields and turnover, compare bonds, and investigate outliers. Check the sources and calculations behind each conclusion.">查询收益与成交，比较债券，追踪异常。每个结论均可核对来源和计算证据。</p>
+    <a class="action-link" href="/replay?lang={{ lang }}" data-lang-zh="查看历史分析 →" data-lang-en="Analysis history →">查看历史分析 →</a>
     <div class="example-strip" aria-label="示例问题" data-lang-zh-aria="示例问题" data-lang-en-aria="Example questions">
       <button type="button" class="example-chip" data-fill-question-zh="当前样本收益率分布是什么样？" data-fill-question-en="What does the current yield distribution look like?" data-lang-zh="当前样本收益率分布是什么样？" data-lang-en="What does the current yield distribution look like?">当前样本收益率分布是什么样？</button>
       <button type="button" class="example-chip" data-fill-question-zh="按收益率列出最高的前5只债券" data-fill-question-en="List the top 5 bonds by yield." data-lang-zh="按收益率列出最高的前5只债券" data-lang-en="List the top 5 bonds by yield.">按收益率列出最高的前5只债券</button>
       <button type="button" class="example-chip" data-fill-question-zh="搜索23附息国债26并给出收益率分析" data-fill-question-en="Search 23附息国债26 and analyze its yield." data-lang-zh="搜索23附息国债26并给出收益率分析" data-lang-en="Search 23附息国债26 and analyze its yield.">搜索23附息国债26并给出收益率分析</button>
-      <button type="button" class="example-chip" data-fill-question-zh="打开今日市场监控面板：高收益、低成交与异常" data-fill-question-en="Open today's market monitor board." data-lang-zh="打开今日市场监控面板：高收益、低成交与异常" data-lang-en="Open today's market monitor board.">打开今日市场监控面板：高收益、低成交与异常</button>
+      <button type="button" class="example-chip" data-fill-question-zh="查看样本市场监控：高收益、低成交与异常" data-fill-question-en="Open the sample market monitor board." data-lang-zh="查看样本市场监控：高收益、低成交与异常" data-lang-en="Open the sample market monitor board.">查看样本市场监控：高收益、低成交与异常</button>
     </div>
   </section>
 
   <section class="query-console">
     <div class="console-title">
-      <span data-lang-zh="智能体控制台" data-lang-en="Agent Console">智能体控制台</span>
+      <span data-lang-zh="新建分析" data-lang-en="New analysis">新建分析</span>
       <span class="status-pill" data-lang-zh="实时 / 快照 / 本地" data-lang-en="Live / Snapshot / Static">实时 / 快照 / 本地</span>
     </div>
     {% if form_error %}
-      <p class="form-error">{{ form_error }}</p>
+      <p class="form-error" role="alert">{{ form_error }}</p>
     {% endif %}
     <form method="post" id="agent-query-form" data-agent-form data-async-endpoint="/api/agent/query" data-stream-endpoint="/api/agent/stream">
       <input type="hidden" name="lang" value="{{ lang }}">
       <div class="form-field">
         <label for="question" data-lang-zh="自然语言问题" data-lang-en="Natural-language question">自然语言问题</label>
-        <textarea id="question" name="question" placeholder="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-zh="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-en="Example: list the highest-yield bonds and explain whether any yield outliers appear.">{{ question }}</textarea>
+        <textarea id="question" name="question" maxlength="4000" required placeholder="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-zh="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-en="Example: list the highest-yield bonds and explain whether any yield outliers appear.">{{ question }}</textarea>
       </div>
+      <p id="data-mode-note" class="data-notice" role="status"></p>
       <div class="console-config-grid" aria-label="Run configuration" data-lang-zh-aria="运行配置" data-lang-en-aria="Run configuration">
         <div class="form-field">
           <label for="data_mode" data-lang-zh="数据源模式" data-lang-en="Data source mode">数据源模式</label>
@@ -948,10 +44,18 @@
             <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="Static：本地 Excel 备用样本" data-lang-en="Static: local Excel fallback sample">Static：本地 Excel 备用样本</option>
           </select>
         </div>
+        <div class="form-field" id="import-field">
+          <label for="import-file" data-lang-zh="上传本地数据（CSV/XLSX，可选）" data-lang-en="Upload local data (CSV/XLSX, optional)">上传本地数据（CSV/XLSX，可选）</label>
+          <input type="file" id="import-file" accept=".csv,.xlsx,.xls">
+          <button type="button" id="import-upload-button" class="ghost-button" disabled data-lang-zh="上传并使用" data-lang-en="Upload & use">上传并使用</button>
+          <button type="button" id="import-clear-button" class="ghost-button" hidden data-lang-zh="恢复内置数据源" data-lang-en="Restore built-in data source">恢复内置数据源</button>
+          <input type="hidden" name="import_id" id="import-id" value="">
+          <p id="import-status" class="data-notice" role="status" aria-live="polite" data-lang-zh="上传后仅在本机内存中解析，文件不会保存；缺少的字段会自动禁用相关分析。" data-lang-en="Uploads are parsed in memory only and never stored; missing fields disable the dependent analyses.">上传后仅在本机内存中解析，文件不会保存；缺少的字段会自动禁用相关分析。</p>
+        </div>
       </div>
-      <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="运行 Agent" data-lang-en="Run Agent" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">运行 Agent</button>
-      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。" data-lang-en="Runs in the background with on-page progress. No key: a few seconds. With LLM: often 8–40s (repair can be longer). Do not click again. You can open /healthz in another tab.">请求在后台执行，本页显示进度；无 Key 通常数秒，开启 LLM 时约 8–40 秒（修复路径可能更长）。请勿重复点击。期间可另开标签页访问 /healthz。</p>
-      <div class="async-progress" id="agent-async-progress" hidden>
+      <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="开始分析" data-lang-en="Analyze" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">开始分析</button>
+      <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="正在分析，请勿重复提交。停止接收不会终止服务器计算。" data-lang-en="Analysis in progress. Do not submit again. Stopping receipt does not cancel server computation.">正在分析，请勿重复提交。停止接收不会终止服务器计算。</p>
+      <div class="async-progress" id="agent-async-progress" role="status" aria-live="polite" hidden>
         <p class="async-progress-title" id="agent-async-title" data-lang-zh="正在分析…" data-lang-en="Analyzing…">正在分析…</p>
         <p class="async-progress-meta" id="agent-async-meta" data-lang-zh="已等待 0 秒 · 页面可保持打开" data-lang-en="Elapsed 0s · you can keep this page open">已等待 0 秒 · 页面可保持打开</p>
         <div class="async-progress-bar" aria-hidden="true"><span></span></div>
@@ -968,557 +72,124 @@
   <div class="soft-result-shell surface" id="agent-soft-result" hidden>
     <div class="surface-header">
       <div>
-        <h2 class="surface-title" data-lang-zh="本页结果（未整页刷新）" data-lang-en="In-page result (no full reload)">本页结果（未整页刷新）</h2>
-        <p class="surface-subtitle" id="agent-soft-subtitle" data-lang-zh="流式结束后直接渲染摘要卡；完整看板与表格仍在可分享链接。无 Key / 通道失败时显示确定性报告。" data-lang-en="Summary card after stream final; full board stays on the shareable link. No key / channel failure → deterministic report.">流式结束后直接渲染摘要卡；完整看板与表格仍在可分享链接。无 Key / 通道失败时显示确定性报告。</p>
+        <h2 class="surface-title" data-lang-zh="分析结论" data-lang-en="Analysis result">分析结论</h2>
+        <p class="surface-subtitle" id="agent-soft-subtitle" data-lang-zh="查看结论后，打开完整报告核对数据与证据。" data-lang-en="Open the full report to inspect data and supporting evidence.">查看结论后，打开完整报告核对数据与证据。</p>
       </div>
       <div class="badge-row" style="margin-top:0" id="agent-soft-badges"></div>
     </div>
     <div class="surface-body">
       <div class="soft-result-meta" id="agent-soft-meta"></div>
-      <div class="insight-grid" style="margin-top:0;margin-bottom:14px">
-        <section class="surface" style="margin:0;box-shadow:none">
-          <div class="surface-header" style="background:transparent">
-            <h3 class="surface-title" style="font-size:16px" data-lang-zh="答案来源" data-lang-en="Answer provenance">答案来源</h3>
-          </div>
-          <div class="surface-body" style="padding-top:0">
-            <p class="surface-subtitle" id="agent-soft-prov-headline"></p>
-            <ul class="soft-result-lines" id="agent-soft-prov-lines"></ul>
-          </div>
-        </section>
-        <section class="surface" style="margin:0;box-shadow:none">
-          <div class="surface-header" style="background:transparent">
-            <h3 class="surface-title" style="font-size:16px" data-lang-zh="数据血缘" data-lang-en="Data lineage">数据血缘</h3>
-          </div>
-          <div class="surface-body" style="padding-top:0">
-            <p class="surface-subtitle" id="agent-soft-lineage-headline"></p>
-            <ul class="soft-result-lines" id="agent-soft-lineage-lines"></ul>
-          </div>
-        </section>
-      </div>
-      <h3 class="surface-title" style="font-size:16px;margin:0 0 8px" data-lang-zh="最终回答" data-lang-en="Final answer">最终回答</h3>
+      <h3 class="surface-title" style="font-size:16px;margin:10px 0 8px" data-lang-zh="最终回答" data-lang-en="Final answer">最终回答</h3>
       <div class="soft-result-answer answer-box" id="agent-soft-answer"></div>
+      <p class="surface-subtitle" id="agent-soft-source-line" style="margin:8px 0 0"></p>
       <div class="action-row" style="margin-top:14px">
         <a class="action-link" id="agent-soft-open-link" href="#" data-lang-zh="打开完整结果页" data-lang-en="Open full result page">打开完整结果页</a>
         <button type="button" class="ghost-button" id="agent-soft-copy-answer" data-lang-zh="复制最终回答" data-lang-en="Copy final answer">复制最终回答</button>
       </div>
+      <details class="soft-tech-details" id="agent-soft-tech-details" style="margin-top:14px">
+        <summary data-lang-zh="查看答案来源与数据血缘" data-lang-en="Answer provenance & data lineage">查看答案来源与数据血缘</summary>
+        <div class="insight-grid" style="margin-top:12px;margin-bottom:0">
+          <section class="surface" style="margin:0;box-shadow:none">
+            <div class="surface-header" style="background:transparent">
+              <h3 class="surface-title" style="font-size:16px" data-lang-zh="答案来源" data-lang-en="Answer provenance">答案来源</h3>
+            </div>
+            <div class="surface-body" style="padding-top:0">
+              <p class="surface-subtitle" id="agent-soft-prov-headline"></p>
+              <ul class="soft-result-lines" id="agent-soft-prov-lines"></ul>
+            </div>
+          </section>
+          <section class="surface" style="margin:0;box-shadow:none">
+            <div class="surface-header" style="background:transparent">
+              <h3 class="surface-title" style="font-size:16px" data-lang-zh="数据血缘" data-lang-en="Data lineage">数据血缘</h3>
+            </div>
+            <div class="surface-body" style="padding-top:0">
+              <p class="surface-subtitle" id="agent-soft-lineage-headline"></p>
+              <ul class="soft-result-lines" id="agent-soft-lineage-lines"></ul>
+            </div>
+          </section>
+        </div>
+      </details>
+      <div class="ai-explain-panel" data-ai-explain id="agent-soft-ai-panel">
+        <h3 class="surface-title" style="font-size:16px;margin:12px 0 6px" data-lang-zh="AI 解读（可选，需显式点击）" data-lang-en="AI interpretation (optional, click to run)">AI 解读（可选，需显式点击）</h3>
+        <p class="surface-subtitle" data-lang-zh="仅在你点击后才调用一次外部模型：复用已计算的确定性结果与证据，不重算数据、不给投资建议；未配置或失败时确定性结果不受影响。" data-lang-en="Only your click triggers one external model call: it reuses the computed deterministic result and evidence — no recomputation, no investment advice; if unconfigured or failed, the deterministic result is unaffected.">仅在你点击后才调用一次外部模型：复用已计算的确定性结果与证据，不重算数据、不给投资建议；未配置或失败时确定性结果不受影响。</p>
+        <button type="button" class="ghost-button" id="agent-soft-ai-button" data-ai-button data-result-id="" data-data-mode="{{ data_mode }}" hidden data-lang-zh="生成 AI 解读" data-lang-en="Generate AI interpretation">生成 AI 解读</button>
+        <p class="surface-subtitle" id="agent-soft-ai-status" data-ai-status hidden></p>
+        <div class="answer-box" id="agent-soft-ai-body" data-ai-body hidden></div>
+      </div>
     </div>
   </div>
 </div>
-<script>
-  (function () {
-    const form = document.getElementById("agent-query-form");
-    const button = document.getElementById("run-agent-button");
-    const note = document.getElementById("agent-wait-note");
-    const progress = document.getElementById("agent-async-progress");
-    const meta = document.getElementById("agent-async-meta");
-    const title = document.getElementById("agent-async-title");
-    const errorBox = document.getElementById("agent-async-error");
-    const streamPreview = document.getElementById("agent-stream-preview");
-    const streamActions = document.getElementById("agent-stream-actions");
-    const cancelButton = document.getElementById("agent-cancel-button");
-    const copyButton = document.getElementById("agent-copy-stream-button");
-    const toolSteps = document.getElementById("agent-tool-steps");
-    const softResult = document.getElementById("agent-soft-result");
-    const softBadges = document.getElementById("agent-soft-badges");
-    const softMeta = document.getElementById("agent-soft-meta");
-    const softProvHeadline = document.getElementById("agent-soft-prov-headline");
-    const softProvLines = document.getElementById("agent-soft-prov-lines");
-    const softLineageHeadline = document.getElementById("agent-soft-lineage-headline");
-    const softLineageLines = document.getElementById("agent-soft-lineage-lines");
-    const softAnswer = document.getElementById("agent-soft-answer");
-    const softOpenLink = document.getElementById("agent-soft-open-link");
-    const softCopyAnswer = document.getElementById("agent-soft-copy-answer");
-    if (!form || !button) {
-      return;
-    }
-
-    let activeController = null;
-    let timer = null;
-    let streamChars = 0;
-    let stepCount = 0;
-
-    function currentLang() {
-      return (document.documentElement.dataset.initialLang || "zh").toLowerCase().startsWith("en")
-        ? "en"
-        : "zh";
-    }
-
-    function clearToolSteps() {
-      if (!toolSteps) return;
-      toolSteps.innerHTML = "";
-      stepCount = 0;
-    }
-
-    function markStepsDone() {
-      if (!toolSteps) return;
-      toolSteps.querySelectorAll("li").forEach((li) => {
-        li.classList.remove("active");
-        li.classList.add("done");
-      });
-    }
-
-    function appendToolStep(message, stage, tool) {
-      if (!toolSteps) return;
-      toolSteps.querySelectorAll("li.active").forEach((li) => {
-        li.classList.remove("active");
-        li.classList.add("done");
-      });
-      stepCount += 1;
-      const li = document.createElement("li");
-      li.className = "active";
-      const mark = document.createElement("span");
-      mark.className = "step-mark";
-      mark.textContent = String(stepCount);
-      const body = document.createElement("span");
-      const stageBit = stage ? `[${stage}] ` : "";
-      const toolBit = tool ? `${tool}: ` : "";
-      body.textContent = `${stageBit}${toolBit}${message || ""}`;
-      li.appendChild(mark);
-      li.appendChild(body);
-      toolSteps.appendChild(li);
-      toolSteps.scrollTop = toolSteps.scrollHeight;
-    }
-
-    function setBusy(isBusy) {
-      const lang = currentLang();
-      const busyText = lang === "en"
-        ? (button.dataset.busyEn || "Analyzing, please wait…")
-        : (button.dataset.busyZh || "分析中，请稍候…");
-      const idleText = lang === "en"
-        ? (button.dataset.langEn || "Run Agent")
-        : (button.dataset.langZh || "运行 Agent");
-      button.disabled = isBusy;
-      button.textContent = isBusy ? busyText : idleText;
-      button.setAttribute("aria-busy", isBusy ? "true" : "false");
-      if (note) note.hidden = !isBusy;
-      if (progress) progress.hidden = !isBusy;
-      if (streamActions) streamActions.hidden = !isBusy;
-      if (cancelButton) cancelButton.disabled = !isBusy;
-      if (!isBusy) {
-        if (errorBox) {
-          errorBox.hidden = true;
-          errorBox.textContent = "";
-        }
-        if (streamPreview) {
-          streamPreview.hidden = true;
-          streamPreview.textContent = "";
-        }
-        if (copyButton) copyButton.hidden = true;
-        streamChars = 0;
-      } else {
-        clearToolSteps();
-        if (softResult) softResult.hidden = true;
-      }
-    }
-
-    function startTimer() {
-      const started = Date.now();
-      if (timer) clearInterval(timer);
-      timer = setInterval(() => {
-        if (!meta) return;
-        const sec = Math.floor((Date.now() - started) / 1000);
-        const streamHint = streamChars > 0
-          ? (currentLang() === "en" ? ` · ${streamChars} chars streamed` : ` · 已流式 ${streamChars} 字`)
-          : "";
-        let phase;
-        if (streamChars > 0) {
-          phase = currentLang() === "en"
-            ? "LLM tokens arriving"
-            : "模型 token 输出中";
-        } else if (sec < 8) {
-          phase = currentLang() === "en"
-            ? "loading data + running tools"
-            : "加载数据并执行工具";
-        } else if (sec < 25) {
-          phase = currentLang() === "en"
-            ? "tools/evidence, then model channel"
-            : "工具/证据完成中，随后进模型通道";
-        } else {
-          phase = currentLang() === "en"
-            ? "waiting on model channel (may retry 429/5xx; fails over to deterministic report)"
-            : "等待模型通道（429/5xx 会轻量重试；失败则改用确定性报告）";
-        }
-        meta.textContent = currentLang() === "en"
-          ? (`Elapsed ${sec}s · ${phase}` + streamHint)
-          : (`已等待 ${sec} 秒 · ${phase}` + streamHint);
-      }, 500);
-    }
-    function stopTimer() {
-      if (timer) {
-        clearInterval(timer);
-        timer = null;
-      }
-    }
-
-    function appendStreamText(chunk) {
-      if (!streamPreview) return;
-      streamPreview.hidden = false;
-      streamPreview.textContent += chunk;
-      streamChars += (chunk || "").length;
-      streamPreview.scrollTop = streamPreview.scrollHeight;
-      if (copyButton) copyButton.hidden = false;
-    }
-
-    function abortActive(reason) {
-      if (activeController) {
-        try { activeController.abort(reason || "cancelled"); } catch (_) { /* older browsers */ }
-      }
-    }
-
-    function badge(text, tone) {
-      const span = document.createElement("span");
-      span.className = "badge" + (tone ? (" " + tone) : "");
-      span.textContent = text;
-      return span;
-    }
-
-    function fillList(el, items) {
-      if (!el) return;
-      el.innerHTML = "";
-      (items || []).forEach((item) => {
-        const li = document.createElement("li");
-        if (item && typeof item === "object") {
-          const zh = item.zh || item.text || "";
-          const en = item.en || item.text || zh;
-          li.setAttribute("data-lang-zh", zh);
-          li.setAttribute("data-lang-en", en);
-          li.textContent = currentLang() === "en" ? en : zh;
-        } else {
-          li.textContent = String(item || "");
-        }
-        el.appendChild(li);
-      });
-    }
-
-    function pickAnswer(result, view, lang) {
-      if (view && view.final_answer_by_lang) {
-        return view.final_answer_by_lang[lang] || view.final_answer_by_lang.zh || view.final_answer || "";
-      }
-      if (view && view.final_answer) return view.final_answer;
-      return (result && (result.final_answer || result.answer)) || "";
-    }
-
-    function renderSoftFinal(payload) {
-      const lang = currentLang();
-      const result = payload.result || {};
-      const view = payload.view || {};
-      const resultUrl = payload.result_url || "#";
-      const trust = (result.trust_score && result.trust_score.score != null)
-        ? result.trust_score.score
-        : (view.trust_score != null ? view.trust_score : "—");
-      const finalSource = result.final_answer_source || (view.answer_provenance && view.answer_provenance.final_source) || "unknown";
-      const usedFinal = !!(result.used_llm_in_final);
-      const llmStatus = result.llm_status || "—";
-      const guard = (result.llm_guardrail && result.llm_guardrail.status) || "—";
-
-      if (softBadges) {
-        softBadges.innerHTML = "";
-        softBadges.appendChild(badge(lang === "en" ? `Trust ${trust}/100` : `信任分 ${trust}/100`, ""));
-        softBadges.appendChild(badge(lang === "en" ? `Source ${finalSource}` : `来源 ${finalSource}`, usedFinal ? "good" : "warn"));
-        softBadges.appendChild(badge(lang === "en" ? `LLM ${llmStatus}` : `LLM ${llmStatus}`, llmStatus === "success" ? "good" : ""));
-        softBadges.appendChild(badge(lang === "en" ? `Guardrail ${guard}` : `护栏 ${guard}`, guard === "passed" ? "good" : (guard === "failed" ? "warn" : "")));
-      }
-      if (softMeta) {
-        softMeta.innerHTML = "";
-        softMeta.appendChild(badge(lang === "en" ? `Mode ${payload.data_mode || "—"}` : `模式 ${payload.data_mode || "—"}`));
-        softMeta.appendChild(badge(lang === "en" ? `result_id ${payload.result_id || "—"}` : `结果 ${payload.result_id || "—"}`));
-        if (result.disclaimer) softMeta.appendChild(badge(String(result.disclaimer).slice(0, 80)));
-      }
-
-      const prov = view.answer_provenance || {};
-      if (softProvHeadline) {
-        softProvHeadline.textContent = lang === "en"
-          ? (prov.headline_en || prov.headline || "")
-          : (prov.headline_zh || prov.headline || "");
-      }
-      fillList(softProvLines, prov.line_items || (prov.lines || []).map((x) => ({ zh: x, en: x })));
-
-      const lineage = view.data_lineage || {};
-      if (softLineageHeadline) {
-        softLineageHeadline.textContent = lineage.freshness || lineage.runtime_label || (lang === "en" ? "Data lineage" : "数据血缘");
-      }
-      fillList(softLineageLines, (lineage.lines || []).map((x) => ({ zh: x, en: x })));
-
-      if (softAnswer) softAnswer.textContent = pickAnswer(result, view, lang);
-      if (softOpenLink) {
-        softOpenLink.href = resultUrl;
-        softOpenLink.hidden = !payload.result_id;
-      }
-      if (softResult) {
-        softResult.hidden = false;
-        softResult.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-      if (typeof window.applyLanguage === "function") {
-        try { window.applyLanguage(lang); } catch (_) { /* optional */ }
-      }
-      if (payload.result_id) {
-        try {
-          const url = new URL(window.location.href);
-          url.pathname = "/agent";
-          url.searchParams.set("result_id", payload.result_id);
-          url.searchParams.set("lang", lang);
-          if (payload.data_mode) url.searchParams.set("data_mode", payload.data_mode);
-          window.history.replaceState({}, "", url.toString());
-        } catch (_) { /* ignore */ }
-      }
-    }
-
-    if (cancelButton) {
-      cancelButton.addEventListener("click", () => {
-        abortActive("user_cancel");
-        if (title) {
-          title.textContent = currentLang() === "en" ? "Cancelling…" : "正在取消…";
-        }
-      });
-    }
-    if (copyButton) {
-      copyButton.addEventListener("click", async () => {
-        const textValue = streamPreview ? streamPreview.textContent : "";
-        if (!textValue) return;
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(textValue);
-          } else {
-            const ta = document.createElement("textarea");
-            ta.value = textValue;
-            document.body.appendChild(ta);
-            ta.select();
-            document.execCommand("copy");
-            document.body.removeChild(ta);
-          }
-          copyButton.textContent = currentLang() === "en" ? "Copied" : "已复制";
-          setTimeout(() => {
-            copyButton.textContent = currentLang() === "en"
-              ? (copyButton.dataset.langEn || "Copy stream preview")
-              : (copyButton.dataset.langZh || "复制流式预览");
-          }, 1200);
-        } catch (_) {
-          /* ignore */
-        }
-      });
-    }
-    if (softCopyAnswer) {
-      softCopyAnswer.addEventListener("click", async () => {
-        const textValue = softAnswer ? softAnswer.textContent : "";
-        if (!textValue) return;
-        try {
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            await navigator.clipboard.writeText(textValue);
-          }
-          softCopyAnswer.textContent = currentLang() === "en" ? "Copied" : "已复制";
-          setTimeout(() => {
-            softCopyAnswer.textContent = currentLang() === "en"
-              ? (softCopyAnswer.dataset.langEn || "Copy final answer")
-              : (softCopyAnswer.dataset.langZh || "复制最终回答");
-          }, 1200);
-        } catch (_) { /* ignore */ }
-      });
-    }
-
-    async function runJsonFallback(endpoint, lang, question, dataMode, signal) {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: JSON.stringify({
-          question,
-          data_mode: dataMode,
-          lang,
-          include_view: true,
-        }),
-        signal,
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(payload.error || (`HTTP ${response.status}`));
-      }
-      if (!payload.result_id && !payload.final_answer) {
-        throw new Error(lang === "en" ? "Missing result from API." : "接口未返回结果。");
-      }
-      // Normalize shape to soft renderer
-      const body = {
-        result_id: payload.result_id,
-        result_url: payload.result_url,
-        result: payload.result || payload,
-        view: payload.view || null,
-        data_mode: dataMode,
-        lang,
-      };
-      if (!body.view) {
-        // Minimal view for soft card when include_view failed
-        body.view = {
-          final_answer: body.result.final_answer || body.result.answer || "",
-          answer_provenance: {
-            headline: lang === "en" ? "Answer provenance unavailable in soft view." : "软渲染未附带完整 provenance。",
-            lines: [],
-            line_items: [],
-          },
-          data_lineage: { lines: [], freshness: "" },
-        };
-      }
-      renderSoftFinal(body);
-    }
-
-    async function runSse(streamEndpoint, lang, question, dataMode, signal) {
-      const response = await fetch(streamEndpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "text/event-stream",
-        },
-        body: JSON.stringify({
-          question,
-          data_mode: dataMode,
-          lang,
-        }),
-        signal,
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || (`HTTP ${response.status}`));
-      }
-      if (!response.body || !response.body.getReader) {
-        throw new Error("SSE body unavailable");
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let buffer = "";
-      let currentEvent = "message";
-      let finalPayload = null;
-
-      function handleBlock(block) {
-        const lines = block.split(/\r?\n/);
-        let eventName = currentEvent;
-        const dataLines = [];
-        for (const line of lines) {
-          if (line.startsWith("event:")) {
-            eventName = line.slice(6).trim();
-          } else if (line.startsWith("data:")) {
-            dataLines.push(line.slice(5).trim());
-          }
-        }
-        if (!dataLines.length) return;
-        let payload = {};
-        try {
-          payload = JSON.parse(dataLines.join("\n"));
-        } catch {
-          return;
-        }
-        if (eventName === "status") {
-          const msg = payload.message || (lang === "en" ? payload.message_en : payload.message_zh) || "";
-          if (title && msg) title.textContent = msg;
-          appendToolStep(msg, payload.stage, payload.tool);
-        } else if (eventName === "token") {
-          appendStreamText(payload.text || "");
-          if (title) {
-            title.textContent = lang === "en" ? "Streaming LLM tokens…" : "正在流式输出 LLM…";
-          }
-        } else if (eventName === "final") {
-          finalPayload = payload;
-        } else if (eventName === "error") {
-          throw new Error(payload.error || "stream error");
-        }
-      }
-
-      while (true) {
-        if (signal && signal.aborted) {
-          try { await reader.cancel(); } catch (_) {}
-          throw new DOMException("Aborted", "AbortError");
-        }
-        const { value, done } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        let splitAt;
-        while ((splitAt = buffer.indexOf("\n\n")) >= 0) {
-          const block = buffer.slice(0, splitAt);
-          buffer = buffer.slice(splitAt + 2);
-          if (block.trim()) handleBlock(block);
-        }
-      }
-      if (buffer.trim()) handleBlock(buffer);
-      if (!finalPayload) {
-        throw new Error(lang === "en" ? "Stream ended without final result." : "流式结束但未收到最终结果。");
-      }
-      markStepsDone();
-      renderSoftFinal(finalPayload);
-    }
-
-    form.addEventListener("submit", async (event) => {
-      if (!window.fetch) {
-        setBusy(true);
-        return;
-      }
-      event.preventDefault();
-      if (button.disabled) return;
-
-      const streamEndpoint = form.dataset.streamEndpoint || "/api/agent/stream";
-      const jsonEndpoint = form.dataset.asyncEndpoint || "/api/agent/query";
-      const lang = currentLang();
-      const question = (form.question && form.question.value || "").trim();
-      const dataMode = (form.data_mode && form.data_mode.value) || "auto";
-      if (!question) {
-        if (errorBox) {
-          errorBox.hidden = false;
-          errorBox.textContent = lang === "en" ? "Please enter a question." : "请先输入问题。";
-        }
-        return;
-      }
-
-      abortActive("superseded");
-      activeController = (typeof AbortController !== "undefined") ? new AbortController() : null;
-      const signal = activeController ? activeController.signal : undefined;
-
-      setBusy(true);
-      startTimer();
-      try {
-        try {
-          await runSse(streamEndpoint, lang, question, dataMode, signal);
-        } catch (streamErr) {
-          if (signal && signal.aborted) {
-            throw streamErr;
-          }
-          if (title) {
-            title.textContent = lang === "en"
-              ? "Stream unavailable, falling back to JSON…"
-              : "流式不可用，回退普通 JSON 请求…";
-          }
-          if (streamPreview && streamPreview.textContent) {
-            streamPreview.hidden = false;
-          }
-          await runJsonFallback(jsonEndpoint, lang, question, dataMode, signal);
-        }
-        stopTimer();
-        setBusy(false);
-        activeController = null;
-        if (title) {
-          title.textContent = lang === "en" ? "Done" : "完成";
-        }
-        if (progress) progress.hidden = false;
-      } catch (err) {
-        stopTimer();
-        setBusy(false);
-        activeController = null;
-        if (errorBox) {
-          errorBox.hidden = false;
-          const aborted = (err && (err.name === "AbortError" || String(err).includes("abort")));
-          if (aborted) {
-            errorBox.textContent = lang === "en"
-              ? "Request cancelled."
-              : "已取消请求。";
-          } else {
-            errorBox.textContent = (lang === "en" ? "Request failed: " : "请求失败：") + (err && err.message ? err.message : String(err));
-          }
-        }
-      }
-    });
-  })();
-</script>
+<script src="{{ url_for('static', filename='js/ai-explain.js') }}"></script>
+<script src="{{ url_for('static', filename='js/agent-query.js') }}"></script>
+<script src="{{ url_for('static', filename='js/workspace.js') }}" defer></script>
 
 
 {% if result %}
   <section class="dashboard">
+    <p class="data-notice{% if result.data_source.runtime_mode != 'live' %} sample{% endif %}">{% if result.data_source.runtime_mode != 'live' %}<strong data-lang-zh="非实时数据" data-lang-en="Not live data">非实时数据</strong> · {% endif %}{{ result.data_source.source_name }} · {{ result.data_source.runtime_mode }}{% if result.data_source.sample_date %} · <span data-lang-zh="行情日期 {{ result.data_source.sample_date }}" data-lang-en="Quote date {{ result.data_source.sample_date }}">行情日期 {{ result.data_source.sample_date }}</span>{% elif result.data_source.mixed_timepoints %} · <span data-lang-zh="样本跨多个行情时点" data-lang-en="Sample spans multiple quote dates">样本跨多个行情时点</span>{% endif %} · <span data-lang-zh="样本行数 {{ result.data_source.row_count }}" data-lang-en="{{ result.data_source.row_count }} rows">样本行数 {{ result.data_source.row_count }}</span>{% if result.data_source.runtime_mode != 'live' %} · <span data-lang-zh="获取时间不等于行情时间" data-lang-en="Retrieval time is not quote time">获取时间不等于行情时间</span>{% endif %}</p>
+    {% if view.answer_summary %}
+    <section class="answer-hero surface">
+      <div class="surface-header">
+        <div>
+          <h2 class="surface-title" data-lang-zh="核心结论" data-lang-en="Core conclusions">核心结论</h2>
+          <p class="surface-subtitle" data-lang-zh="研究问题：{{ result.question }}" data-lang-en="Question: {{ result.question }}">研究问题：{{ result.question }}</p>
+        </div>
+        <div class="badge-row" style="margin-top:0">
+          <span class="badge" data-lang-zh="意图 {{ view.answer_summary.intent_label }}" data-lang-en="Intent {{ view.answer_summary.intent }}">意图 {{ view.answer_summary.intent_label }}</span>
+          <span class="badge good" data-lang-zh="证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}" data-lang-en="Evidence {{ result.evidence_quality.level }} / {{ result.evidence_quality.score }}">证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}</span>
+        </div>
+      </div>
+      <div class="surface-body">
+        <ol class="summary-sentences" data-summary-sentences>
+          {% for sentence in view.answer_summary.sentences %}
+            <li>{{ sentence }}</li>
+          {% endfor %}
+        </ol>
+        <script id="summary-translations" type="application/json">{{ view.answer_summary_by_lang | tojson }}</script>
+        <div class="metric-grid">
+          {% for metric in view.answer_summary.key_metrics %}
+            <article class="metric">
+              <p class="metric-label" data-lang-zh="{{ metric.label_zh }}" data-lang-en="{{ metric.label_en }}">{{ metric.label }}</p>
+              <p class="metric-value">{{ metric.value }}</p>
+            </article>
+          {% endfor %}
+        </div>
+        <details class="answer-body-fold">
+          <summary data-lang-zh="展开完整最终回答" data-lang-en="Expand full final answer">展开完整最终回答</summary>
+          <div class="fold-body answer-box" data-answer-target>{{ view.final_answer }}</div>
+        </details>
+        <script id="answer-translations" type="application/json">{{ view.final_answer_by_lang | tojson }}</script>
+        <div class="ai-explain-panel" data-ai-explain>
+          {% if result.ai_explanation and result.ai_explanation.text %}
+            <h3 class="surface-title" style="font-size:16px;margin:12px 0 6px" data-lang-zh="AI 解读（已生成）" data-lang-en="AI interpretation (generated)">AI 解读（已生成）</h3>
+            <div class="answer-box ai-explain-body" data-ai-body>{{ result.ai_explanation.text }}</div>
+            <p class="surface-subtitle" data-ai-status data-lang-zh="模型 {{ result.ai_explanation.model or '—' }} · 数值/语言护栏已通过 · 基于已计算的确定性结果 · 非投资建议" data-lang-en="Model {{ result.ai_explanation.model or '—' }} · numeric/language guardrail passed · based on the computed deterministic result · not investment advice">模型 {{ result.ai_explanation.model or '—' }} · 数值/语言护栏已通过 · 基于已计算的确定性结果 · 非投资建议</p>
+          {% else %}
+            <h3 class="surface-title" style="font-size:16px;margin:12px 0 6px" data-lang-zh="AI 解读（可选，需显式点击）" data-lang-en="AI interpretation (optional, click to run)">AI 解读（可选，需显式点击）</h3>
+            <p class="surface-subtitle" data-lang-zh="仅在你点击后才调用一次外部模型：复用已计算的确定性结果与证据，不重算数据、不给投资建议；未配置或失败时确定性结果不受影响。" data-lang-en="Only your click triggers one external model call: it reuses the computed deterministic result and evidence — no recomputation, no investment advice; if unconfigured or failed, the deterministic result is unaffected.">仅在你点击后才调用一次外部模型：复用已计算的确定性结果与证据，不重算数据、不给投资建议；未配置或失败时确定性结果不受影响。</p>
+            <button type="button" class="ghost-button" data-ai-button data-result-id="{{ result_id }}" data-data-mode="{{ data_mode }}" data-lang-zh="生成 AI 解读" data-lang-en="Generate AI interpretation">生成 AI 解读</button>
+            <p class="surface-subtitle" data-ai-status hidden></p>
+            <div class="answer-box ai-explain-body" data-ai-body hidden></div>
+          {% endif %}
+        </div>
+        {% if view.evidence_pack_id %}
+          <div class="action-row">
+            <span class="badge" data-lang-zh="证据包 {{ view.evidence_pack_id }}" data-lang-en="Evidence pack {{ view.evidence_pack_id }}">证据包 {{ view.evidence_pack_id }}</span>
+            {% if view.pack_html_url %}
+              <a class="action-link" href="{{ view.pack_html_url }}" target="_blank" rel="noopener" data-lang-zh="打开证据包 HTML" data-lang-en="Open Evidence Pack HTML">打开证据包 HTML</a>
+            {% endif %}
+            {% if view.pack_json_url %}
+              <a class="action-link" href="{{ view.pack_json_url }}" data-lang-zh="下载证据包 JSON" data-lang-en="Download Evidence Pack JSON">下载证据包 JSON</a>
+            {% endif %}
+            <a class="action-link" href="/replay" data-lang-zh="查看历史分析" data-lang-en="Analysis history">查看历史分析</a>
+          </div>
+        {% endif %}
+        <p class="surface-subtitle">{{ result.disclaimer }}</p>
+      </div>
+    </section>
+    {% endif %}
+    <details class="research-details technical-fold">
+      <summary data-lang-zh="完整来源与技术细节（信任分 / 指标 / 血缘 / 来源说明）" data-lang-en="Full sources & technical detail (trust / metrics / lineage / provenance)">完整来源与技术细节（信任分 / 指标 / 血缘 / 来源说明）</summary>
     <div class="trust-bar">
       <div>
         <p class="metric-label" data-lang-zh="信任分 Trust" data-lang-en="Trust score">信任分 Trust</p>
@@ -1548,18 +219,6 @@
               </li>
             {% endfor %}
           </ul>
-        {% endif %}
-        {% if view.evidence_pack_id %}
-          <div class="action-row">
-            <span class="badge" data-lang-zh="Pack {{ view.evidence_pack_id }}" data-lang-en="Pack {{ view.evidence_pack_id }}">Pack {{ view.evidence_pack_id }}</span>
-            {% if view.pack_html_url %}
-              <a class="action-link" href="{{ view.pack_html_url }}" target="_blank" rel="noopener" data-lang-zh="打开证据包 HTML" data-lang-en="Open Evidence Pack HTML">打开证据包 HTML</a>
-            {% endif %}
-            {% if view.pack_json_url %}
-              <a class="action-link" href="{{ view.pack_json_url }}" data-lang-zh="下载 JSON" data-lang-en="Download JSON">下载 JSON</a>
-            {% endif %}
-            <a class="action-link" href="/replay" data-lang-zh="查看回放" data-lang-en="Open Replay">查看回放</a>
-          </div>
         {% endif %}
         {% if view.stress_view %}
           <div class="stress-panel {{ view.stress_severity or '' }}">
@@ -1642,42 +301,7 @@
     </div>
     {% endif %}
 
-    {% if view.answer_summary %}
-    <section class="answer-hero surface">
-      <div class="surface-header">
-        <div>
-          <h2 class="surface-title" data-lang-zh="首屏答案摘要" data-lang-en="Answer Snapshot">首屏答案摘要</h2>
-          <p class="surface-subtitle" data-lang-zh="3 句结论 + 关键指标；完整正文默认折叠。" data-lang-en="Three-sentence snapshot + key metrics; full body collapsed by default.">3 句结论 + 关键指标；完整正文默认折叠。</p>
-        </div>
-        <div class="badge-row" style="margin-top:0">
-          <span class="badge" data-lang-zh="意图 {{ view.answer_summary.intent_label }}" data-lang-en="Intent {{ view.answer_summary.intent }}">意图 {{ view.answer_summary.intent_label }}</span>
-          <span class="badge good" data-lang-zh="证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}" data-lang-en="Evidence {{ result.evidence_quality.level }} / {{ result.evidence_quality.score }}">证据 {{ view.evidence_level_label }} / {{ result.evidence_quality.score }}</span>
-        </div>
-      </div>
-      <div class="surface-body">
-        <ol class="summary-sentences" data-summary-sentences>
-          {% for sentence in view.answer_summary.sentences %}
-            <li>{{ sentence }}</li>
-          {% endfor %}
-        </ol>
-        <script id="summary-translations" type="application/json">{{ view.answer_summary_by_lang | tojson }}</script>
-        <div class="metric-grid">
-          {% for metric in view.answer_summary.key_metrics %}
-            <article class="metric">
-              <p class="metric-label" data-lang-zh="{{ metric.label_zh }}" data-lang-en="{{ metric.label_en }}">{{ metric.label }}</p>
-              <p class="metric-value">{{ metric.value }}</p>
-            </article>
-          {% endfor %}
-        </div>
-        <details class="answer-body-fold">
-          <summary data-lang-zh="展开完整最终回答" data-lang-en="Expand full final answer">展开完整最终回答</summary>
-          <div class="fold-body answer-box" data-answer-target>{{ view.final_answer }}</div>
-        </details>
-        <script id="answer-translations" type="application/json">{{ view.final_answer_by_lang | tojson }}</script>
-        <p class="surface-subtitle">{{ result.disclaimer }}</p>
-      </div>
-    </section>
-    {% endif %}
+    </details>
 
     {% if view.segment_type_rows or view.segment_bucket_rows or view.peer_comparison.peer_count is defined %}
     <div class="insight-grid">
@@ -2010,7 +634,7 @@
     </section>
     {% endif %}
 
-    <div class="workbench answer-first">
+    <details class="research-details"><summary data-lang-zh="查看完整分析与计算轨迹" data-lang-en="Full analysis and calculation trace">查看完整分析与计算轨迹</summary><div class="workbench answer-first">
       <section class="surface">
         <div class="surface-header">
           <div>
@@ -2048,6 +672,7 @@
       </aside>
     </div>
 
+    </details>
     <div class="insight-grid">
       <section class="surface">
         <div class="surface-header">

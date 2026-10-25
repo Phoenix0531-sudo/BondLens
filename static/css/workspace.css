@@ -1,0 +1,26 @@
+/* Research workspace: restrained hierarchy, legible financial tables. */
+:root { --ink:#182b40; --muted:#58697b; --line:#d8e0e7; --teal:#235a80; --teal-dark:#173f5c; --shadow:none; }
+body { background:#f3f6f8; color:var(--ink); }
+.agent-hero { grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr); gap:24px; }
+.hero-copy { background:transparent; border:0; padding:20px 0; box-shadow:none; }
+h1 { font-family:"Segoe UI","Microsoft YaHei",sans-serif; font-size:34px; font-weight:650; line-height:1.25; }
+.hero-lead { font-size:14px; line-height:1.8; }
+.query-console,.surface,.metric { background:#fff; box-shadow:none; }
+.console-title,.surface-header { background:transparent; }
+.example-strip { margin-top:20px; }
+.example-chip,.action-link,.ghost-button,.cancel-button { background:#fff; border-radius:4px; }
+.data-notice { font-size:13px; line-height:1.6; padding:10px 12px; background:#f0f5fa; border-left:3px solid #235a80; }
+.data-notice.sample { background:#fff7e6; border-left-color:#a67118; color:#76531d; }
+.trust-bar { background:#eef3f7; box-shadow:none; }
+.trust-score-big { font-size:28px; }
+.metric-value, td { font-variant-numeric:tabular-nums; }
+table { width:100%; border-collapse:collapse; }
+th { color:#58697b; font-size:12px; background:#f3f6f8; }
+td { font-size:13px; }
+th,td { padding:10px 12px; }
+tbody tr:hover { background:#f2f6fa; }
+.research-details { margin:18px 0; padding:0 16px; border:1px solid var(--line); background:#fff; }
+.risk-profile-card,.ledger-card,.judge-card,.soft-result-lines li { background:#f5f7fa; }
+textarea { min-height:110px; }
+@media(max-width:1050px) { .agent-hero { grid-template-columns:1fr; gap:12px; } .hero-copy { padding:4px 0; } .hero-lead { margin:8px 0; } .example-strip { margin-top:10px; } h1 { font-size:28px; } }
+@media(prefers-reduced-motion:reduce) { .async-progress-bar>span { animation:none; width:100%; } }

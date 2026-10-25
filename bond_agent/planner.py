@@ -232,13 +232,31 @@ def _extract_search_params(
 ) -> dict:
     params: dict = {"limit": 10}
 
-    quoted = re.search(r"[“\"']([^“\"']+)[”\"']", question)
-    if quoted:
+    # Explicit bond-code query: 代码 230026 / code: 240205.IB / quoted "230026".
+    code_token = re.search(
+        r"(?:代码|code)\s*[:：]?\s*([0-9]{4,12}(?:\.[A-Za-z0-9]+)?)",
+        question,
+        re.IGNORECASE,
+    )
+    if code_token:
+        params["code"] = code_token.group(1).strip()
+
+    quoted = re.search(r"[“\"']([^“\"‘]+)[”\"’]", question)
+    if quoted and "code" not in params:
         params["name"] = quoted.group(1).strip()
-    else:
+    elif "code" not in params:
         bond_name = _find_bond_name(question, data_path=data_path, data_frame=data_frame)
         if bond_name:
             params["name"] = bond_name
+
+    # A purely numeric token is a code, not a name — search by code instead.
+    name_candidate = params.get("name")
+    if (
+        name_candidate
+        and "code" not in params
+        and re.fullmatch(r"[0-9]{4,12}(?:\.[A-Za-z0-9]+)?", name_candidate)
+    ):
+        params["code"] = params.pop("name")
 
     yield_range = re.search(
         r"收益率.*?([0-9]+(?:\.[0-9]+)?)\s*[-到至~]\s*([0-9]+(?:\.[0-9]+)?)", question

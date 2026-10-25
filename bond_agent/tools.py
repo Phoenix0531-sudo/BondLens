@@ -5,6 +5,7 @@ from collections.abc import Sequence
 import pandas as pd
 
 from .data_loader import (
+    BOND_CODE,
     BOND_NAME,
     DURATION_METHOD,
     DV01,
@@ -33,6 +34,12 @@ from .taxonomy import (
     summarize_segments,
 )
 
+# Fixed yield-distribution buckets: breakpoints researchers actually use,
+# plus a single ≥6% tail column (see _yield_distribution).
+_YIELD_BIN_EDGES = [-float("inf"), 2.0, 3.0, 4.0, 5.0, 6.0, float("inf")]
+_YIELD_BIN_LABELS = ["<2%", "2–3%", "3–4%", "4–5%", "5–6%", "≥6%"]
+
+
 RANK_COLUMNS = {
     "yield": YIELD,
     "收益率": YIELD,
@@ -43,6 +50,12 @@ RANK_COLUMNS = {
     "price": PRICE,
     "净价": PRICE,
 }
+
+# Minimum same-type, same-bucket records before a peer comparison is "ok";
+# below it we still report numbers but flag a small-sample caveat.
+PEER_MIN_SAMPLE = 5
+# Minimum records before a (券种, 期限桶) group is scored for statistical deviation.
+OUTLIER_MIN_GROUP_SIZE = 5
 
 
 def _summary(series: pd.Series) -> dict:
@@ -68,35 +81,98 @@ def _resolve_frame(data_frame: pd.DataFrame | None = None, data_path: str | None
 
 def search_bonds(
     name: str | None = None,
+    code: str | None = None,
     min_maturity: float | None = None,
     max_maturity: float | None = None,
     min_yield: float | None = None,
     max_yield: float | None = None,
+    min_volume: float | None = None,
+    max_volume: float | None = None,
     bond_type: str | None = None,
     limit: int = 20,
     data_path: str | None = None,
     data_frame: pd.DataFrame | None = None,
 ) -> dict:
+    """Search by bond code and/or name over one quote snapshot.
+
+    - Code matches the 债券代码 column when the active source provides one
+      (live/imports do; the static sample has no code column and says so).
+    - Name matching prefers exact hits, then substring contains.
+    - Numeric filters are skipped with an explicit ``*_column_missing`` marker
+      when the sample lacks the column (imports may legitimately miss fields).
+    - Same-name rows are kept separately (multi-deal / duplicate snapshots);
+      distinct bond count is reported alongside record count.
+    """
     df = _resolve_frame(data_frame=data_frame, data_path=data_path)
     df = annotate_frame(df)
 
-    if name:
-        df = df[df[BOND_NAME].str.contains(name, case=False, na=False, regex=False)]
+    matched_by: list[str] = []
+    name_exact = False
+    if code:
+        code_text = str(code).strip()
+        if BOND_CODE in df.columns:
+            codes = df[BOND_CODE].astype("string").str.strip()
+            exact = df[codes == code_text]
+            if not exact.empty:
+                df = exact
+                matched_by.append("code_exact")
+            else:
+                partial = df[codes.str.contains(code_text, regex=False, na=False)]
+                df = partial
+                matched_by.append("code_contains" if not partial.empty else "code_no_match")
+        else:
+            matched_by.append("code_column_missing")
+            df = df.iloc[0:0]
+    if name and len(df):
+        name_text = str(name).strip()
+        exact = df[df[BOND_NAME] == name_text]
+        if not exact.empty:
+            df = exact
+            name_exact = True
+            matched_by.append("name_exact")
+        else:
+            partial = df[df[BOND_NAME].str.contains(name_text, case=False, na=False, regex=False)]
+            df = partial
+            matched_by.append("name_contains" if not partial.empty else "name_no_match")
+    elif name:
+        matched_by.append("name_no_match")
+
     if bond_type:
         df = df[df["券种"] == bond_type]
-    if min_maturity is not None:
-        df = df[df[MATURITY_YEARS] >= min_maturity]
-    if max_maturity is not None:
-        df = df[df[MATURITY_YEARS] <= max_maturity]
-    if min_yield is not None:
-        df = df[df[YIELD] >= min_yield]
-    if max_yield is not None:
-        df = df[df[YIELD] <= max_yield]
+        matched_by.append("bond_type")
+    numeric_filters = [
+        (MATURITY_YEARS, (min_maturity, max_maturity), "maturity_column_missing"),
+        (YIELD, (min_yield, max_yield), "yield_column_missing"),
+        (VOLUME, (min_volume, max_volume), "volume_column_missing"),
+    ]
+    for column, (low, high), missing_marker in numeric_filters:
+        if low is None and high is None:
+            continue
+        if column not in df.columns:
+            matched_by.append(missing_marker)
+            df = df.iloc[0:0]
+            continue
+        if low is not None:
+            df = df[df[column] >= low]
+        if high is not None:
+            df = df[df[column] <= high]
+
+    matched = df.copy()
+    # Sort by yield only when the column exists (imports may legitimately lack it).
+    if len(matched) and YIELD in matched.columns:
+        matched = matched.sort_values(YIELD, ascending=False)
+    distinct_bonds = int(matched[BOND_NAME].nunique()) if len(matched) else 0
+    ambiguity_note = None
+    if name and not name_exact and distinct_bonds > 1:
+        ambiguity_note = (
+            f"名称关键词匹配到 {distinct_bonds} 只不同债券，请用债券代码或更长的简称缩小范围。"
+        )
 
     return {
         "tool": "search_bonds",
         "criteria": {
             "name": name,
+            "code": code,
             "bond_type": bond_type,
             "min_maturity": min_maturity,
             "max_maturity": max_maturity,
@@ -104,9 +180,39 @@ def search_bonds(
             "max_yield": max_yield,
             "limit": limit,
         },
-        "match_count": len(df),
-        "records": records_from_frame(df.sort_values(YIELD, ascending=False), limit),
+        "match_count": len(matched),
+        "distinct_bond_count": distinct_bonds,
+        "matched_by": matched_by,
+        "ambiguity_note": ambiguity_note,
+        "records": records_from_frame(matched, limit),
     }
+
+
+def _optional_numeric(frame: pd.DataFrame, column: str) -> pd.Series:
+    """Numeric column accessor that tolerates absent columns (import mode).
+
+    Uploaded tables may legitimately lack e.g. volume or weighted yield; the
+    affected summaries degrade to count=0 instead of crashing the analysis.
+    """
+    if column in frame.columns:
+        return pd.to_numeric(frame[column], errors="coerce")
+    return pd.Series(dtype=float, index=frame.index)
+
+
+def _yield_distribution(series: pd.Series) -> dict[str, int]:
+    """Fixed, financially meaningful yield buckets + a separate tail column.
+
+    Equal-width bins over the observed range produce intervals like
+    "(0.0814, 11.515]" that carry no market meaning and lump almost the whole
+    sample into one bar. Fixed breakpoints (2/3/4/5/6%) mirror how credit-bond
+    researchers actually bucket yields; the ≥6% tail stays a single labeled
+    column so extreme values never stretch the scale.
+    """
+    if series.empty:
+        return {}
+    cut = pd.cut(series, bins=_YIELD_BIN_EDGES, labels=_YIELD_BIN_LABELS)
+    counts = cut.value_counts().reindex(_YIELD_BIN_LABELS, fill_value=0)
+    return {str(label): int(count) for label, count in counts.items()}
 
 
 def describe_market(
@@ -117,8 +223,8 @@ def describe_market(
 ) -> dict:
     df = _resolve_frame(data_frame=data_frame, data_path=data_path)
     annotated = annotate_frame(df)
-    yield_data = pd.to_numeric(annotated[YIELD], errors="coerce").dropna()
-    bins = pd.cut(yield_data, bins=5).value_counts().sort_index()
+    yield_data = _optional_numeric(annotated, YIELD).dropna()
+    bins = _yield_distribution(yield_data)
     segments = summarize_segments(annotated)
     quality = assess_data_quality(
         annotated,
@@ -130,10 +236,10 @@ def describe_market(
         "tool": "describe_market",
         "sample_count": len(annotated),
         "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME],
-        "yield_summary": _summary(annotated[YIELD]),
-        "weighted_yield_summary": _summary(annotated[WEIGHTED_YIELD]),
-        "volume_summary": _summary(annotated[VOLUME]),
-        "maturity_summary_years": _summary(annotated[MATURITY_YEARS]),
+        "yield_summary": _summary(_optional_numeric(annotated, YIELD)),
+        "weighted_yield_summary": _summary(_optional_numeric(annotated, WEIGHTED_YIELD)),
+        "volume_summary": _summary(_optional_numeric(annotated, VOLUME)),
+        "maturity_summary_years": _summary(_optional_numeric(annotated, MATURITY_YEARS)),
         "yield_distribution": {str(interval): int(count) for interval, count in bins.items()},
         "segments": segments,
         "data_quality": quality,
@@ -147,23 +253,22 @@ def build_market_monitor(
 ) -> dict:
     """Cross-section monitor board: high yield, low volume, thin maturity gaps, outliers."""
     df = annotate_frame(_resolve_frame(data_frame=data_frame, data_path=data_path))
-    clean = df.dropna(subset=[YIELD]).copy()
-    by_yield = clean.sort_values(YIELD, ascending=False)
-    low_volume = clean.dropna(subset=[VOLUME]).sort_values(VOLUME, ascending=True)
-    missing_maturity = df[df[MATURITY_YEARS].isna()].head(top_n)
+    clean = df.dropna(subset=[YIELD]).copy() if YIELD in df.columns else df.iloc[0:0].copy()
+    by_yield = clean.sort_values(YIELD, ascending=False) if not clean.empty else clean
+    low_volume = (
+        clean.dropna(subset=[VOLUME]).sort_values(VOLUME, ascending=True)
+        if VOLUME in clean.columns
+        else clean.iloc[0:0]
+    )
+    missing_maturity = (
+        df[df[MATURITY_YEARS].isna()].head(top_n)
+        if MATURITY_YEARS in df.columns
+        else df.head(top_n)
+    )
 
-    # Simple z-score outliers for the monitor panel.
-    mean = clean[YIELD].mean() if not clean.empty else 0.0
-    std = clean[YIELD].std(ddof=0) if not clean.empty else 0.0
-    if std and std > 0 and not clean.empty:
-        scored = clean.copy()
-        scored["outlier_score"] = ((scored[YIELD] - mean) / std).abs()
-        outlier_rows = scored[scored["outlier_score"] >= 3.0].sort_values(
-            "outlier_score", ascending=False
-        )
-    else:
-        outlier_rows = clean.iloc[0:0].copy()
-        outlier_rows["outlier_score"] = pd.Series(dtype=float)
+    # Statistical yield deviation within (券种, 期限分桶) groups — same grouped
+    # method as detect_yield_outliers, so monitor and outlier views agree.
+    outlier_rows, outlier_metadata = _grouped_outlier_frame(clean, method="zscore", threshold=3.0)
 
     high_yield_records = records_from_frame(by_yield, top_n)
     for record in high_yield_records:
@@ -193,15 +298,19 @@ def build_market_monitor(
         "high_yield": high_yield_records,
         "low_volume": low_volume_records,
         "yield_outliers": outlier_records,
+        "outlier_metadata": outlier_metadata,
         "missing_maturity": maturity_gap_records,
         "summary_zh": (
             f"监控面板：高收益 {len(high_yield_records)} 条、低成交 {len(low_volume_records)} 条、"
-            f"收益异常 {len(outlier_records)} 条、缺期限 {int(df[MATURITY_YEARS].isna().sum())} 条。"
+            f"组内收益偏离 {len(outlier_records)} 条（口径：券种+期限分桶，共评估 "
+            f"{outlier_metadata['groups_evaluated']} 组）、缺期限 "
+            f"{int(df[MATURITY_YEARS].isna().sum()) if MATURITY_YEARS in df.columns else len(df)} 条。"
         ),
         "summary_en": (
             f"Monitor board: high-yield {len(high_yield_records)}, low-volume {len(low_volume_records)}, "
-            f"yield outliers {len(outlier_records)}, missing maturity "
-            f"{int(df[MATURITY_YEARS].isna().sum())}."
+            f"grouped yield deviation {len(outlier_records)} "
+            f"(type×maturity-bucket, {outlier_metadata['groups_evaluated']} groups), missing maturity "
+            f"{int(df[MATURITY_YEARS].isna().sum()) if MATURITY_YEARS in df.columns else len(df)}."
         ),
     }
 
@@ -229,6 +338,90 @@ def rank_bonds(
     }
 
 
+def _grouped_outlier_frame(
+    df: pd.DataFrame,
+    method: str = "zscore",
+    threshold: float = 3.0,
+    min_group_size: int = OUTLIER_MIN_GROUP_SIZE,
+) -> tuple[pd.DataFrame, dict]:
+    """Flag statistical yield deviation within (券种, 期限分桶) groups only.
+
+    - Grouping keys must be reliable: 待分类/其他 and rows without a maturity
+      bucket are skipped and reported, never mixed into other groups.
+    - Small groups (< min_group_size) are skipped and reported honestly.
+    - This is a statistical deviation label only — never a credit/default
+      judgment or an investment-opportunity signal.
+    """
+    clean = df.dropna(subset=[YIELD]).copy()
+
+    flagged_parts: list[pd.DataFrame] = []
+    groups_evaluated = 0
+    small_groups: list[dict] = []
+    skipped_missing_bucket = (
+        int(clean["期限分桶"].isna().sum()) if "期限分桶" in clean.columns else len(clean)
+    )
+    skipped_unreliable_type = (
+        int(clean["券种"].isin(["待分类", "其他"]).sum()) if "券种" in clean.columns else 0
+    )
+
+    if {"券种", "期限分桶"}.issubset(clean.columns):
+        for (bond_type, bucket), group in clean.groupby(["券种", "期限分桶"]):
+            if bond_type in {"待分类", "其他"}:
+                continue
+            if len(group) < min_group_size:
+                small_groups.append(
+                    {"bond_type": bond_type, "bucket": bucket, "count": len(group)}
+                )
+                continue
+            groups_evaluated += 1
+            group = group.copy()
+            if method == "iqr":
+                q1 = group[YIELD].quantile(0.25)
+                q3 = group[YIELD].quantile(0.75)
+                iqr = q3 - q1
+                lower = q1 - 1.5 * iqr
+                upper = q3 + 1.5 * iqr
+                median = group[YIELD].median()
+                group["outlier_score"] = (group[YIELD] - median).abs()
+                flagged = group[(group[YIELD] < lower) | (group[YIELD] > upper)].copy()
+                group_stat = round(float(iqr), 4)
+            else:
+                mean = float(group[YIELD].mean())
+                std = float(group[YIELD].std(ddof=0))
+                group["outlier_score"] = 0.0 if std == 0 else ((group[YIELD] - mean) / std).abs()
+                flagged = group[group["outlier_score"] >= threshold].copy()
+                group_stat = round(std, 4)
+            if flagged.empty:
+                continue
+            group_mean = float(group[YIELD].mean())
+            flagged["组内均值"] = round(group_mean, 4)
+            flagged["组内标准差"] = group_stat
+            flagged["组内样本数"] = len(group)
+            flagged["偏离(BP)"] = (flagged[YIELD] - group_mean).abs().mul(100).round(2)
+            flagged_parts.append(flagged)
+
+    outliers = pd.concat(flagged_parts, ignore_index=True) if flagged_parts else clean.iloc[0:0]
+    metadata = {
+        "method": "iqr" if method == "iqr" else "zscore",
+        "threshold": threshold,
+        "min_group_size": min_group_size,
+        "groups_evaluated": groups_evaluated,
+        "small_groups_skipped": small_groups,
+        "skipped_missing_bucket_count": skipped_missing_bucket,
+        "skipped_unreliable_type_count": skipped_unreliable_type,
+        "grouping": "券种+期限分桶",
+        "note_zh": (
+            "统计口径：同一券种、同期限桶内的收益率统计偏离；"
+            "仅描述统计偏离，不构成信用、违约或投资机会判断。"
+        ),
+        "note_en": (
+            "Statistics are computed within same bond-type and maturity-bucket groups; "
+            "labels describe statistical deviation only, never credit/default/investment claims."
+        ),
+    }
+    return (outliers.sort_values("outlier_score", ascending=False), metadata) if not outliers.empty else (outliers, metadata)
+
+
 def detect_yield_outliers(
     method: str = "zscore",
     threshold: float = 3.0,
@@ -236,29 +429,15 @@ def detect_yield_outliers(
     data_path: str | None = None,
     data_frame: pd.DataFrame | None = None,
 ) -> dict:
-    df = _resolve_frame(data_frame=data_frame, data_path=data_path)
-    clean = df.dropna(subset=[YIELD]).copy()
+    df = annotate_frame(_resolve_frame(data_frame=data_frame, data_path=data_path))
+    outliers, metadata = _grouped_outlier_frame(df, method=method, threshold=threshold)
 
-    if method == "iqr":
-        q1 = clean[YIELD].quantile(0.25)
-        q3 = clean[YIELD].quantile(0.75)
-        iqr = q3 - q1
-        lower = q1 - 1.5 * iqr
-        upper = q3 + 1.5 * iqr
-        outliers = clean[(clean[YIELD] < lower) | (clean[YIELD] > upper)].copy()
-        outliers["outlier_score"] = (outliers[YIELD] - clean[YIELD].median()).abs()
-        metadata = {"method": method, "lower_bound": round(float(lower), 4), "upper_bound": round(float(upper), 4)}
-    else:
-        mean = clean[YIELD].mean()
-        std = clean[YIELD].std(ddof=0)
-        clean["outlier_score"] = 0.0 if std == 0 else ((clean[YIELD] - mean) / std).abs()
-        outliers = clean[clean["outlier_score"] >= threshold].copy()
-        metadata = {"method": "zscore", "threshold": threshold, "mean": round(float(mean), 4), "std": round(float(std), 4)}
-
-    outliers = outliers.sort_values("outlier_score", ascending=False)
     records = records_from_frame(outliers, top_n)
-    for record, score in zip(records, outliers["outlier_score"].head(top_n), strict=False):
-        record["outlier_score"] = round(float(score), 4)
+    if "outlier_score" in outliers.columns:
+        for record, score in zip(
+            records, outliers["outlier_score"].head(top_n), strict=False
+        ):
+            record["outlier_score"] = round(float(score), 4)
 
     return {
         "tool": "detect_yield_outliers",
@@ -298,28 +477,44 @@ def compare_bond_to_market(
             "message": "No matching bond record found in the active bond data source.",
         }
 
-    yield_series = pd.to_numeric(df[YIELD], errors="coerce").dropna()
-    volume_series = pd.to_numeric(df[VOLUME], errors="coerce").dropna()
-    maturity_series = pd.to_numeric(df[MATURITY_YEARS], errors="coerce").dropna()
+    yield_series = pd.to_numeric(df[YIELD], errors="coerce").dropna() if YIELD in df.columns else pd.Series(dtype=float)
+    volume_series = _optional_numeric(df, VOLUME).dropna()
+    maturity_series = _optional_numeric(df, MATURITY_YEARS).dropna()
 
-    target_yield = float(target[YIELD]) if pd.notna(target[YIELD]) else None
-    target_volume = float(target[VOLUME]) if pd.notna(target[VOLUME]) else None
-    target_maturity = float(target[MATURITY_YEARS]) if pd.notna(target[MATURITY_YEARS]) else None
+    target_yield = float(target[YIELD]) if YIELD in df.columns and pd.notna(target[YIELD]) else None
+    target_volume = float(target[VOLUME]) if VOLUME in df.columns and pd.notna(target[VOLUME]) else None
+    target_maturity = (
+        float(target[MATURITY_YEARS])
+        if MATURITY_YEARS in df.columns and pd.notna(target[MATURITY_YEARS])
+        else None
+    )
     bond_type = classify_bond_type(target[BOND_NAME])
     bucket = maturity_bucket(target_maturity)
+    target_name = str(target[BOND_NAME]).strip()
 
     yield_mean = yield_series.mean()
     yield_std = yield_series.std(ddof=0)
     yield_zscore = None if target_yield is None or yield_std == 0 else (target_yield - yield_mean) / yield_std
     is_yield_outlier = bool(yield_zscore is not None and abs(yield_zscore) >= outlier_threshold)
 
-    peers = peer_bucket_frame(df, target_maturity, bond_type=bond_type)
-    peer_yield = pd.to_numeric(peers[YIELD], errors="coerce").dropna()
+    peers = peer_bucket_frame(df, target_maturity, bond_type=bond_type, exclude_name=target_name)
+    peer_yield = (
+        pd.to_numeric(peers[YIELD], errors="coerce").dropna()
+        if YIELD in peers.columns
+        else pd.Series(dtype=float)
+    )
     peer_volume = (
         pd.to_numeric(peers[VOLUME], errors="coerce").dropna()
         if VOLUME in peers.columns
         else pd.Series(dtype=float)
     )
+    peer_count = len(peers)
+    if peer_count >= PEER_MIN_SAMPLE:
+        peer_status = "ok"
+    elif peer_count > 0:
+        peer_status = "small_sample"
+    else:
+        peer_status = "insufficient"
     peer_mean = peer_yield.mean() if not peer_yield.empty else None
     peer_std = peer_yield.std(ddof=0) if not peer_yield.empty else None
     peer_z = (
@@ -430,9 +625,17 @@ def compare_bond_to_market(
             "note_en": "Active feed has no issuer/issue rating; no credit-rating inference is made.",
         },
         "peer_comparison": {
-            "peer_count": len(peers),
+            "peer_count": peer_count,
+            "peer_status": peer_status,
             "bond_type": bond_type,
             "maturity_bucket": bucket,
+            "peer_definition_zh": (
+                "同业口径：同一数据时点、券种相同、期限桶相同、排除目标券本身；不跨券种凑样本。"
+            ),
+            "peer_definition_en": (
+                "Peers = same snapshot, same bond type, same maturity bucket, target excluded; "
+                "never silently widened across types."
+            ),
             "peer_yield_median": None if peer_yield.empty else round(float(peer_yield.median()), 4),
             "peer_yield_mean": None if peer_mean is None else round(float(peer_mean), 4),
             "peer_yield_percentile": _percentile(peer_yield, target_yield),
@@ -440,14 +643,28 @@ def compare_bond_to_market(
             "peer_yield_zscore": None if peer_z is None else round(float(peer_z), 4),
             "spread_vs_peer_mean_bp": peer_spread_bp,
             "note_zh": (
-                f"同业可比样本 {len(peers)} 条（券种={bond_type}，期限桶={bucket or '未知'}）。"
-                if len(peers)
-                else "同业可比样本不足，回退全市场比较。"
+                f"同业可比样本 {peer_count} 条（券种={bond_type}，期限桶={bucket or '未知'}），样本偏小，仅供谨慎参考。"
+                if peer_status == "small_sample"
+                else (
+                    f"同业可比样本 {peer_count} 条（券种={bond_type}，期限桶={bucket or '未知'}）。"
+                    if peer_status == "ok"
+                    else (
+                        "无同券种、同期限桶的可比样本；不提供跨券种伪同业比较。"
+                        "如需比较请放宽券种或期限条件。全市场分位数仍作为参考单独列出。"
+                    )
+                )
             ),
             "note_en": (
-                f"Peer sample size {len(peers)} (type={bond_type}, bucket={bucket or 'unknown'})."
-                if len(peers)
-                else "Peer sample too small; falling back to full-sample comparison."
+                f"Peer sample size {peer_count} (type={bond_type}, bucket={bucket or 'unknown'}) is small; interpret with care."
+                if peer_status == "small_sample"
+                else (
+                    f"Peer sample size {peer_count} (type={bond_type}, bucket={bucket or 'unknown'})."
+                    if peer_status == "ok"
+                    else (
+                        "No same-type, same-bucket peers available; no cross-type pseudo-peers are fabricated. "
+                        "Widen bond-type or maturity criteria to compare. Whole-market percentiles are listed separately as a reference."
+                    )
+                )
             ),
         },
     }
@@ -563,7 +780,8 @@ def _build_analysis(
                 )
             outlier_text = "属于" if comparison.get("is_yield_outlier") else "不属于"
             analysis.append(
-                f"按 z-score 阈值判断，该债券{outlier_text}收益率异常样本。"
+                f"按全市场 z-score 阈值判断，该债券{outlier_text}统计意义上收益率显著偏离的样本"
+                f"（仅描述统计偏离，非信用或投资判断）。"
                 f"{comparison.get('nearest_market_context', '')}"
             )
         if market:
@@ -608,19 +826,29 @@ def _build_analysis(
 
     if intent == "outlier_detection":
         records = outliers.get("records", [])
+        metadata = outliers.get("metadata", {})
         if not records:
-            return ["按当前阈值未发现显著收益率异常样本。"]
+            return [
+                "按当前阈值未发现显著的组内收益率统计偏离样本。",
+                "统计口径：同券种、同期限桶内计分；样本不足的组不参与结论。",
+            ]
         first = records[0]
+        small_group_note = ""
+        skipped_groups = metadata.get("small_groups_skipped") or []
+        if skipped_groups:
+            small_group_note = f"另有 {len(skipped_groups)} 个（券种×期限桶）组样本不足 {metadata.get('min_group_size')} 条，未参与计分。"
         return [
             (
-                f"异常检测使用 {outliers.get('metadata', {}).get('method')} 方法，"
-                f"共发现 {outliers.get('outlier_count')} 条收益率异常样本。"
+                f"统计口径：同券种、同期限桶内 {metadata.get('method')} 方法，共评估 "
+                f"{metadata.get('groups_evaluated')} 个组，发现 {outliers.get('outlier_count')} 条统计偏离样本。"
             ),
             (
-                f"异常分数最高的是 {first.get(BOND_NAME)}，收益率 {first.get(YIELD)}%，"
-                f"异常分数 {first.get('outlier_score')}。"
+                f"偏离分数最高的是 {first.get(BOND_NAME)}（{first.get('券种')}/{first.get('期限分桶')}），"
+                f"收益率 {first.get(YIELD)}%，偏离 {first.get('偏离(BP)')} bp，"
+                f"组内样本 {first.get('组内样本数')} 条，分数 {first.get('outlier_score')}。"
             ),
-            "异常收益率需要结合信用风险、流动性、估值和数据质量进一步核查。",
+            small_group_note,
+            "以上仅描述统计偏离，不构成信用、违约或投资机会判断。",
         ]
 
     yield_summary = market.get("yield_summary", {})
@@ -663,7 +891,10 @@ def _build_analysis(
             f"收益率 {first.get(YIELD)}%，成交量 {first.get(VOLUME)} 亿元。"
         )
     if outliers.get("records"):
-        analysis.append(f"异常检测发现 {outliers.get('outlier_count')} 条收益率异常样本。")
+        analysis.append(
+            f"统计口径下发现 {outliers.get('outlier_count')} 条组内收益率偏离样本"
+            f"（同券种、同期限桶内计分，仅描述统计偏离）。"
+        )
     if monitor.get("summary_zh"):
         analysis.append(monitor["summary_zh"])
     if intent in {"market_monitor", "composite_market"} and monitor.get("high_yield"):

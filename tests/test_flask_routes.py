@@ -8,7 +8,9 @@ def test_agent_pages_smoke():
     response = client.get("/agent?data_mode=static")
 
     assert response.status_code == 200
-    assert b"Agent Console" in response.data
+    assert b"New analysis" in response.data
+    # Import panel present for local CSV/XLSX uploads.
+    assert b"import-file" in response.data
     assert b"Evidence Console" not in response.data
     assert b"Planner JSON" not in response.data
 
@@ -22,8 +24,8 @@ def test_agent_page_exposes_language_switch():
     assert response.status_code == 200
     assert 'data-language-option="zh"' in html
     assert 'data-language-option="en"' in html
-    assert "智能体控制台" in html
-    assert "Agent Console" in html
+    assert "新建分析" in html
+    assert "New analysis" in html
     # The header is the single language switch; the console should not duplicate it.
     assert 'id="ui_lang"' not in html
     assert "data-language-select" not in html
@@ -54,7 +56,7 @@ def test_agent_page_shows_submit_busy_state_hooks():
     assert 'id="agent-query-form"' in html
     assert 'id="run-agent-button"' in html
     assert "分析中，请稍候" in html
-    assert "请勿重复点击" in html
+    assert "请勿重复提交" in html
     assert 'data-async-endpoint="/api/agent/query"' in html
     assert 'data-stream-endpoint="/api/agent/stream"' in html
     assert 'id="agent-async-progress"' in html
@@ -94,7 +96,7 @@ def test_replay_page_smoke(monkeypatch, tmp_path):
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "Agent 回放仪表盘" in html
+    assert "研究历史" in html
     assert "当前样本收益率分布是什么样？" in html
     assert "Evidence Console" not in html
 
@@ -178,7 +180,9 @@ def test_agent_page_shows_answer_summary_and_maturity_board():
     html = response.get_data(as_text=True)
 
     assert response.status_code == 200
-    assert "首屏答案摘要" in html
+    assert "核心结论" in html
+    assert "data-ai-explain" in html
+    assert "完整来源与技术细节" in html
     assert "展开完整最终回答" in html
     assert "期限补全看板" in html
     assert "导出未匹配 CSV" in html

@@ -5,6 +5,7 @@ __pycache__/
 .ruff_cache/
 .tmp/
 .env
+.pi/
 db.db
 instance/
 .tmp_ocr/

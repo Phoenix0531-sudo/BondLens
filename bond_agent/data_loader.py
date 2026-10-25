@@ -14,6 +14,8 @@ DEFAULT_DATA_PATH = PROJECT_ROOT / "data" / "testdata.xlsx"
 DEFAULT_LIVE_CACHE_PATH = PROJECT_ROOT / ".tmp" / "bond_spot_deal_snapshot.csv"
 
 BOND_NAME = "债券简称"
+BOND_CODE = "债券代码"
+QUOTE_TIME = "行情时间"
 MATURITY = "待偿期"
 PRICE = "收盘净价(元)"
 YIELD = "收盘到期收益率(%)"
@@ -340,6 +342,12 @@ def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame
 
     df = pd.DataFrame()
     df[BOND_NAME] = raw_df["债券简称"].where(raw_df["债券简称"].notna(), "").astype(str).str.strip()
+    if "债券代码" in raw_df.columns:
+        df[BOND_CODE] = (
+            raw_df["债券代码"].astype("string").str.strip().replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
+        )
+    if "行情时间" in raw_df.columns:
+        df[QUOTE_TIME] = raw_df["行情时间"].astype("string").str.strip().replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
     native_maturity = _extract_native_maturity_series(raw_df)
     df[MATURITY] = native_maturity
     df[PRICE] = pd.to_numeric(raw_df["成交净价"], errors="coerce")
@@ -483,6 +491,34 @@ def resolve_bond_data(
     return df, _build_static_profile(df, path=data_path, runtime_mode="static_sample", requested_mode=normalized_mode)
 
 
+def _distinct_bond_count(df: pd.DataFrame) -> int:
+    """Count distinct non-empty bond names; rows may repeat (deals/snapshots)."""
+    if BOND_NAME not in df.columns:
+        return 0
+    names = df[BOND_NAME].dropna().astype(str).str.strip()
+    return int(names[names != ""].nunique())
+
+
+def _iso_date_or_none(value: date | None) -> str | None:
+    return value.isoformat() if value else None
+
+
+def _quote_time_range(df: pd.DataFrame) -> str | None:
+    """Native per-row quote time range (e.g. ChinaMoney showDate), if present."""
+    if QUOTE_TIME not in df.columns:
+        return None
+    times = df[QUOTE_TIME].dropna().astype(str).str.strip()
+    times = times[times != ""]
+    if times.empty:
+        return None
+    return f"{times.min()} ~ {times.max()}"
+
+
+def _profile_columns(df: pd.DataFrame, base_columns: list[str]) -> list[str]:
+    """Report only columns actually present in the active frame."""
+    return [column for column in base_columns if column in df.columns]
+
+
 def describe_data_source(path: str | Path = DEFAULT_DATA_PATH) -> dict:
     df = load_bond_data(path)
     return _build_static_profile(df, path=path, runtime_mode="static_sample", requested_mode="static")
@@ -507,10 +543,20 @@ def _build_static_profile(
         "runtime_mode": runtime_mode,
         "requested_mode": requested_mode,
         "fetched_at": None,
+        "sample_date": _iso_date_or_none(infer_static_sample_date(path)),
+        "quote_time": None,
         "fallback_reason": fallback_reason,
         "row_count": len(df),
+        "bond_count": _distinct_bond_count(df),
+        "record_granularity_zh": (
+            "每行为一条行情记录；同一简称多行可能是多笔成交或重复快照，不做去重合并。"
+        ),
+        "record_granularity_en": (
+            "Each row is one quote record; repeated names may be multiple deals or snapshots and are not deduplicated."
+        ),
         "valid_yield_count": int(df[YIELD].notna().sum()),
-        "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, MATURITY_SOURCE],
+        "columns": _profile_columns(df, [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, MATURITY_SOURCE]),
+        "has_code_column": BOND_CODE in df.columns,
         "maturity_coverage": _maturity_coverage(df),
         "active_live_feed": False,
         "active_live_snapshot": False,
@@ -547,10 +593,20 @@ def _build_live_profile(df: pd.DataFrame, requested_mode: str) -> dict:
         "runtime_mode": "live",
         "requested_mode": requested_mode,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "sample_date": None,
+        "quote_time": _quote_time_range(df),
         "fallback_reason": None,
         "row_count": len(df),
+        "bond_count": _distinct_bond_count(df),
+        "record_granularity_zh": (
+            "每行为一条行情记录；同一简称多行可能是多笔成交或重复快照，不做去重合并。"
+        ),
+        "record_granularity_en": (
+            "Each row is one quote record; repeated names may be multiple deals or snapshots and are not deduplicated."
+        ),
         "valid_yield_count": int(df[YIELD].notna().sum()),
-        "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE],
+        "columns": _profile_columns(df, [BOND_NAME, BOND_CODE, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE]),
+        "has_code_column": BOND_CODE in df.columns,
         "maturity_coverage": _maturity_coverage(df),
         "active_live_feed": True,
         "active_live_snapshot": False,
@@ -588,10 +644,20 @@ def _build_snapshot_profile(
         "runtime_mode": "live_snapshot",
         "requested_mode": requested_mode,
         "fetched_at": cached_at.isoformat(),
+        "sample_date": None,
+        "quote_time": _quote_time_range(df),
         "fallback_reason": fallback_reason,
         "row_count": len(df),
+        "bond_count": _distinct_bond_count(df),
+        "record_granularity_zh": (
+            "每行为一条行情记录；同一简称多行可能是多笔成交或重复快照，不做去重合并。"
+        ),
+        "record_granularity_en": (
+            "Each row is one quote record; repeated names may be multiple deals or snapshots and are not deduplicated."
+        ),
         "valid_yield_count": int(df[YIELD].notna().sum()),
-        "columns": [BOND_NAME, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE],
+        "columns": _profile_columns(df, [BOND_NAME, BOND_CODE, MATURITY, PRICE, YIELD, WEIGHTED_YIELD, VOLUME, LIVE_CHANGE_BP, MATURITY_SOURCE]),
+        "has_code_column": BOND_CODE in df.columns,
         "maturity_coverage": _maturity_coverage(df),
         "active_live_feed": False,
         "active_live_snapshot": True,
@@ -766,8 +832,18 @@ def _attach_rate_sensitivity(df: pd.DataFrame) -> pd.DataFrame:
     theoretical consol modified-duration column when yield is positive.
     """
     out = df.copy()
-    years = pd.to_numeric(out.get(MATURITY_YEARS), errors="coerce")
-    yld = pd.to_numeric(out.get(YIELD), errors="coerce")
+    # Absent columns must yield empty Series, not scalar NaN (pd.to_numeric(None)
+    # returns a numpy scalar whose .loc crashes in the row loop below).
+    years = (
+        pd.to_numeric(out[MATURITY_YEARS], errors="coerce")
+        if MATURITY_YEARS in out.columns
+        else pd.Series(dtype=float, index=out.index)
+    )
+    yld = (
+        pd.to_numeric(out[YIELD], errors="coerce")
+        if YIELD in out.columns
+        else pd.Series(dtype=float, index=out.index)
+    )
     perpetual = (
         out[IS_PERPETUAL].fillna(False)
         if IS_PERPETUAL in out.columns
@@ -894,6 +970,7 @@ def _maturity_coverage(df: pd.DataFrame, unmatched_limit: int = 50) -> dict:
 def records_from_frame(df: pd.DataFrame, limit: int = 10) -> list[dict]:
     display_columns = [
         BOND_NAME,
+        BOND_CODE,
         MATURITY,
         MATURITY_YEARS,
         MATURITY_SOURCE,
@@ -907,6 +984,13 @@ def records_from_frame(df: pd.DataFrame, limit: int = 10) -> list[dict]:
         WEIGHTED_YIELD,
         VOLUME,
         LIVE_CHANGE_BP,
+        QUOTE_TIME,
+        "券种",
+        "期限分桶",
+        "组内均值",
+        "组内标准差",
+        "组内样本数",
+        "偏离(BP)",
         MODIFIED_DURATION,
         MACAULAY_DURATION,
         DV01,

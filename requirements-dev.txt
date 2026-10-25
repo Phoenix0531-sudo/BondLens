@@ -1,5 +1,5 @@
--r requirements.txt
+-r requirements.lock
 
-pytest>=8.3.0
-PyYAML>=6.0.0
-ruff>=0.8.0
+pytest>=9,<10
+PyYAML>=6,<7
+ruff>=0.16,<0.17

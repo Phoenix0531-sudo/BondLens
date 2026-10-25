@@ -5,6 +5,9 @@ import math
 import os
 import re
 import time
+from urllib.parse import urlsplit
+
+import pandas as pd
 
 from .answer_judge import judge_answer
 from .data_loader import resolve_bond_data
@@ -60,209 +63,105 @@ class BondAnalystAgent:
         """Allow keyless local runtimes such as Ollama, not CPA/new-api-style gateways."""
         if not base_url:
             return False
-        normalized = base_url.strip().lower()
-        return any(host in normalized for host in ("localhost", "127.0.0.1", "[::1]")) or ":11434" in normalized
+        try:
+            parsed = urlsplit(base_url.strip())
+        except ValueError:
+            return False
+        return parsed.hostname in {"localhost", "127.0.0.1", "::1", "host.docker.internal"}
 
-    def answer(self, question: str) -> dict:
-        question = question.strip() or "请概览当前债券市场样本。"
-        data_frame, data_source = resolve_bond_data(
-            mode=self.data_mode,
-            path=self.data_path or None,
-            live_fetcher=self.live_fetcher,
-        )
-        plan = classify_intent(question, data_path=self.data_path, data_frame=data_frame)
-        tool_outputs: list[dict] = []
-        tool_trace: list[str] = [
-            f"User question: {question}",
-            f"-> data_source(mode={data_source['runtime_mode']}, source={data_source['source_id']})",
-            f"-> planner(intent={plan['intent']})",
-        ]
+    def answer(
+        self,
+        question: str,
+        data_frame: pd.DataFrame | None = None,
+        data_source: dict | None = None,
+        want_llm: bool = False,
+    ) -> dict:
+        """Use the same analysis pipeline as SSE without requesting LLM streaming.
 
-        report = None
-        for tool_name in plan["requested_tools"]:
-            if tool_name == "search_bonds":
-                result = search_bonds(**plan["search_params"], data_frame=data_frame)
-                tool_outputs.append(result)
-                tool_trace.append(f"-> search_bonds({self._compact_args(plan['search_params'])})")
-            elif tool_name == "compare_bond_to_market":
-                search_result = self._find_tool_output(tool_outputs, "search_bonds")
-                first_record = (search_result.get("records") or [None])[0] if search_result else None
-                result = compare_bond_to_market(
-                    bond_name=plan["search_params"].get("name"),
-                    record=first_record,
-                    data_frame=data_frame,
-                )
-                tool_outputs.append(result)
-                tool_trace.append("-> compare_bond_to_market()")
-            elif tool_name == "describe_market":
-                result = describe_market(
-                    data_frame=data_frame,
-                    maturity_coverage=data_source.get("maturity_coverage"),
-                    runtime_mode=data_source.get("runtime_mode"),
-                )
-                tool_outputs.append(result)
-                tool_trace.append("-> describe_market()")
-            elif tool_name == "rank_bonds":
-                result = rank_bonds(
-                    by=plan["rank_by"] or "yield",
-                    top_n=5,
-                    ascending=plan["ascending"],
-                    data_frame=data_frame,
-                )
-                tool_outputs.append(result)
-                tool_trace.append(f"-> rank_bonds(by={plan['rank_by'] or 'yield'}, top_n=5)")
-            elif tool_name == "detect_yield_outliers":
-                result = detect_yield_outliers(method="zscore", threshold=3.0, top_n=5, data_frame=data_frame)
-                tool_outputs.append(result)
-                tool_trace.append("-> detect_yield_outliers(method=zscore, threshold=3.0)")
-            elif tool_name == "build_market_monitor":
-                result = build_market_monitor(top_n=5, data_frame=data_frame)
-                tool_outputs.append(result)
-                tool_trace.append("-> build_market_monitor(top_n=5)")
-            elif tool_name == "generate_bond_report":
-                report = generate_bond_report(question, tool_outputs, plan=plan)
-                tool_trace.append("-> generate_bond_report()")
-
-        if report is None:
-            report = generate_bond_report(question, tool_outputs, plan=plan)
-            tool_trace.append("-> generate_bond_report()")
-
-        risk_explanations = retrieve_risk_explanations(question, report)
-        evidence_quality = assess_evidence_quality(plan, report, data_source, risk_explanations)
-        report["data_source"] = data_source
-        report["risk_explanations"] = risk_explanations
-        report["evidence_quality"] = evidence_quality
-
-        is_advisory_refusal = plan.get("intent") == "advisory_refusal"
-        if is_advisory_refusal:
-            fallback_answer = self._format_advisory_refusal(question, report, plan)
-            llm_result = {"text": None, "status": "disabled", "error": "advisory_policy_block"}
-            llm_guardrail = assess_llm_faithfulness(None, report)
-            tool_trace.append("-> input_policy(status=advisory_refusal)")
-            tool_trace.append("-> llm_guardrail(skipped: advisory_policy_block)")
-            use_llm_final = False
-            final_answer = fallback_answer
-            final_answer_source = "deterministic_fallback"
-        else:
-            fallback_answer = self._format_report(report, plan)
-            llm_result = self._try_llm_answer(question, plan, report)
-            llm_guardrail = (
-                assess_llm_faithfulness(llm_result["text"], report)
-                if llm_result["status"] == "success"
-                else assess_llm_faithfulness(None, report)
-            )
-            if (
-                llm_result["status"] == "success"
-                and llm_guardrail["status"] != "passed"
-                and llm_result.get("text")
-            ):
-                repaired = self._try_repair_llm_answer(
-                    question, plan, report, llm_result["text"], llm_guardrail
-                )
-                if repaired.get("status") == "success" and repaired.get("text"):
-                    repaired_guard = assess_llm_faithfulness(repaired["text"], report)
-                    tool_trace.append(
-                        f"-> llm_guardrail_repair(status={repaired_guard['status']})"
-                    )
-                    if repaired_guard["status"] == "passed":
-                        llm_result = repaired
-                        llm_guardrail = repaired_guard
-            if llm_result["status"] == "success":
-                tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
-            else:
-                tool_trace.append(f"-> llm_guardrail(skipped: llm_{llm_result['status']})")
-
-            use_llm_final = llm_result["status"] == "success" and llm_guardrail["status"] == "passed"
-            final_answer = llm_result["text"] if use_llm_final else fallback_answer
-            final_answer_source = "llm" if use_llm_final else "deterministic_fallback"
-
-        answer_judge = judge_answer(
-            llm_status=llm_result["status"],
-            llm_guardrail=llm_guardrail,
-            evidence_quality=evidence_quality,
-            final_answer_source=final_answer_source,
-        )
-        risk_profile = build_risk_profile(report, data_source, evidence_quality, llm_guardrail)
-        evidence_ledger = build_evidence_ledger(
-            plan=plan,
-            report=report,
+        ``data_frame``/``data_source`` allow analyses over an uploaded table
+        (import mode) instead of the configured static/live source.
+        ``want_llm`` defaults to False: the deterministic pipeline never calls
+        a model unless the caller explicitly asks (on-demand AI only).
+        """
+        for event in self.iter_answer_events(
+            question,
+            stream_llm=False,
+            want_llm=want_llm,
+            data_frame=data_frame,
             data_source=data_source,
-            evidence_quality=evidence_quality,
-            llm_guardrail=llm_guardrail,
-            final_answer_source=final_answer_source,
-        )
-        limitations = self._merge_limitations(report.get("limitations") or [])
-        limitations = self._append_data_source_limitations(limitations, data_source, report)
-        if is_advisory_refusal:
-            policy_note = "输入政策：问题含买卖/保证收益等投资建议诉求，已拦截推荐路径。"
-            if policy_note not in limitations:
-                limitations.insert(0, policy_note)
-        trust_score = compute_trust_score(
-            data_source=data_source,
-            evidence_quality=evidence_quality,
-            llm_guardrail=llm_guardrail,
-            answer_judge=answer_judge,
-            final_answer_source=final_answer_source,
-            evidence_ledger=evidence_ledger,
-            plan=plan,
-        )
-        stress_view = build_stress_view(
-            data_source=data_source,
-            trust_score=trust_score,
-            llm_guardrail=llm_guardrail,
-            answer_judge=answer_judge,
-            final_answer_source=final_answer_source,
-            evidence_quality=evidence_quality,
-        )
-        tool_trace.append("-> final answer")
+        ):
+            if event["type"] == "final":
+                return event["result"]
+        raise RuntimeError("Analysis ended without a result")
 
-        response = {
-            "agent": self.name,
-            "subtitle": "Explainable Bond Analysis Agent",
-            "question": question,
-            "plan": plan,
-            "tools_used": report["tools_used"],
-            "tool_trace": tool_trace,
-            "data_evidence": report["data_evidence"],
-            "data_source": data_source,
-            "risk_explanations": risk_explanations,
-            "evidence_quality": evidence_quality,
-            "evidence_ledger": evidence_ledger,
-            "answer_judge": answer_judge,
-            "risk_profile": risk_profile,
-            "trust_score": trust_score,
-            "stress_view": stress_view,
-            "analysis": report["analysis"],
-            "risk_notes": report["risk_notes"],
-            "limitations": limitations,
-            "final_answer": final_answer,
-            "final_answer_source": final_answer_source,
-            "llm_enhanced_answer": llm_result["text"],
-            "llm_guardrail": llm_guardrail,
-            "used_llm": llm_result["status"] == "success",
-            "used_llm_in_final": use_llm_final,
-            "llm_status": llm_result["status"],
-            "llm_model": llm_result.get("model"),
-            "llm_error": llm_result["error"],
-            "disclaimer": DISCLAIMER,
-            "replay_id": None,
-            "evidence_pack_id": None,
-            "evidence_pack_paths": None,
-        }
-        validated = AgentResponse.model_validate(response).model_dump(mode="json")
-        pack_meta = self._maybe_export_evidence_pack(validated)
-        if pack_meta:
-            validated["evidence_pack_id"] = pack_meta.get("id")
-            validated["evidence_pack_paths"] = {
-                "json_path": pack_meta.get("json_path"),
-                "html_path": pack_meta.get("html_path"),
+    def explain_result(self, question: str, plan: dict, report: dict) -> dict:
+        """Explicitly requested, one-shot LLM interpretation of a stored result.
+
+        On-demand AI only: this is the single entry point that may call a
+        model, and only when the user explicitly asked for an interpretation.
+        It reuses the already-computed structured report/evidence — no tool
+        re-execution, no data re-fetch, no invented numbers. The numeric/
+        language guardrail must pass or the text is discarded; the
+        deterministic result is never affected.
+
+        Returns a dict with:
+        - status: "success" | "unavailable" | "failed" | "guardrail_failed" | "blocked"
+        - text / model / guardrail (on success)
+        - message_zh / message_en (user-facing, bilingual)
+        """
+        if plan.get("intent") == "advisory_refusal":
+            return {
+                "status": "blocked",
+                "text": None,
+                "message_zh": "该问题属于投资建议类，已被输入政策拦截；不提供 AI 解读。",
+                "message_en": "This question was blocked by the advisory policy; no AI interpretation is provided.",
             }
-        replay_record = save_replay(validated)
-        if replay_record:
-            validated["replay_id"] = replay_record["id"]
-            if not validated.get("evidence_pack_id"):
-                validated["evidence_pack_id"] = replay_record["id"]
-        return AgentResponse.model_validate(validated).model_dump(mode="json")
+        base_url = os.environ.get("OPENAI_BASE_URL")
+        api_key = self._resolve_api_key(base_url)
+        if not api_key and not self._base_url_allows_keyless_llm(base_url):
+            return {
+                "status": "unavailable",
+                "text": None,
+                "message_zh": "未配置模型接口（OPENAI_API_KEY / OPENAI_BASE_URL），无法生成 AI 解读；确定性结果不受影响。",
+                "message_en": "No model endpoint configured (OPENAI_API_KEY / OPENAI_BASE_URL); AI interpretation is unavailable. The deterministic result is unaffected.",
+            }
+        try:
+            llm = self._try_llm_answer(question, plan, report)
+        except Exception as exc:  # noqa: BLE001 — one-shot request must not crash the API
+            return {
+                "status": "failed",
+                "text": None,
+                "error": f"{type(exc).__name__}",
+                "message_zh": f"AI 解读请求失败（{type(exc).__name__}）；确定性结果不受影响。",
+                "message_en": f"AI interpretation request failed ({type(exc).__name__}); the deterministic result is unaffected.",
+            }
+        if llm.get("status") != "success" or not llm.get("text"):
+            return {
+                "status": "failed",
+                "text": None,
+                "model": llm.get("model"),
+                "error": llm.get("error"),
+                "message_zh": f"AI 解读未能生成（模型通道失败：{llm.get('error') or 'unknown'}）；确定性结果不受影响。",
+                "message_en": f"AI interpretation failed (model channel error: {llm.get('error') or 'unknown'}); the deterministic result is unaffected.",
+            }
+        guardrail = assess_llm_faithfulness(llm["text"], report)
+        if guardrail.get("status") != "passed":
+            return {
+                "status": "guardrail_failed",
+                "text": None,
+                "model": llm.get("model"),
+                "guardrail": guardrail,
+                "message_zh": "AI 解读未通过数值/语言护栏，已丢弃；确定性结果不受影响。",
+                "message_en": "The AI interpretation failed the numeric/language guardrail and was discarded; the deterministic result is unaffected.",
+            }
+        return {
+            "status": "success",
+            "text": self._ensure_disclaimer(llm["text"]),
+            "model": llm.get("model"),
+            "guardrail_status": guardrail.get("status"),
+            "message_zh": "AI 解读已生成（基于已计算的确定性结果，不重算数据）。",
+            "message_en": "AI interpretation generated from the already-computed deterministic result (no recomputation).",
+        }
 
     def _merge_limitations(self, limitations: list[str]) -> list[str]:
         merged = list(limitations)
@@ -857,8 +756,9 @@ class BondAnalystAgent:
         from openai import OpenAI
 
         # Gateways (new-api / deepseek) often need longer than the old 20s default.
-        timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "90"))
-        kwargs = {"api_key": api_key, "timeout": timeout}
+        timeout = float(os.environ.get("OPENAI_TIMEOUT_SECONDS", "20"))
+        # Retries belong to the model loop, not a second hidden SDK retry loop.
+        kwargs = {"api_key": api_key, "timeout": timeout, "max_retries": 0}
         if base_url:
             kwargs["base_url"] = base_url
         return OpenAI(**kwargs)
@@ -919,7 +819,15 @@ class BondAnalystAgent:
             if content:
                 yield content
 
-    def iter_answer_events(self, question: str):
+    def iter_answer_events(
+        self,
+        question: str,
+        *,
+        stream_llm: bool = True,
+        want_llm: bool = False,
+        data_frame: pd.DataFrame | None = None,
+        data_source: dict | None = None,
+    ):
         """Yield structured progress events for SSE/token streaming UI.
 
         Event types:
@@ -927,14 +835,30 @@ class BondAnalystAgent:
         - token: LLM text delta (only when streaming LLM path is used)
         - final: complete AgentResponse-compatible dict
         - error: fatal
+
+        ``want_llm`` defaults to False (on-demand AI): the pipeline runs
+        deterministic tools and reports only — no model is called even when
+        an API key is configured. Callers must opt in explicitly.
+
+        When ``data_frame`` is provided (uploaded table), the configured
+        static/live resolution is skipped and ``data_source`` describes the
+        import; analyses whose required fields are missing are disabled and
+        reported honestly instead of silently rejected.
         """
         question = question.strip() or "请概览当前债券市场样本。"
-        yield {"type": "status", "stage": "resolve_data", "message_zh": "解析数据源（auto/live/static）…", "message_en": "Resolving data source (auto/live/static)…"}
-        data_frame, data_source = resolve_bond_data(
-            mode=self.data_mode,
-            path=self.data_path or None,
-            live_fetcher=self.live_fetcher,
-        )
+        if data_frame is None:
+            yield {"type": "status", "stage": "resolve_data", "message_zh": "解析数据源（auto/live/static）…", "message_en": "Resolving data source (auto/live/static)…"}
+            data_frame, resolved_source = resolve_bond_data(
+                mode=self.data_mode,
+                path=self.data_path or None,
+                live_fetcher=self.live_fetcher,
+            )
+            if data_source is None:
+                data_source = resolved_source
+        elif data_source is None:
+            from .importer import describe_import_source
+
+            data_source = describe_import_source(data_frame)
         yield {
             "type": "status",
             "stage": "plan",
@@ -942,6 +866,24 @@ class BondAnalystAgent:
             "message_en": f"Planning intent/tools… (mode {data_source.get('runtime_mode')})",
         }
         plan = classify_intent(question, data_path=self.data_path, data_frame=data_frame)
+
+        # Import mode: disable only the tools whose required fields are absent.
+        disabled_tools: list[str] = []
+        available = data_source.get("available_analyses") or {}
+        if available:
+            yield_ok = bool(available.get("yield_stats"))
+            for tool_name in list(plan["requested_tools"]):
+                if tool_name in {
+                    "rank_bonds",
+                    "detect_yield_outliers",
+                    "compare_bond_to_market",
+                    "build_market_monitor",
+                } and not yield_ok:
+                    disabled_tools.append(tool_name)
+            if disabled_tools:
+                plan["requested_tools"] = [
+                    tool for tool in plan["requested_tools"] if tool not in disabled_tools
+                ]
         tool_outputs: list[dict] = []
         tool_trace: list[str] = [
             f"User question: {question}",
@@ -1013,6 +955,16 @@ class BondAnalystAgent:
             report = generate_bond_report(question, tool_outputs, plan=plan)
             tool_trace.append("-> generate_bond_report()")
 
+        # Import-mode honesty: surface field gaps and disabled tools as limitations.
+        for note in data_source.get("import_notes_zh") or []:
+            if note not in report["limitations"]:
+                report["limitations"].append(note)
+        if disabled_tools:
+            report["limitations"].append(
+                f"上传数据缺少必要字段，已禁用分析：{'、'.join(disabled_tools)}；其余分析照常执行。"
+            )
+            tool_trace.append(f"-> disabled_tools({', '.join(disabled_tools)})")
+
         risk_explanations = retrieve_risk_explanations(question, report)
         evidence_quality = assess_evidence_quality(plan, report, data_source, risk_explanations)
         report["data_source"] = data_source
@@ -1020,7 +972,6 @@ class BondAnalystAgent:
         report["evidence_quality"] = evidence_quality
 
         is_advisory_refusal = plan.get("intent") == "advisory_refusal"
-        llm_text_parts: list[str] = []  # optional accumulate
         if is_advisory_refusal:
             yield {"type": "status", "stage": "policy", "message_zh": "投资建议政策拦截…", "message_en": "Advisory policy block…"}
             fallback_answer = self._format_advisory_refusal(question, report, plan)
@@ -1033,74 +984,87 @@ class BondAnalystAgent:
             final_answer_source = "deterministic_fallback"
         else:
             fallback_answer = self._format_report(report, plan)
-            yield {
-                "type": "status",
-                "stage": "llm",
-                "message_zh": "准备调用模型通道（可流式；约 8–40 秒；超时/无通道将诚实回退确定性报告）…",
-                "message_en": "Preparing model channel (streamable; often 8–40s; timeout/no-channel fails over to deterministic report)…",
-            }
-            # Live token path: consume streaming generator and re-yield token events immediately.
             llm_result = {"text": None, "status": "disabled", "error": None}
-            for event in self._iter_llm_answer_events(question, plan, report):
-                if event.get("type") == "token":
-                    yield event
-                    llm_text_parts.append(event.get("text") or "")
-                elif event.get("type") == "status":
-                    yield event
-                elif event.get("type") == "llm_result":
-                    llm_result = event.get("result") or llm_result
-            if llm_result.get("status") == "failed":
-                err = llm_result.get("error") or "unknown"
-                err_l = str(err).lower()
-                if any(tok in err_l for tok in ("no available channel", "model not found", "does not exist")):
-                    zh_msg = f"模型通道不可用（{err}）→ 已改用确定性报告（护栏未放行编造数字）。"
-                    en_msg = f"Model channel unavailable ({err}) → using deterministic report (guardrail still closed)."
-                elif any(tok in err_l for tok in ("timeout", "timed out", "429", "rate limit", "503", "502", "504")):
-                    zh_msg = f"模型通道抖动/超时（{err}）→ 已改用确定性报告。"
-                    en_msg = f"Model channel flaky/timeout ({err}) → using deterministic report."
-                else:
-                    zh_msg = f"模型通道失败（{err}）→ 已改用确定性报告。"
-                    en_msg = f"Model channel failed ({err}) → using deterministic report."
+            if want_llm:
                 yield {
                     "type": "status",
-                    "stage": "llm_fallback",
-                    "message_zh": zh_msg,
-                    "message_en": en_msg,
+                    "stage": "llm",
+                    "message_zh": "准备调用模型通道（可流式；约 8–40 秒；超时/无通道将诚实回退确定性报告）…",
+                    "message_en": "Preparing model channel (streamable; often 8–40s; timeout/no-channel fails over to deterministic report)…",
                 }
-            elif llm_result.get("status") == "success":
-                yield {
-                    "type": "status",
-                    "stage": "guardrail",
-                    "message_zh": "模型文本已返回，正在跑数值/语言护栏…",
-                    "message_en": "Model text returned; running numeric/language guardrail…",
-                }
-            llm_guardrail = (
-                assess_llm_faithfulness(llm_result.get("text"), report)
-                if llm_result.get("status") == "success"
-                else assess_llm_faithfulness(None, report)
-            )
-            if (
-                llm_result.get("status") == "success"
-                and llm_guardrail.get("status") != "passed"
-                and llm_result.get("text")
-            ):
-                yield {
-                    "type": "status",
-                    "stage": "llm_repair",
-                    "message_zh": "护栏未通过，尝试一次数值修复重写（仍须再次通过护栏；可能额外 10–30 秒）…",
-                    "message_en": "Guardrail failed; one numeric repair rewrite (must re-pass; may add 10–30s)…",
-                }
-                repaired = self._try_repair_llm_answer(
-                    question, plan, report, llm_result.get("text") or "", llm_guardrail
+                # Live token path: consume streaming generator and re-yield token events immediately.
+                llm_events = (
+                    self._iter_llm_answer_events(question, plan, report)
+                    if stream_llm
+                    else iter([{"type": "llm_result", "result": self._try_llm_answer(question, plan, report)}])
                 )
-                if repaired.get("status") == "success" and repaired.get("text"):
-                    repaired_guard = assess_llm_faithfulness(repaired["text"], report)
-                    tool_trace.append(
-                        f"-> llm_guardrail_repair(status={repaired_guard['status']})"
+                for event in llm_events:
+                    if event.get("type") in {"token", "status"}:
+                        yield event
+                    elif event.get("type") == "llm_result":
+                        llm_result = event.get("result") or llm_result
+                if llm_result.get("status") == "failed":
+                    err = llm_result.get("error") or "unknown"
+                    err_l = str(err).lower()
+                    if any(tok in err_l for tok in ("no available channel", "model not found", "does not exist")):
+                        zh_msg = f"模型通道不可用（{err}）→ 已改用确定性报告（护栏未放行编造数字）。"
+                        en_msg = f"Model channel unavailable ({err}) → using deterministic report (guardrail still closed)."
+                    elif any(tok in err_l for tok in ("timeout", "timed out", "429", "rate limit", "503", "502", "504")):
+                        zh_msg = f"模型通道抖动/超时（{err}）→ 已改用确定性报告。"
+                        en_msg = f"Model channel flaky/timeout ({err}) → using deterministic report."
+                    else:
+                        zh_msg = f"模型通道失败（{err}）→ 已改用确定性报告。"
+                        en_msg = f"Model channel failed ({err}) → using deterministic report."
+                    yield {
+                        "type": "status",
+                        "stage": "llm_fallback",
+                        "message_zh": zh_msg,
+                        "message_en": en_msg,
+                    }
+                elif llm_result.get("status") == "success":
+                    yield {
+                        "type": "status",
+                        "stage": "guardrail",
+                        "message_zh": "模型文本已返回，正在跑数值/语言护栏…",
+                        "message_en": "Model text returned; running numeric/language guardrail…",
+                    }
+                llm_guardrail = (
+                    assess_llm_faithfulness(llm_result.get("text"), report)
+                    if llm_result.get("status") == "success"
+                    else assess_llm_faithfulness(None, report)
+                )
+                if (
+                    llm_result.get("status") == "success"
+                    and llm_guardrail.get("status") != "passed"
+                    and llm_result.get("text")
+                ):
+                    yield {
+                        "type": "status",
+                        "stage": "llm_repair",
+                        "message_zh": "护栏未通过，尝试一次数值修复重写（仍须再次通过护栏；可能额外 10–30 秒）…",
+                        "message_en": "Guardrail failed; one numeric repair rewrite (must re-pass; may add 10–30s)…",
+                    }
+                    repaired = self._try_repair_llm_answer(
+                        question, plan, report, llm_result.get("text") or "", llm_guardrail
                     )
-                    if repaired_guard["status"] == "passed":
-                        llm_result = repaired
-                        llm_guardrail = repaired_guard
+                    if repaired.get("status") == "success" and repaired.get("text"):
+                        repaired_guard = assess_llm_faithfulness(repaired["text"], report)
+                        tool_trace.append(
+                            f"-> llm_guardrail_repair(status={repaired_guard['status']})"
+                        )
+                        if repaired_guard["status"] == "passed":
+                            llm_result = repaired
+                            llm_guardrail = repaired_guard
+            else:
+                # On-demand AI: default pipeline never calls a model, even with a key configured.
+                tool_trace.append("-> llm(skipped: not explicitly requested)")
+                yield {
+                    "type": "status",
+                    "stage": "deterministic",
+                    "message_zh": "未请求模型解读（默认零模型调用），直接生成确定性报告…",
+                    "message_en": "Model interpretation not requested (zero model calls by default); writing the deterministic report…",
+                }
+                llm_guardrail = assess_llm_faithfulness(None, report)
             if llm_result["status"] == "success":
                 tool_trace.append(f"-> llm_guardrail(status={llm_guardrail['status']})")
                 if llm_guardrail["status"] != "passed":

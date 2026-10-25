@@ -179,15 +179,21 @@ def test_agent_llm_status_success(monkeypatch):
     monkeypatch.delenv("OPENAI_API_STYLE", raising=False)
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FakeClient())
 
-    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("当前样本收益率分布是什么样？")
+    # On-demand AI: the default pipeline never calls the model, even with a key.
+    assert base["used_llm"] is False
+    assert base["used_llm_in_final"] is False
+    assert base["llm_status"] == "disabled"
+    assert base["final_answer_source"] == "deterministic_fallback"
 
-    assert result["used_llm"] is True
-    assert result["used_llm_in_final"] is True
-    assert result["llm_status"] == "success"
-    assert result["llm_error"] is None
-    assert result["llm_guardrail"]["status"] == "passed"
-    assert result["answer_judge"]["status"] == "passed"
-    assert result["final_answer"].startswith("LLM enhanced answer")
+    expl = agent.explain_result("当前样本收益率分布是什么样？", base["plan"], base)
+
+    assert expl["status"] == "success"
+    assert expl["text"].startswith("LLM enhanced answer")
+    assert expl["model"]
+    assert expl["guardrail_status"] == "passed"
+    assert "非投资建议，仅用于学习和研究" in expl["text"]
 
 
 def test_agent_llm_status_failed_keeps_fallback(monkeypatch):
@@ -196,13 +202,17 @@ def test_agent_llm_status_failed_keeps_fallback(monkeypatch):
     monkeypatch.setenv("OPENAI_API_STYLE", "responses")
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FailingClient())
 
-    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("当前样本收益率分布是什么样？")
+    expl = agent.explain_result("当前样本收益率分布是什么样？", base["plan"], base)
 
-    assert result["used_llm"] is False
-    assert result["used_llm_in_final"] is False
-    assert result["llm_status"] == "failed"
-    assert result["llm_error"] == "OpenAI request failed: RuntimeError"
-    assert "问题:" in result["final_answer"] or "Question:" in result["final_answer"]
+    assert expl["status"] == "failed"
+    assert expl["text"] is None
+    assert expl["error"] == "OpenAI request failed: RuntimeError"
+    # Deterministic result survives the model failure untouched.
+    assert base["used_llm_in_final"] is False
+    assert base["final_answer_source"] == "deterministic_fallback"
+    assert "问题:" in base["final_answer"] or "Question:" in base["final_answer"]
 
 
 def test_agent_local_openai_compatible_base_url_uses_chat_without_api_key(monkeypatch):
@@ -219,16 +229,19 @@ def test_agent_local_openai_compatible_base_url_uses_chat_without_api_key(monkey
 
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", fake_create_client)
 
-    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("当前样本收益率分布是什么样？")
+    # Zero-model default: the deterministic pass never touches the client.
+    assert seen == {}
+
+    expl = agent.explain_result("当前样本收益率分布是什么样？", base["plan"], base)
 
     assert seen["api_key"] == "local-not-needed"
     assert seen["base_url"] == "http://127.0.0.1:11434/v1"
-    assert result["used_llm"] is True
-    assert result["used_llm_in_final"] is True
-    assert result["llm_status"] == "success"
-    assert result["llm_guardrail"]["status"] == "passed"
-    assert result["final_answer"].startswith("Local LLM chat answer")
-    assert "非投资建议，仅用于学习和研究" in result["final_answer"]
+    assert expl["status"] == "success"
+    assert expl["guardrail_status"] == "passed"
+    assert expl["text"].startswith("Local LLM chat answer")
+    assert "非投资建议，仅用于学习和研究" in expl["text"]
 
 
 def test_agent_cpa_base_url_without_api_key_disables_llm(monkeypatch):
@@ -264,19 +277,22 @@ def test_agent_rejects_llm_output_with_unsupported_numeric_claim(monkeypatch):
 
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FakeBadLocalClient())
 
-    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("当前样本收益率分布是什么样？")
+    expl = agent.explain_result("当前样本收益率分布是什么样？", base["plan"], base)
 
-    assert result["used_llm"] is True
-    assert result["used_llm_in_final"] is False
-    assert result["final_answer_source"] == "deterministic_fallback"
-    assert result["llm_guardrail"]["status"] == "failed"
-    assert result["answer_judge"]["status"] == "failed_guardrail"
-    assert result["llm_guardrail"]["numeric_status"] == "failed"
-    assert result["llm_guardrail"]["language_status"] == "failed"
-    assert result["llm_enhanced_answer"].startswith("样本中 99%")
-    assert result["final_answer"].startswith(("问题:", "Question:"))
-    assert any(item["text"] == "99%" for item in result["llm_guardrail"]["unsupported_numbers"])
-    assert any(item["rule_id"] == "risk_free_claim" for item in result["llm_guardrail"]["unsafe_phrases"])
+    assert expl["status"] == "guardrail_failed"
+    assert expl["text"] is None
+    guard = expl["guardrail"]
+    assert guard["status"] == "failed"
+    assert guard["numeric_status"] == "failed"
+    assert guard["language_status"] == "failed"
+    assert any(item["text"] == "99%" for item in guard["unsupported_numbers"])
+    assert any(item["rule_id"] == "risk_free_claim" for item in guard["unsafe_phrases"])
+    # Deterministic result is unaffected by the discarded interpretation.
+    assert base["used_llm_in_final"] is False
+    assert base["final_answer_source"] == "deterministic_fallback"
+    assert base["final_answer"].startswith(("问题:", "Question:"))
 
 
 def test_agent_rejects_llm_output_with_investment_advice_language(monkeypatch):
@@ -285,16 +301,19 @@ def test_agent_rejects_llm_output_with_investment_advice_language(monkeypatch):
 
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FakeAdviceLocalClient())
 
-    result = BondAnalystAgent(data_mode="static").answer("搜索23附息国债26并给出收益率分析")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("搜索23附息国债26并给出收益率分析")
+    expl = agent.explain_result("搜索23附息国债26并给出收益率分析", base["plan"], base)
 
-    assert result["used_llm"] is True
-    assert result["used_llm_in_final"] is False
-    assert result["final_answer_source"] == "deterministic_fallback"
-    assert result["llm_guardrail"]["status"] == "failed"
-    assert result["llm_guardrail"]["numeric_status"] == "passed"
-    assert result["llm_guardrail"]["language_status"] == "failed"
-    assert any(item["rule_id"] == "buy_recommendation" for item in result["llm_guardrail"]["unsafe_phrases"])
-    assert result["final_answer"].startswith(("问题:", "Question:"))
+    assert expl["status"] == "guardrail_failed"
+    assert expl["text"] is None
+    guard = expl["guardrail"]
+    assert guard["status"] == "failed"
+    assert guard["numeric_status"] == "passed"
+    assert guard["language_status"] == "failed"
+    assert any(item["rule_id"] == "buy_recommendation" for item in guard["unsafe_phrases"])
+    assert base["final_answer_source"] == "deterministic_fallback"
+    assert base["final_answer"].startswith(("问题:", "Question:"))
 
 
 def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):
@@ -410,11 +429,15 @@ def test_agent_retries_transient_rate_limit_then_succeeds(monkeypatch):
         chat = _FlakyChat()
 
     monkeypatch.setattr(BondAnalystAgent, "_create_openai_client", lambda self, api_key, **kwargs: _FlakyClient())
-    result = BondAnalystAgent(data_mode="static").answer("当前样本收益率分布是什么样？")
-    assert calls["n"] == 3
-    assert result["llm_status"] == "success"
-    assert result["used_llm_in_final"] is True
-    assert result["final_answer"].startswith("Local LLM chat answer")
+    agent = BondAnalystAgent(data_mode="static")
+    base = agent.answer("当前样本收益率分布是什么样？")
+    assert calls["n"] == 0  # deterministic pass makes zero model calls
+    expl = agent.explain_result("当前样本收益率分布是什么样？", base["plan"], base)
+    assert calls["n"] == 3  # two transient 429s then success, within one on-demand request
+    assert expl["status"] == "success"
+    assert expl["text"].startswith("Local LLM chat answer")
+    assert base["used_llm_in_final"] is False
+    assert base["final_answer_source"] == "deterministic_fallback"
 
 
 def test_agent_llm_evidence_includes_peer_spread():
