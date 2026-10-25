@@ -1,33 +1,38 @@
-# BondLens: An Evidence-First Bond Analysis Agent for Chinese Market Data
+# BondLens：面向中国债券市场的专业研究工作台
 
 <div align="center">
 
-<img src="figs/voxel_icon.png" width="168" alt="BondLens dark-badge identity — hex prism over yield curve, deep teal"/>
+<img src="figs/voxel_icon.png" width="168" alt="BondLens 深色徽标：聚焦收益率曲线的六棱镜"/>
 
-**Numbers are code-calculated. Narratives are LLM-assisted. Every output is provenance-tracked.**
+**数字由代码计算，叙述按需生成且必须通过护栏，每次输出都可追溯。**
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)
+![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)
 ![Flask](https://img.shields.io/badge/Flask-3.x-green.svg)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational)
+![Tests](https://img.shields.io/badge/tests-212%20passed%20%2F%201%20skipped-informational)
 ![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal)
 ![License](https://img.shields.io/badge/License-MIT-blue.svg)
 
 </div>
 
-BondLens is a lightweight agent for **Chinese bond market analysis**.
-It turns a natural-language question into an auditable run with live/snapshot/static data, deterministic tools, optional LLM narration under guardrails, and a reviewer-facing Trust Layer.
+BondLens 是面向**中国债券市场**的专业研究工作台：
+市场总览、条件筛选、单券研究、研究历史四类页面，外加可选的自然语言分析入口；
+公开行情 → 快照 → 本地样例逐级回退（支持 CSV/Excel 上传），数据来源与行情日期全程可见；
+AI 解读默认关闭，仅在结果页显式点击后发起单次请求。
 
-**Not a multi-agent equity research desktop.**
-**A claim-level evidence agent for Chinese bonds.**
+**本页为 GitHub Pages 静态介绍页；交互应用请按 README 本地运行。**
 
-<div align="center">
+## 工作台页面
 
-Social preview · <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/voxel_social.png>
+| 页面 | 路径 | 内容 |
+| --- | --- | --- |
+| 市场总览 | `/market` | 收益率分布、成交量、来源/日期摘要 |
+| 条件筛选 | `/screen` | 多条件过滤 + CSV/Excel 样本上传 |
+| 单券研究 | `/bond` | 关键指标、同业对比、按需 AI 解读面板 |
+| 研究历史 | `/replay` | 既往运行摘要、证据包入口 |
+| 自然语言分析（可选） | `/agent` | 一句话问题 → 可审计分析运行 |
 
-</div>
-
-## Example Runs (no API key — open in browser)
+## 示例报告（无需 API key，浏览器直接打开）
 
 | Run | Open |
 | --- | --- |
@@ -40,16 +45,16 @@ Social preview · <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/f
 
 | Layer | What it includes |
 | --- | --- |
-| Agent core | Planner → Tools → Evidence → Report (single path) |
-| Deterministic tools | 7 public operators |
+| Workbench | Market / screener / bond / history pages · zh/en · CSV/Excel import |
+| Deterministic tools | 7 public operators · numbers never invented by the model |
 | Trust layer | Guardrail · judge · Trust score · Evidence Pack · replay |
-| Evals | ~110 pytest · agent 10/10 · red-team 3/3 · Docker healthz |
-| Data | live → snapshot → static with lineage |
-| Product | Flask + Jinja · zh/en · SSE soft-render · CI + Pages |
+| Evals | 212 pytest passed / 1 skipped · agent + red-team evals · Docker healthz |
+| Data | live → snapshot → static with explicit lineage |
 
 ## Quick links
 
 - Repository: <https://github.com/Phoenix0531-sudo/BondLens>
+- Runtime & deployment (README): <https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md#runtime-and-deployment>
 - English README: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md>
 - 中文 README: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md>
 - Architecture diagram: <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png>
@@ -60,7 +65,7 @@ Social preview · <https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/f
 ```bash
 cp .env.example .env
 docker compose up --build
-# or: PORT=8765 BOND_DATA_MODE=auto python app.py
+# or: python -m pip install -r requirements.lock && python app.py
 ```
 
 ## License

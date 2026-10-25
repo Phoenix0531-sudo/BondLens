@@ -7,28 +7,49 @@
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens badge — hex prism focusing a yield curve, amber peak marks the inspected claim"/>
 
 **A claim-level evidence agent for Chinese bonds**  
-Chinese bonds · deterministic tools · provenance-tracked · optional LLM narration under guardrail.
+Chinese bonds · deterministic tools · provenance-tracked · on-demand AI interpretation (explicit click) under guardrail.
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
-![Agent Evals (manual)](https://img.shields.io/badge/agent%20evals%20(manual)-10%2F10-brightgreen?style=flat-square)
-![Red Team (manual)](https://img.shields.io/badge/red--team%20(manual)-3%2F3-brightgreen?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational?style=flat-square)
-![Docker](https://img.shields.io/badge/docker-healthz-blue?style=flat-square)
-![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal?style=flat-square)
-![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange?style=flat-square)
-![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222?style=flat-square)
 
 **BondLens** turns a natural-language bond question into an **auditable analysis run**:  
-live / snapshot / static data → deterministic tools → optional LLM narration → Trust Layer.
+live / snapshot / static data → deterministic tools → on-demand AI interpretation (explicit click) → Trust Layer.
 
 [Project page](https://phoenix0531-sudo.github.io/BondLens/) · [Social preview](docs/figs/voxel_social.png) · light badge: [logo](docs/figs/logo_white_background.png)
 
 > Non-investment advice. For learning, research, portfolio demonstration, and interview discussion only.
 
 </div>
+
+## Runtime and deployment
+
+Python 3.12 is the deployment baseline (Python 3.11+ supported). The stack stays deliberately small: Flask/Jinja, pandas 3, Pydantic 2, and an optional OpenAI-compatible SDK. Sync and SSE requests share one analysis pipeline. No API key is needed for local sample analysis.
+
+```bash
+python -m venv .venv
+# Activate .venv, then:
+python -m pip install -r requirements.lock
+# Set BOND_DATA_MODE=static for offline sample analysis.
+python app.py
+# Open http://127.0.0.1:5000/ (market workbench; /agent is the LLM console).
+```
+
+Configuration is read from process environment; `.env.example` lists the options. `python app.py` is for local use, not an Internet-facing production server. For deployment, use `docker compose up --build`. The Compose port mapping binds to `127.0.0.1` by default (`BOND_BIND_HOST`), so the workbench is reachable only from the local machine; choose a trusted-network binding or an authenticating reverse proxy deliberately if you need wider access. This loopback default is a safe default, not a complete security solution. The non-root container runs one Gunicorn process with four threads; do not increase worker processes while result URLs use in-memory caching. Results expire after 30 minutes or a service restart; exported packs and replay summaries survive Compose restarts in the `bondlens-data` volume. Back up that volume if history matters; `docker compose down -v` deletes it.
+
+### Deployment operations
+
+- Open `http://localhost:8765/` (market workbench) or `/agent` (LLM console); health check: `/healthz`; API contracts: `/api/agent/schema`.
+- Compose reads `.env` for variable substitution; direct Python execution does not automatically load it. Set `BOND_DATA_MODE=static` for offline sample analysis, or `auto` for live → snapshot → sample fallback.
+- Start: `docker compose up --build -d`; inspect: `docker compose logs --tail=100 bondlens`; restart: `docker compose restart bondlens`; stop without deleting history: `docker compose down`.
+- The service is `bondlens`, container `bondlens-demo`, image `bondlens:local`; port mapping is `${BOND_BIND_HOST:-127.0.0.1}:${BOND_HOST_PORT:-8765}:5000`. The default loopback binding keeps the workbench local-machine-only; to expose it on a LAN or behind a reverse proxy, set `BOND_BIND_HOST` explicitly (e.g. `0.0.0.0` or a LAN IP) and put an authenticating reverse proxy in front first. Inside the container Gunicorn still listens on `0.0.0.0:5000`.
+- Native Linux deployment can use `gunicorn --workers 1 --threads 4 --timeout 180 -b 127.0.0.1:5000 app:app`. Gunicorn is not supported on Windows; use Docker there for this deployment setup.
+- `BOND_REPLAY_ENABLED` controls replay summaries. `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` override storage roots; keep Docker overrides under `/app/.tmp` to retain volume persistence.
+- Optional host Ollama from Docker: set `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`, `OPENAI_MODEL` to an installed model, and `OPENAI_API_STYLE=chat`. No paid model is required. Demo scripts clear `OPENAI_*` unless `BOND_DEMO_WITH_LLM=1` is explicitly set.
+- Update dependencies intentionally: `uv pip compile requirements.txt --python-version 3.12 --universal --output-file requirements.lock`, then validate before rebuilding.
+
+Requests are limited to 1 MiB and questions to 4,000 characters. Stream errors do not automatically repeat potentially paid model calls. Stopping receipt in the browser does not guarantee cancellation at the provider. LLM requests default to a 20-second per-call timeout; provider fallback/repair may take longer.
+
+This is a single-instance research tool, not a public multi-user financial service. There is no authentication or private per-user history: put it behind an authenticated reverse proxy before exposing it beyond trusted users. Live-data redistribution and provider commercial terms must be checked separately; the project MIT license does not grant market-data rights.
 
 ### Example Runs (no API key — open in browser)
 
@@ -70,7 +91,7 @@ Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 | Chinese bond market questions in natural language | Multi-agent equity research desktop |
 | Live / snapshot / static data with explicit lineage | Issuer ratings, financials, guarantees, credit events |
 | Deterministic yield / volume / ranking / outlier tools | Trade recommendations or buy/sell signals |
-| Optional LLM narration under numeric + language guardrails | Model inventing numbers outside tool evidence |
+| On-demand AI interpretation (explicit click) under numeric + language guardrails | Model inventing numbers outside tool evidence |
 | Trust score, Evidence Pack, replay, red-team evals | Full OAS / call-tree valuation desk |
 | Bilingual UI (zh default) + portable demo packs | Complete market coverage claims |
 
@@ -82,7 +103,7 @@ Raw JSON siblings live under [docs/demo_runs/](docs/demo_runs/).
 
 BondLens strictly separates **deterministic financial computation** (tools never invent numbers) from **LLM-based narration** (text only, numbers must match evidence). See the [Tool Catalog](#tool-catalog-deterministic-operators) for what tools produce deterministically, and the [Trust Score](#trust-score--evidence-pack) layer for the guardrail + judge that gates narrative text.
 
-**Tools compute, models narrate, trust decides.** Without `OPENAI_API_KEY`, the project still runs with deterministic fallback output.
+**Tools compute, models narrate, trust decides.** The model is never invoked automatically: even with `OPENAI_API_KEY` set, the pipeline stays zero-model until you explicitly click "Generate AI interpretation" on the result page — exactly one request that reuses the already-computed deterministic result and evidence, never recomputing data. Successful interpretations are cached (result pages ~30 min with the result; bond pages by target), so a repeated request returns the stored text without another model call; failures are never cached and an explicit retry may call again. When unconfigured or failed, the deterministic result stands alone, unaffected.
 
 ### Codebase Snapshot
 
@@ -91,7 +112,7 @@ BondLens strictly separates **deterministic financial computation** (tools never
 | **Agent core** | Single path: Planner → Tools → Evidence → Report |
 | **Deterministic tools** | 7 public operators: `search_bonds`, `describe_market`, `rank_bonds`, `detect_yield_outliers`, `compare_bond_to_market`, `build_market_monitor`, `generate_bond_report` |
 | **Trust layer** | Numeric + language guardrail · answer judge · Trust score · Evidence Pack · replay store · risk profile |
-| **Evals** | ~110 pytest cases · Docker `/healthz` in CI; see badges above for the live run. |
+| **Evals** | ~213 pytest cases (212 passed / 1 skipped baseline) · Docker `/healthz` in CI; see badges above for the live run. |
 | **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
 | **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
 
@@ -99,9 +120,12 @@ BondLens strictly separates **deterministic financial computation** (tools never
 
 ### Product surfaces (answer-first)
 
+- **Research workbench (homepage)**: four entries — 市场观察 (`/market`, source/caliber-honest overview), 债券筛选 (`/screen`, filter/sort/paginate, rows link into single-bond research), 单券研究 (`/bond`, quote + same-timepoint peer comparison), 研究历史 (`/replay`)
 - **Answer Snapshot** + SSE soft final render: tool-step progress, token preview, final summary card without forced full-page reload; share/full board still via `result_url`
 - **Bilingual UI (zh default)** + maturity/residual boards: high yield / low volume / yield outliers / missing maturity; same-type + same-bucket peer comparison
-- **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind `<details>`; replay dashboard for past runs
+- **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind `<details>`; research-history page for past runs
+
+The workbench and the agent console share the same deterministic tools and the same import panel: uploaded snapshots can be screened and compared without an LLM, and every workbench view states its data source, sample date, and caliber honestly.
 
 See the [Screenshots](#screenshots) below for each of these in action.
 
@@ -120,9 +144,9 @@ flowchart TD
     C --> D[Deterministic Tools]
     D --> E[Structured Evidence]
     E --> F[Report + Limitations]
-    F --> G{Optional LLM}
-    G -->|guardrail pass| H[Narrated answer]
-    G -->|fail or disabled| I[Deterministic answer]
+    F --> G{On-demand LLM: explicit click only}
+    G -->|guardrail pass| H[Narrated interpretation]
+    G -->|not clicked / fail or unconfigured| I[Deterministic answer]
     H --> J[Judge + Trust + Pack + Replay]
     I --> J
 ```
@@ -133,58 +157,44 @@ See the [Tool Catalog](#tool-catalog-deterministic-operators) for the 7 determin
 
 ## Screenshots
 
-Captured on the current live agent page (`BOND_DATA_MODE=auto`, no API key → deterministic final answers).
-Narrative: **can answer · can go deep · will refuse · can rank · can switch languages · can audit**.
+Captured from the real local workbench with the static sample dataset (Edge 960×1040 / 1440×1000, no API key → zero model calls). Sample boards show the sample caliber with its explicit source date; nothing is presented as live quotes.
+Narrative: **market board · screener · single-bond research · research history · optional natural-language analysis · auditable**.
 
 Current product shots live in `docs/screenshots/current/`; the root screenshots folder now only keeps the GitHub social preview asset.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/01-agent-zh-home.png" alt="Chinese BondLens agent console with a single header language switch">
-      <br><strong>Default Chinese — clean agent console</strong>
-      <br>Single header language switch; no duplicate console selector.
+      <img src="docs/screenshots/current/09-market-workbench.png" alt="Market workbench: yield six-band distribution, volume and a compact source/date summary line (static sample)">
+      <br><strong>Market workbench — /market</strong>
+      <br>Yield distribution, volume and source summary; calibers fold into expandable details.
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/02-overview-zh-live.png" alt="Chinese market overview with live trust score, evidence, monitor board and data lineage">
-      <br><strong>Can answer — market overview</strong>
-      <br><code>当前债券市场样本概览如何？</code>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="docs/screenshots/current/03-bond-report-zh-clean.png" alt="Chinese single-bond report request and trust panel">
-      <br><strong>Can go deep — single-bond report</strong>
-      <br><code>请对样本中第一只债券生成分析报告</code>
-    </td>
-    <td width="50%">
-      <img src="docs/screenshots/current/04-advisory-refusal-zh.png" alt="Advisory policy block without LLM">
-      <br><strong>Will refuse — advisory policy block</strong>
-      <br><code>今天该不该买债？</code> → Trust ≤72, no LLM
+      <img src="docs/screenshots/current/10-screener-static.png" alt="Screener: filter bonds by name/yield/maturity with a results table (static sample)">
+      <br><strong>Screener — /screen</strong>
+      <br>Multi-condition filtering over the built-in sample or uploaded CSV/Excel.
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/05-ranking-zh-live.png" alt="Chinese highest-yield ranking result with evidence metrics">
-      <br><strong>Can rank — high-yield evidence list</strong>
-      <br><code>收益率最高的债券是哪只？</code>
+      <img src="docs/screenshots/current/11-bond-detail.png" alt="Single-bond research page: bond identity, key metrics and peer comparison with on-demand AI panel">
+      <br><strong>Single-bond research — /bond</strong>
+      <br>Identity, key metrics, peer comparison; AI panel stays idle until explicitly clicked.
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/06-agent-en-home.png" alt="English BondLens agent console with EN selected">
-      <br><strong>English UI — same console, switched language</strong>
-      <br>Header `EN` drives the product surface.
+      <img src="docs/screenshots/current/12-agent-soft-result.png" alt="Natural-language analysis result: final answer first, provenance folded, AI-not-requested marker">
+      <br><strong>Optional NL analysis — /agent</strong>
+      <br>Deterministic final answer first; lineage and provenance fold into details.
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/07-overview-en-live.png" alt="English market overview result with trust score and deterministic final source">
-      <br><strong>English answer path — overview</strong>
-      <br><code>Give an overview of the current bond market sample.</code>
+      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="Research history page: run time, question, source line and technical details folded (English UI)">
+      <br><strong>Can audit — research history / evidence path</strong>
+      <br>Research history page for past runs (traceable output, summaries only).
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="Replay dashboard for auditable run history">
-      <br><strong>Can audit — replay / evidence path</strong>
-      <br>Replay dashboard for past runs (traceable output).
+      <br><em>Older gallery shots (01–07) are kept in the folder for reference but no longer shown here.</em>
     </td>
   </tr>
 </table>
@@ -206,7 +216,7 @@ Or jump from the [Example Runs table](#example-runs-no-api-key--open-in-browser)
 ### 5 minutes (offline demo)
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.lock
 ./scripts/run_demo.sh
 # open http://127.0.0.1:8765/agent
 # try: 当前样本收益率分布是什么样？
@@ -235,7 +245,7 @@ python app.py
 # watch data_source.runtime_mode, maturity board, and trust score when live degrades
 ```
 
-Optional LLM polish (never required):
+On-demand AI interpretation (optional; even when configured it takes an explicit "Generate AI interpretation" click on the result page to fire a single request):
 
 ```bash
 export OPENAI_API_KEY=... OPENAI_BASE_URL=http://127.0.0.1:18317/v1   # example: local CPA/OpenAI-compatible gateway
@@ -314,6 +324,42 @@ GET/POST /api/maturity/unmatched?format=json&data_mode=static
 
 The UI maturity board links to the same export for unmatched bond names.
 
+### Local CSV/XLSX import
+
+Upload a local snapshot (CSV/XLSX/XLS) and analyze it instead of the built-in feeds. The file is parsed in memory and deleted immediately; nothing is stored on disk or committed anywhere.
+
+```http
+POST /api/import
+Content-Type: multipart/form-data
+
+file=@snapshot.csv
+```
+
+The response returns an `import_id` plus an honest report: mapped columns, missing fields (dependent analyses are disabled, not guessed), same-name rows (kept, never deduplicated — `row_count` vs `bond_count`), and the sample date (kept when readable, explicitly marked "unknown" otherwise). Pass `import_id` with any query:
+
+```json
+{
+  "question": "概览当前样本，并对比23附息国债26与同类债券",
+  "import_id": "<id from /api/import>"
+}
+```
+
+The agent page has the same upload control (上传本地数据); imported datasets live in memory only (limit 8, 1-hour TTL).
+
+**Field-mapping confirmation/correction**: auto-mapping only accepts same-caliber column names; different-caliber columns such as 全价 (dirty price) or 成交金额 (turnover amount) are never auto-mapped and **explicit overrides for them are rejected** (dirty price ≠ clean price: accrued interest; turnover amount ≠ traded volume: unit/口径 mismatch). Unknown columns can still be mapped explicitly. Once you confirm the caliber, re-upload with `column_overrides` (JSON: target field -> source column):
+
+```http
+POST /api/import
+Content-Type: multipart/form-data
+
+file=@snapshot.csv
+column_overrides={"待偿期": "剩余期限"}   # example: explicit unknown-column mapping
+```
+
+Multi-date files are flagged honestly (`mixed_timepoints`, date range) instead of being treated as one cross-section; the workbench pages show the same warning.
+
+`.xls` support is backed by the declared xlrd reader (pinned in `requirements.lock`) with a dependency-existence test.
+
 ---
 
 ## Example Questions
@@ -367,7 +413,18 @@ GET  /packs/<pack_id>.json
 GET  /api/maturity/unmatched
 ```
 
-Deployment notes: [docs/deployment.md](docs/deployment.md)
+Read-only workbench endpoints (shared by `/market`, `/screen`, `/bond`; all accept `data_mode` / `import_id` / `lang`):
+
+```text
+GET  /api/market/overview    # source identity, yield distribution, segments, data quality
+GET  /api/bonds/search       # name/type/maturity/yield/volume filters, server-side sort + pagination
+GET  /api/bond/detail?key=   # one bond: quotes, percentiles, peer comparison, rate sensitivity (teaching caliber)
+GET  /api/data/source        # active source identity + available columns
+```
+
+Missing columns disable only the dependent views with explicit `*_column_missing` markers — nothing is guessed or fabricated.
+
+Deployment notes: see [Runtime and deployment](#runtime-and-deployment).
 
 ---
 

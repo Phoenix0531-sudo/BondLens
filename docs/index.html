@@ -3,274 +3,315 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BondLens: Evidence-First Bond Analysis Agent</title>
-  <meta name="description" content="BondLens is an evidence-first Chinese bond analysis agent: deterministic tools, optional LLM narration under guardrails, Trust Layer, live/snapshot/static data.">
+  <title>BondLens：专业债券研究工作台</title>
+  <meta name="description" content="BondLens 是面向中国债券市场的专业研究工作台：市场总览、条件筛选、单券研究、研究历史，可选自然语言分析；数据来源与行情日期全程可见，AI 解读仅在显式点击后调用。">
   <style>
     :root {
-      --ink: #17211d;
-      --muted: #65736e;
-      --paper: #f5f3ee;
-      --surface: #fffdf8;
-      --line: #d8ded9;
-      --teal: #0f6b5f;
-      --amber: #c07a22;
+      --ink: #182b40;
+      --muted: #58697b;
+      --line: #d8e0e7;
+      --paper: #f3f6f8;
+      --surface: #ffffff;
+      --accent: #235a80;
+      --accent-dark: #173f5c;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
       color: var(--ink);
-      background:
-        linear-gradient(90deg, rgba(15, 107, 95, 0.06) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(15, 107, 95, 0.05) 1px, transparent 1px),
-        var(--paper);
-      background-size: 34px 34px;
+      background: var(--paper);
       font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
     }
+    .topnav {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--line);
+    }
+    .topnav .wordmark {
+      font-weight: 700;
+      font-size: 17px;
+      color: var(--accent-dark);
+      text-decoration: none;
+    }
+    .topnav .spacer { flex: 1; }
+    .topnav a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 14px;
+    }
+    .topnav a:hover { color: var(--accent); }
     main {
       width: min(1100px, calc(100% - 40px));
       margin: 0 auto;
-      padding: 48px 0 64px;
+      padding: 40px 0 56px;
     }
-    .panel {
-      border: 1px solid var(--line);
-      background: var(--surface);
-      box-shadow: 0 18px 45px rgba(23, 33, 29, 0.08);
+    section { margin-top: 40px; }
+    h1 {
+      margin: 4px 0 10px;
+      font-size: 40px;
+      font-weight: 650;
+      line-height: 1.2;
     }
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-      gap: 20px;
+    h2 {
+      margin: 0 0 8px;
+      font-size: 22px;
+      font-weight: 650;
     }
-    .hero-copy { padding: 40px; }
+    p { margin: 0 0 12px; color: var(--muted); }
     .eyebrow {
-      margin: 0 0 14px;
-      color: var(--teal);
+      margin: 0 0 10px;
+      color: var(--accent);
       font-size: 13px;
-      font-weight: 760;
+      font-weight: 700;
       letter-spacing: 0.08em;
       text-transform: uppercase;
     }
-    h1 {
-      margin: 0 0 10px;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: clamp(40px, 7vw, 72px);
-      font-weight: 500;
-      line-height: 0.95;
-    }
-    .lead {
+    .hero { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr); gap: 24px; align-items: start; }
+    .hero-copy .lead {
       margin: 0 0 14px;
       color: var(--ink);
-      font-size: 18px;
-      font-weight: 650;
+      font-size: 17px;
+      font-weight: 600;
+      line-height: 1.7;
     }
-    p { color: var(--muted); line-height: 1.65; }
-    .logo-wrap {
-      margin: 8px 0 18px;
+    .page-pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+    .page-pills span {
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 13.5px;
     }
-    .logo-wrap img {
-      width: min(280px, 70%);
-      height: auto;
-      display: block;
-    }
-    .pitch {
-      max-width: 720px;
-      font-size: 16px;
-    }
-    .actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      margin-top: 24px;
-    }
+    .page-pills span b { color: var(--accent-dark); font-weight: 650; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
     .button {
       display: inline-block;
-      padding: 12px 16px;
-      border: 1px solid var(--ink);
-      color: var(--ink);
+      padding: 10px 14px;
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      color: var(--accent-dark);
+      background: var(--surface);
       text-decoration: none;
-      font-weight: 720;
+      font-weight: 600;
+      font-size: 14.5px;
     }
-    .button.primary {
-      border-color: var(--amber);
-      background: var(--amber);
-      color: #17120b;
-    }
-    .console {
-      padding: 28px;
-      background: var(--ink);
-      color: var(--surface);
-      display: grid;
-      align-content: space-between;
-      gap: 18px;
-    }
-    .console p { color: #c9d8d3; margin: 0; }
-    .console h2 { margin: 0 0 10px; font-size: 20px; color: var(--surface); }
-    .badge-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 10px;
-    }
-    .badge {
-      padding: 12px;
-      border: 1px solid rgba(255,253,248,0.18);
-      background: rgba(255,253,248,0.06);
-    }
-    .badge strong {
-      display: block;
-      margin-bottom: 6px;
-      font-size: 22px;
-      color: #fff;
-    }
-    section.panel { margin-top: 20px; padding: 28px; }
-    h2 { margin: 0 0 12px; font-size: 22px; }
-    .flow { display: grid; gap: 10px; margin-top: 14px; }
-    .flow div {
-      padding: 12px 14px;
-      border-left: 4px solid var(--teal);
-      background: #f3f0e8;
-      color: var(--ink);
-    }
-    .feature-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
-      margin-top: 16px;
-    }
-    .feature {
-      padding: 16px;
+    .button.primary { background: var(--accent); color: #fff; }
+    .facts {
+      padding: 18px 20px;
       border: 1px solid var(--line);
-      background: rgba(255, 253, 248, 0.78);
+      border-radius: 4px;
+      background: var(--surface);
     }
-    .feature h3 { margin: 0 0 8px; font-size: 16px; }
-    .feature p { margin: 0; font-size: 14px; }
-    .links {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
+    .facts h2 { font-size: 16px; }
+    .facts ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 14.5px; }
+    .facts li { margin-bottom: 8px; }
+    .facts li b { color: var(--ink); font-weight: 650; }
+    .notice {
+      margin-top: 20px;
+      padding: 12px 14px;
+      border-left: 3px solid var(--accent);
+      background: #eef4f9;
+      color: var(--ink);
+      font-size: 14px;
+    }
+    .notice code {
+      padding: 1px 6px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      background: var(--surface);
+      font-size: 13px;
+    }
+    .shot-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 18px;
       margin-top: 14px;
     }
-    .links a {
-      color: var(--teal);
-      font-weight: 650;
+    .shot {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
     }
-    @media (max-width: 860px) {
-      .hero, .badge-grid, .feature-grid { grid-template-columns: 1fr; }
-      .hero-copy, .console, section.panel { padding: 22px; }
+    .shot img { width: 100%; height: auto; display: block; border: 1px solid var(--line); }
+    .shot figcaption { margin-top: 8px; font-size: 13.5px; color: var(--muted); }
+    .shot figcaption b { color: var(--ink); }
+    .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+    .card {
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      background: var(--surface);
+    }
+    .card h3 { margin: 0 0 6px; font-size: 16px; color: var(--accent-dark); }
+    .card p { margin: 0; font-size: 14.5px; }
+    .links { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; }
+    .links a { color: var(--accent); font-weight: 600; font-size: 14.5px; }
+    footer {
+      margin-top: 48px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13.5px;
+    }
+    footer .links a { font-size: 13.5px; }
+    @media (max-width: 900px) {
+      .hero, .shot-grid, .cards { grid-template-columns: 1fr; }
+      h1 { font-size: 32px; }
     }
   </style>
 </head>
 <body>
+  <nav class="topnav">
+    <a class="wordmark" href="https://phoenix0531-sudo.github.io/BondLens/">BondLens</a>
+    <span class="spacer"></span>
+    <a href="https://github.com/Phoenix0531-sudo/BondLens">GitHub</a>
+    <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">README</a>
+    <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md">中文 README</a>
+    <a href="#demo-runs">示例报告</a>
+  </nav>
   <main>
     <div class="hero">
-      <header class="panel hero-copy">
-        <p class="eyebrow">Evidence-first · Chinese bonds</p>
+      <header class="hero-copy">
+        <p class="eyebrow">专业研究工作台 · Chinese bond research workbench</p>
         <h1>BondLens</h1>
-        <p class="lead">An Evidence-First Bond Analysis Agent for Chinese Market Data</p>
-        <div class="logo-wrap">
-          <img src="figs/logo_white_background.png" alt="BondLens logo">
+        <p class="lead">
+          面向中国债券市场的专业研究工作台：市场总览、条件筛选、单券研究、研究历史，
+          外加可选的自然语言分析入口。数据来源与行情日期全程可见，利率债优先，
+          支持公开行情与本地 CSV/Excel 样例。
+        </p>
+        <div class="page-pills">
+          <span><b>市场总览</b> /market</span>
+          <span><b>条件筛选</b> /screen</span>
+          <span><b>单券研究</b> /bond</span>
+          <span><b>研究历史</b> /replay</span>
+          <span><b>自然语言分析（可选）</b> /agent</span>
         </div>
-        <p class="pitch">
-          BondLens turns a natural-language bond question into an auditable run:
-          live/snapshot/static data, deterministic tools, optional LLM narration under
-          numeric/language guardrails, and a reviewer-facing Trust Layer.
-        </p>
-        <p class="pitch">
-          <strong>Not a multi-agent equity research desktop.</strong>
-          <strong>A claim-level evidence agent for Chinese bonds.</strong>
-        </p>
-        <p class="pitch">
-          数字由代码计算，叙述可由大模型辅助，每次输出都可追溯。
-          不是让 LLM 自由猜金融结论，而是工具先出证据，Agent 再编排、解释、裁决与诚实回退。
+        <p>
+          数字由确定性工具计算，模型只做叙述且必须通过护栏；AI 解读默认关闭，
+          仅在结果页显式点击后才发起单次请求。所有页面中英双语。
         </p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/Phoenix0531-sudo/BondLens">GitHub Repository</a>
-          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">English README</a>
+          <a class="button primary" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md#runtime-and-deployment">本地运行指南</a>
+          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens">GitHub 仓库</a>
           <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md">中文 README</a>
-          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/tree/main/docs/demo_runs">Demo packs</a>
-          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml">CI Status</a>
         </div>
       </header>
-
-      <aside class="panel console">
-        <div>
-          <h2>Design principle</h2>
-          <p>Numbers are code-calculated.<br>Narratives are LLM-assisted.<br>Every output is provenance-tracked.</p>
-        </div>
-        <div class="badge-grid">
-          <div class="badge"><strong>3</strong>Data layers</div>
-          <div class="badge"><strong>7</strong>Deterministic tools</div>
-          <div class="badge"><strong>110</strong>Local tests</div>
+      <aside class="facts">
+        <h2>关键事实</h2>
+        <ul>
+          <li><b>数据来源可见</b>：AkShare 实时 → 快照 → 本地样例逐级回退，或上传 CSV/Excel；每次运行显示来源与行情日期。</li>
+          <li><b>AI 按需显式触发</b>：默认零模型调用；点击「生成 AI 解读」才发起一次请求，失败或未配置时确定性结果独立可用。</li>
+          <li><b>确定性优先</b>：7 个工具算数（检索 / 概览 / 排名 / 异常 / 同业对比 / 监控 / 单券报告），数字不由模型编造。</li>
+          <li><b>质量基线</b>：Python 3.12 · 212 项 pytest 通过（1 项跳过）· 守护栏 + 评审 + 证据包 + 回放。</li>
+        </ul>
+        <div class="notice">
+          本页是 GitHub Pages 静态介绍页，不提供在线交互服务。
+          完整工作台请按 README 本地运行：<code>python app.py</code>，或 <code>docker compose up --build</code>。
         </div>
       </aside>
     </div>
 
-    <section class="panel">
-      <h2>Example Runs (no API key)</h2>
-      <p>Open in browser — no server required. Same idea as FinRobot-style example reports, scoped to Chinese bonds.</p>
+    <section>
+      <h2>工作台界面（真实截图）</h2>
+      <p>以下为当前版本真实页面截图（本地样例数据，非实时行情）。交互应用需本地运行后访问。</p>
+      <div class="shot-grid">
+        <figure class="shot">
+          <img src="screenshots/current/09-market-workbench.png" alt="市场总览页：收益率六档分布、样本日期与来源条（静态样例数据）">
+          <figcaption><b>市场总览</b> · 收益率分布、成交量与来源/日期单行摘要（样例数据演示）</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/current/10-screener-static.png" alt="条件筛选页：按简称/收益率/待偿期过滤的债券列表（静态样例数据）">
+          <figcaption><b>条件筛选</b> · 多条件过滤，点击行进入单券研究（样例数据演示）</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/current/11-bond-detail.png" alt="单券研究页：券种身份、关键指标与同业对比（静态样例数据）">
+          <figcaption><b>单券研究</b> · 关键指标、同业对比与按需 AI 解读面板（样例数据演示）</figcaption>
+        </figure>
+        <figure class="shot">
+          <img src="screenshots/current/08-replay-dashboard.png" alt="研究历史页：既往研究运行的摘要卡片与证据包入口（英文界面）">
+          <figcaption><b>研究历史</b> · 既往运行的时间、问题、来源与技术详情（英文界面演示）</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2>四类研究页面 + 可选自然语言分析</h2>
+      <div class="cards">
+        <article class="card">
+          <h3>市场总览 /market</h3>
+          <p>收益率分布、成交量与样本结构；来源条显示数据源、行情时点与行数，口径细节可展开。</p>
+        </article>
+        <article class="card">
+          <h3>条件筛选 /screen</h3>
+          <p>按简称、收益率、待偿期等条件过滤债券列表，也可上传 CSV/Excel 样本即时筛选。</p>
+        </article>
+        <article class="card">
+          <h3>单券研究 /bond</h3>
+          <p>单只债券的关键指标、同业对比与研究报告；AI 解读面板默认关闭，需显式点击。</p>
+        </article>
+        <article class="card">
+          <h3>研究历史 /replay</h3>
+          <p>既往研究运行的时间、问题、数据来源与结论摘要，技术评分折入详情；证据包可追溯。</p>
+        </article>
+        <article class="card">
+          <h3>自然语言分析 /agent（可选）</h3>
+          <p>一句话问题进入可审计的分析运行：规划 → 工具取证 → 报告；LLM 叙述仅在显式请求时按需生成。</p>
+        </article>
+        <article class="card">
+          <h3>数据与诚实边界</h3>
+          <p>不虚构行情、不提供投资建议；缺失字段明确标记，非投资建议声明贯穿全站。</p>
+        </article>
+      </div>
+    </section>
+
+    <section id="demo-runs">
+      <h2>示例报告（无需 API key，浏览器直接打开）</h2>
+      <p>静态导出的 Evidence Pack，展示同样的证据结构与报告格式。</p>
       <div class="links">
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html">Market overview pack</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html">Single-bond report pack</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html">Yield outliers pack</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_deepseek_v4.md">LLM final-answer matrix</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html">市场概览报告</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html">单券报告</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html">收益率异常监控</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_cpa_gpt54.md">LLM 输出矩阵</a>
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Codebase Snapshot</h2>
-      <div class="feature-grid">
-        <article class="feature">
-          <h3>Agent core</h3>
-          <p>Single path: Planner → Tools → Evidence → Report. Not a multi-role equity desk.</p>
+    <section>
+      <h2>工程与运行</h2>
+      <div class="cards">
+        <article class="card">
+          <h3>本地运行</h3>
+          <p>Python 3.12 + Flask/Jinja + pandas，<code>python app.py</code> 即可离线样例分析；Docker Compose 单容器部署，健康检查 <code>/healthz</code>。</p>
         </article>
-        <article class="feature">
-          <h3>7 deterministic tools</h3>
-          <p>search / describe / rank / outliers / peer / monitor / bond report — numbers never invented by the model.</p>
+        <article class="card">
+          <h3>质量与验证</h3>
+          <p>212 项 pytest 通过（1 项跳过）、agent 与红队评测脚本、CI 含 Docker 构建健康检查；同步与 SSE 共用同一条分析管线。</p>
         </article>
-        <article class="feature">
-          <h3>Trust layer + evals</h3>
-          <p>Guardrail · judge · Trust score · Evidence Pack · replay · pytest ~110 · agent 10/10 · red-team 3/3.</p>
-        </article>
-      </div>
-      <div class="links" style="margin-top:14px">
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png">Architecture diagram</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">Full README</a>
-      </div>
-    </section>
-
-    <section class="panel">
-      <h2>Core workflow</h2>
-      <p>BondLens keeps the financial reasoning path visible and auditable.</p>
-      <div class="flow">
-        <div>Data resolver: AkShare live → cached snapshot → local Excel</div>
-        <div>Planner: overview / search / ranking / outlier / monitor / bond report / advisory policy</div>
-        <div>Deterministic tools produce structured evidence before any optional LLM call</div>
-        <div>Numeric + language guardrails decide whether model text can be final</div>
-        <div>Trust score, Evidence Pack, replay, agent evals and red-team evals</div>
       </div>
       <div class="links">
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/tree/main/docs/demo_runs">Static demo packs (no API key)</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_deepseek_v4.md">LLM final-answer matrix</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/deployment.md">Deployment notes</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md#runtime-and-deployment">运行与部署（README）</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png">架构图</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml">CI 状态</a>
       </div>
     </section>
 
-    <section class="panel">
-      <h2>Why it matters for interviews</h2>
-      <div class="feature-grid">
-        <article class="feature">
-          <h3>Agent engineering</h3>
-          <p>Planner, tool routing, evidence ledger, deterministic fallback, OpenAI-compatible local LLM path.</p>
-        </article>
-        <article class="feature">
-          <h3>Financial data boundary</h3>
-          <p>Honest live/snapshot/static lineage; no fake ratings, credit events, or trade instructions.</p>
-        </article>
-        <article class="feature">
-          <h3>Safety evaluation</h3>
-          <p>Blocks unsupported numbers, investment-advice language, guarantees; CI agent + red-team suites.</p>
-        </article>
+    <footer>
+      <p>MIT 许可。本站与工具输出均为非投资建议，仅供学习、研究与作品展示。行情数据来源与再分发条款需另行确认。</p>
+      <div class="links">
+        <a href="https://github.com/Phoenix0531-sudo/BondLens">GitHub 仓库</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">English README</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md">中文 README</a>
       </div>
-    </section>
+    </footer>
   </main>
 </body>
 </html>

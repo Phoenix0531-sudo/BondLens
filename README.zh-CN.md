@@ -7,28 +7,49 @@
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens 徽章 — 六棱镜聚焦收益率曲线，琉瑠峰标记被检结论"/>
 
 **面向中文债的 claim 级证据智能体**  
-中文债 · 确定性工具 · 可追溯证据 · 护權下的可选 LLM 叙述。
+中文债 · 确定性工具 · 可追溯证据 · 按需显式触发的 AI 解读（护栏约束）。
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
-![Agent Evals (manual)](https://img.shields.io/badge/agent%20evals%20(manual)-10%2F10-brightgreen?style=flat-square)
-![Red Team (manual)](https://img.shields.io/badge/red--team%20(manual)-3%2F3-brightgreen?style=flat-square)
-![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
-![Flask](https://img.shields.io/badge/Flask-3.x-green.svg?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-pytest%2Bevals-informational?style=flat-square)
-![Docker](https://img.shields.io/badge/docker-healthz-blue?style=flat-square)
-![i18n](https://img.shields.io/badge/i18n-zh%2Fen-teal?style=flat-square)
-![Data](https://img.shields.io/badge/data-AkShare%20live%2Fsnapshot%2Fstatic-orange?style=flat-square)
-![Pages](https://img.shields.io/badge/project%20page-GitHub%20Pages-222?style=flat-square)
 
 **BondLens** 把一句自然语言债市问题变成一次**可审计的分析运行**：  
-实时 / 快照 / 本地数据 → 确定性工具 → 可选 LLM 叙述 → Trust Layer。
+实时 / 快照 / 本地数据 → 确定性工具 → 按需 AI 解读（显式点击）→ Trust Layer。
 
 [项目主页](https://phoenix0531-sudo.github.io/BondLens/) · [社交预览图](docs/figs/voxel_social.png) · 浅底徽章：[logo](docs/figs/logo_white_background.png)
 
 > 本项目不提供投资建议，仅用于学习、研究、作品集展示和面试讨论。
 
 </div>
+
+## 运行与交付边界
+
+部署基线为 Python 3.12（支持 Python 3.11+）；保留 Flask/Jinja、pandas 3、Pydantic 2 与可选 OpenAI 兼容 SDK。同步与流式接口共用一条分析链路，无 API Key 也可完成本地样本分析。
+
+```bash
+python -m venv .venv
+# 激活虚拟环境后：
+python -m pip install -r requirements.lock
+# 离线分析请设置环境变量 BOND_DATA_MODE=static
+python app.py
+# 打开 http://127.0.0.1:5000/（市场工作台首页；/agent 为智能体控制台）。
+```
+
+配置从进程环境变量读取，选项见 `.env.example`。`python app.py` 仅用于本地开发；部署使用 `docker compose up --build`。Compose 端口映射默认绑定 `127.0.0.1`（`BOND_BIND_HOST`），即仅本机可访问；确需局域网或反代开放时，请显式设置绑定地址并自行部署带认证的反向代理。回环默认是安全默认值，不是完整的安全防护。容器以非 root 用户运行，采用单 Gunicorn 进程、四线程；结果缓存仍在进程内，不应直接增加 worker 数。结果链接在 30 分钟后或服务重启后失效；证据包与回放摘要保存在 Compose 的 `bondlens-data` 卷，重启保留，需要长期历史时备份该卷，勿执行会删除卷的 `docker compose down -v`。
+
+### 部署与维护
+
+- 页面：`http://localhost:8765/`（市场工作台）或 `/agent`（智能体控制台）；健康检查：`/healthz`；API 契约：`/api/agent/schema`。
+- Compose 会读取 `.env` 做变量替换；直接运行 Python 不会自动加载它。离线分析设置 `BOND_DATA_MODE=static`；`auto` 按实时 → 快照 → 样本降级。
+- 启动：`docker compose up --build -d`；日志：`docker compose logs --tail=100 bondlens`；重启：`docker compose restart bondlens`；停止并保留历史：`docker compose down`。
+- 服务名 `bondlens`、容器名 `bondlens-demo`、镜像 `bondlens:local`；端口映射 `${BOND_BIND_HOST:-127.0.0.1}:${BOND_HOST_PORT:-8765}:5000`。默认回环绑定即仅本机可访问；如需局域网或反向代理开放，请显式设置 `BOND_BIND_HOST`（如 `0.0.0.0` 或内网地址），并先自行部署带认证的反向代理。容器内 Gunicorn 仍监听 `0.0.0.0:5000`。
+- 原生 Linux 可运行 `gunicorn --workers 1 --threads 4 --timeout 180 -b 127.0.0.1:5000 app:app`。Gunicorn 不支持 Windows；此部署方案在 Windows 使用 Docker。
+- `BOND_REPLAY_ENABLED` 控制回放摘要；`BOND_REPLAY_DIR` 与 `BOND_EVIDENCE_PACK_DIR` 可覆盖保存目录，在 Docker 中应保持在 `/app/.tmp` 下以使用持久卷。
+- Docker 连接宿主机 Ollama：设置 `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`、`OPENAI_MODEL` 为已安装模型、`OPENAI_API_STYLE=chat`；不需要付费模型。演示脚本默认清空 `OPENAI_*`，仅显式设置 `BOND_DEMO_WITH_LLM=1` 时透传。
+- 有意升级依赖时运行 `uv pip compile requirements.txt --python-version 3.12 --universal --output-file requirements.lock`，验证后再重建。
+
+请求上限 1 MiB，问题上限 4000 字；流式失败不会自动重复付费分析。浏览器停止接收不保证取消提供商端计算。LLM 单次调用默认超时 20 秒，模型切换与修复可能使整体耗时更长。
+
+产品定位仍是单实例研究工具，不是公网多用户金融服务。当前没有账号或按用户隔离的历史，超出可信用户范围前应接入带认证的反向代理。行情再分发和模型提供商商用条款需单独核查，MIT 许可证不授予行情数据使用权。
 
 ### Example Runs（无需 API Key — 浏览器直接打开）
 
@@ -70,7 +91,7 @@
 | 中文债市自然语言问答 | 多 Agent 股权研究桌面端 |
 | 实时 / 快照 / 本地数据，血缘可追溯 | 主体评级、财报、担保、信用事件 |
 | 确定性收益 / 成交 / 排序 / 异常工具 | 交易推荐或买卖信号 |
-| 可选 LLM 叙述（数值 + 语言护栏） | 模型在证据外编造数字 |
+| 按需 AI 解读（显式触发，数值 + 语言护栏） | 模型在证据外编造数字 |
 | 信任分、Evidence Pack、回放、红队评测 | 完整 OAS / 含权树定价 desk |
 | 双语界面（默认中文）+ 便携 demo pack | 完整市场覆盖声明 |
 
@@ -82,7 +103,7 @@
 
 BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **LLM 叙述**（仅文本，数字必须对齐证据）。详见 [工具目录](#工具目录确定性算子) 的确定性产出与下文 [信任分与 Evidence Pack](#信任分与-evidence-pack) 中控制叙述文本的护栏 + 评审。
 
-**工具算数，模型讲故事，信任层做裁决。** 未设置 `OPENAI_API_KEY` 时，项目仍以确定性回退输出正常运行。
+**工具算数，模型讲故事，信任层做裁决。** 模型从不自动参与分析：分析链路默认零模型调用，即使已配置 `OPENAI_API_KEY` 也只在结果页显式点击「生成 AI 解读」后才发起单次请求，复用已计算的确定性结果与证据，不重算数据；成功后解读被缓存（结果页随结果缓存约 30 分钟；单券页按目标缓存），重复请求直接返回已缓存解读、不再调用模型；失败不缓存，可显式重试。未配置或失败时确定性结果独立可用、不受影响。
 
 ### Codebase Snapshot
 
@@ -91,7 +112,7 @@ BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **
 | **Agent 核心** | 单路径：Planner → Tools → Evidence → Report |
 | **确定性工具** | 7 个公开算子：`search_bonds`、`describe_market`、`rank_bonds`、`detect_yield_outliers`、`compare_bond_to_market`、`build_market_monitor`、`generate_bond_report` |
 | **Trust 层** | 数值+语言护栏 · 答案评审 · Trust 分 · Evidence Pack · 回放 · 风险画像 |
-| **评测** | 约 110 个 pytest · CI Docker `/healthz`；详见上方实时 badge。 |
+| **评测** | 约 213 个 pytest（212 通过 / 1 跳过基线）· CI Docker `/healthz`；详见上方实时 badge。 |
 | **数据** | AkShare 实时 → 缓存快照 → 静态 Excel，显式血缘与期限覆盖看板 |
 | **产品面** | Flask + Jinja · 默认中文 / 英文切换（query+cookie）· SSE 软渲染 · CI + GitHub Pages |
 
@@ -99,9 +120,12 @@ BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **
 
 ### 产品面（答案优先）
 
+- **研究工作台（首页）**：四大入口 —— 市场观察（`/market`，来源与口径如实标注的整体画像）、债券筛选（`/screen`，筛选/排序/分页，行可进入单券研究）、单券研究（`/bond`，行情 + 同一时点同业对比）、研究历史（`/replay`）
 - **Answer Snapshot** + SSE 软终渲染：工具步骤进度、token 预览、最终摘要卡，无需强制整页刷新；完整看板仍走 `result_url`
 - **双语界面（默认中文）** + 期限/残期看板：高收益 / 低成交 / 收益异常 / 缺期限；同券种 + 同分桶同业利差
-- **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后；回放看板可查过去运行
+- **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后；研究历史页可查过去运行
+
+工作台与智能体控制台共享同一套确定性工具与上传面板：不经过 LLM 也能筛选、对比上传样本；每个工作台页面都如实标注数据源、样本日期与口径。
 
 详见下文 [项目截图](#项目截图) 中每一项的实际表现。
 
@@ -120,9 +144,9 @@ flowchart TD
     C --> D[确定性工具]
     D --> E[结构化证据]
     E --> F[报告 + 局限性]
-    F --> G{可选 LLM}
-    G -->|护栏通过| H[叙述型回答]
-    G -->|失败或未启用| I[确定性回答]
+    F --> G{按需 LLM：仅显式点击触发}
+    G -->|护栏通过| H[叙述型解读]
+    G -->|未点击/失败或未配置| I[确定性回答]
     H --> J[评审 + 信任分 + Pack + 回放]
     I --> J
 ```
@@ -133,58 +157,44 @@ flowchart TD
 
 ## 项目截图
 
-在当前 live agent 页实拍（`BOND_DATA_MODE=auto`，无 API Key → 确定性最终答案）。
-叙事：**能答 · 能深 · 会拒 · 会排序 · 可双语 · 可审**。
+在本地真实工作台实拍（静态样例数据，Edge 960×1040 / 1440×1000，无 API Key → 零模型调用）。样例看板均标明样例口径与行情日期，不以静态样例冒充实时行情。
+叙事：**市场看板 · 条件筛选 · 单券研究 · 研究历史 · 可选自然语言分析 · 可审计**。
 
 当前产品图集中在 `docs/screenshots/current/`；根截图目录只保留 GitHub social preview 资产。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/01-agent-zh-home.png" alt="中文 BondLens 智能体控制台，只有页头语言切换">
-      <br><strong>默认中文 — 干净控制台</strong>
-      <br>只有页头语言切换；控制台不再重复放语言选择器。
+      <img src="docs/screenshots/current/09-market-workbench.png" alt="市场总览工作台：收益率六档分布、成交量与来源/日期单行摘要（静态样例）">
+      <br><strong>市场总览 — /market</strong>
+      <br>收益率分布、成交量与来源摘要；口径细节折叠可展开。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/02-overview-zh-live.png" alt="中文市场概览：实时信任分、证据、监控面板与数据血缘">
-      <br><strong>能答 — 市场概览</strong>
-      <br><code>当前债券市场样本概览如何？</code>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="docs/screenshots/current/03-bond-report-zh-clean.png" alt="中文单券报告请求与信任面板">
-      <br><strong>能深 — 单券报告</strong>
-      <br><code>请对样本中第一只债券生成分析报告</code>
-    </td>
-    <td width="50%">
-      <img src="docs/screenshots/current/04-advisory-refusal-zh.png" alt="投顾类拦截，不调用 LLM">
-      <br><strong>会拒 — 投顾策略拦截</strong>
-      <br><code>今天该不该买债？</code> → Trust ≤72，不调 LLM
+      <img src="docs/screenshots/current/10-screener-static.png" alt="筛选页：按简称/收益率/待偿期过滤债券列表（静态样例）">
+      <br><strong>条件筛选 — /screen</strong>
+      <br>内置样例或上传 CSV/Excel 的多条件过滤。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/05-ranking-zh-live.png" alt="中文最高收益排序结果与证据指标">
-      <br><strong>会排序 — 高收益证据清单</strong>
-      <br><code>收益率最高的债券是哪只？</code>
+      <img src="docs/screenshots/current/11-bond-detail.png" alt="单券研究页：券种身份、关键指标与同业对比，含按需 AI 面板">
+      <br><strong>单券研究 — /bond</strong>
+      <br>关键指标、同业对比；AI 面板默认关闭，需显式点击。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/06-agent-en-home.png" alt="英文 BondLens 智能体控制台，EN 已选中">
-      <br><strong>英文界面 — 同一控制台切换语言</strong>
-      <br>页头 `EN` 驱动产品界面。
+      <img src="docs/screenshots/current/12-agent-soft-result.png" alt="自然语言分析结果页：最终回答在前，来源与血缘折叠，标注未请求 AI">
+      <br><strong>可选自然语言分析 — /agent</strong>
+      <br>确定性最终回答在前；血缘与来源折入详情。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/07-overview-en-live.png" alt="英文市场概览结果：信任分与确定性最终来源">
-      <br><strong>英文问答链路 — 市场概览</strong>
-      <br><code>Give an overview of the current bond market sample.</code>
+      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="研究历史页：运行时间、问题、来源行与技术详情折叠（英文界面）">
+      <br><strong>可审 — 研究历史 / 证据路径</strong>
+      <br>历史运行研究页（可追溯输出，仅存摘要）。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="可审计回放看板">
-      <br><strong>可审 — 回放 / 证据路径</strong>
-      <br>历史运行回放看板（可追溯输出）。
+      <br><em>旧图库（01–07）保留在目录中供参考，不再在此展示。</em>
     </td>
   </tr>
 </table>
@@ -206,7 +216,7 @@ docs/demo_runs/demo-market-overview.html
 ### 5 分钟（离线演示）
 
 ```bash
-pip install -r requirements.txt
+pip install -r requirements.lock
 ./scripts/run_demo.sh
 # 打开 http://127.0.0.1:8765/agent
 # 试试：当前样本收益率分布是什么样？
@@ -235,7 +245,7 @@ python app.py
 # 观察 data_source.runtime_mode、期限补全看板与信任分在降级时的变化
 ```
 
-可选 LLM 润色（非必需）：
+按需 AI 解读（可选，配置后仍需在结果页显式点击「生成 AI 解读」才发起单次请求）：
 
 ```bash
 export OPENAI_API_KEY=... OPENAI_BASE_URL=http://127.0.0.1:18317/v1   # 示例：本地 CPA/OpenAI 兼容网关
@@ -315,6 +325,42 @@ GET/POST /api/maturity/unmatched?format=json&data_mode=static
 
 页面上的「期限补全看板」提供相同导出入口。
 
+### 本地 CSV/XLSX 导入
+
+上传本地行情快照（CSV/XLSX/XLS）即可替代内置数据源进行分析。文件只在内存中解析并立即删除，不落盘、不进入任何存储。
+
+```http
+POST /api/import
+Content-Type: multipart/form-data
+
+file=@snapshot.csv
+```
+
+响应返回 `import_id` 与诚实报告：已映射列、缺失字段（相关分析自动禁用，不猜测）、同名多行记录（保留不去重，`row_count` 与 `bond_count` 分别展示）、数据日期（能读出则保留，读不出则明确标注“样本日期未知”）。后续查询携带 `import_id` 即可：
+
+```json
+{
+  "question": "概览当前样本，并对比23附息国债26与同类债券",
+  "import_id": "<由 /api/import 返回>"
+}
+```
+
+分析页面提供同样的上传入口（上传本地数据）；导入数据仅存于内存（上限 8 份，1 小时过期）。
+
+**字段映射确认/修正**：自动映射只识别口径一致的列名；“全价”“成交金额”等口径不同的列不会被自动映射，且**对它们的显式覆盖会被直接拒绝**（全价含应计利息≠收盘净价；成交金额≠交易量，单位/口径可能不同）；未知列仍可由用户显式映射。确认口径后，可在重新上传时附带 `column_overrides`（JSON：目标字段→源列名）显式指定，例如：
+
+```http
+POST /api/import
+Content-Type: multipart/form-data
+
+file=@snapshot.csv
+column_overrides={"待偿期": "剩余期限"}   # 示例：显式映射未知列
+```
+
+多日期文件会被如实标记（`mixed_timepoints` 与日期范围），不会当作同一横截面处理；工作台页面同样展示该提醒。
+
+`.xls` 依赖已声明的 xlrd 读取器（`requirements.lock` 锁定版本），并有对应依赖存在性测试保障。
+
 ---
 
 ## 示例问题
@@ -368,7 +414,18 @@ GET  /packs/<pack_id>.json
 GET  /api/maturity/unmatched
 ```
 
-部署说明：[docs/deployment.md](docs/deployment.md)
+只读工作台接口（`/market`、`/screen`、`/bond` 共用；均支持 `data_mode` / `import_id` / `lang`）：
+
+```text
+GET  /api/market/overview    # 来源身份、收益率分布、分段统计、数据质量
+GET  /api/bonds/search       # 名称/券种/期限/收益率/成交量筛选，服务端排序 + 分页
+GET  /api/bond/detail?key=   # 单券：行情、分位、同业对比、利率敏感性（教学口径）
+GET  /api/data/source        # 当前数据源身份与可用列
+```
+
+缺失列只会禁用依赖它的分析，并给出明确的 `*_column_missing` 标记——不猜测、不编造。
+
+部署说明：见[运行与交付边界](#运行与交付边界)。
 
 ---
 
