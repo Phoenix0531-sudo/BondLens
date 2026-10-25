@@ -34,6 +34,8 @@ python app.py
 # Open http://127.0.0.1:5000/ (market workbench; /agent is the LLM console).
 ```
 
+For tests and development, install the pinned runtime plus development extras with `python -m pip install -r requirements.lock -r requirements-dev.txt`. The development file does not include runtime dependencies by itself.
+
 Configuration is read from process environment; `.env.example` lists the options. `python app.py` is for local use, not an Internet-facing production server. For deployment, use `docker compose up --build`. The Compose port mapping binds to `127.0.0.1` by default (`BOND_BIND_HOST`), so the workbench is reachable only from the local machine; choose a trusted-network binding or an authenticating reverse proxy deliberately if you need wider access. This loopback default is a safe default, not a complete security solution. The non-root container runs one Gunicorn process with four threads; do not increase worker processes while result URLs use in-memory caching. Results expire after 30 minutes or a service restart; exported packs and replay summaries survive Compose restarts in the `bondlens-data` volume. Back up that volume if history matters; `docker compose down -v` deletes it.
 
 ### Deployment operations

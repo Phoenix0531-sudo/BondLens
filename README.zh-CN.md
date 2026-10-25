@@ -34,6 +34,8 @@ python app.py
 # 打开 http://127.0.0.1:5000/（市场工作台首页；/agent 为智能体控制台）。
 ```
 
+运行测试或开发时，使用 `python -m pip install -r requirements.lock -r requirements-dev.txt` 同时安装锁定的运行依赖与开发附加依赖；单独安装 `requirements-dev.txt` 不包含运行依赖。
+
 配置从进程环境变量读取，选项见 `.env.example`。`python app.py` 仅用于本地开发；部署使用 `docker compose up --build`。Compose 端口映射默认绑定 `127.0.0.1`（`BOND_BIND_HOST`），即仅本机可访问；确需局域网或反代开放时，请显式设置绑定地址并自行部署带认证的反向代理。回环默认是安全默认值，不是完整的安全防护。容器以非 root 用户运行，采用单 Gunicorn 进程、四线程；结果缓存仍在进程内，不应直接增加 worker 数。结果链接在 30 分钟后或服务重启后失效；证据包与回放摘要保存在 Compose 的 `bondlens-data` 卷，重启保留，需要长期历史时备份该卷，勿执行会删除卷的 `docker compose down -v`。
 
 ### 部署与维护

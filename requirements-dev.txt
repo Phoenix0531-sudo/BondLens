@@ -1,5 +1,5 @@
--r requirements.lock
-
+# Dev-only extras; runtime stays pinned by requirements.lock.
+# Install together: pip install -r requirements.lock -r requirements-dev.txt
 pytest>=9,<10
 PyYAML>=6,<7
 ruff>=0.16,<0.17

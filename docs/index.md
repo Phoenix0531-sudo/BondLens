@@ -36,9 +36,9 @@ AI 解读默认关闭，仅在结果页显式点击后发起单次请求。
 
 | Run | Open |
 | --- | --- |
-| Market overview | [demo-market-overview.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-market-overview.html) |
-| Single-bond report | [demo-bond-report.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-bond-report.html) |
-| Yield outliers | [demo-yield-outliers.html](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/demo-yield-outliers.html) |
+| Market overview | [demo-market-overview.html](demo_runs/demo-market-overview.html) |
+| Single-bond report | [demo-bond-report.html](demo_runs/demo-bond-report.html) |
+| Yield outliers | [demo-yield-outliers.html](demo_runs/demo-yield-outliers.html) |
 | LLM final-answer matrix | [llm_matrix_cpa_gpt54.md](https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_cpa_gpt54.md) |
 
 ## Codebase Snapshot
