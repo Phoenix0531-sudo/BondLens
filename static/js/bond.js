@@ -9,13 +9,13 @@
   let activeKey = (root.dataset.bondKey || "").trim();
 
   function card(label, value, suffix) {
-    return `<div class="wb-card"><p class="wb-card-label">${label}</p>
+    return `<div class="wb-card card"><p class="wb-card-label">${label}</p>
         <p class="wb-card-value">${value}${suffix ? ` <small>${suffix}</small>` : ""}</p></div>`;
   }
 
   function emptyState() {
     const zh = WB.lang() === "zh";
-    root.innerHTML = `<section class="wb-panel"><div class="wb-panel-body">
+    root.innerHTML = `<section class="wb-panel card"><div class="wb-panel-body">
         <p class="wb-empty">${zh
           ? "在上方输入债券代码或简称开始研究。<br>将从当前数据源中定位该券的行情，并与同一时点、同券种、同期限桶的同业对比。"
           : "Enter a bond code or name above.<br>BondLens locates its quotes in the active source and compares with same-timepoint, same-type, same-bucket peers."}</p>
@@ -40,27 +40,31 @@
 
     /* Identity */
     const sourceMeta = payload.data_source || {};
-    const quoteWhen = sourceMeta.mixed_timepoints
-      ? (sourceMeta.quote_date_range || (zh ? "多个时点" : "multiple dates"))
-      : (sourceMeta.sample_date
-          ? WB.fmtDate(sourceMeta.sample_date) + (sourceMeta.quote_time ? ` ${sourceMeta.quote_time}` : "")
-          : (zh ? "未知" : "unknown"));
+    const quoteWhen = WB.quoteWhen(sourceMeta);
+    const bondQuoteWhen = target["行情时间"] || null;
+    const runtime = WB.runtimeInfo(sourceMeta);
     const identity = document.createElement("section");
-    identity.className = "wb-panel";
+    identity.className = "wb-panel card";
     identity.innerHTML = `<div class="wb-panel-header"><div class="wb-bond-identity">
             <h2>${target.name || "—"}</h2>
             ${target["债券代码"] ? `<span class="code">${target["债券代码"]}</span>` : ""}
             <span class="wb-badge">${target.type_value || "—"}</span>
             ${target["期限分桶"] ? `<span class="wb-badge">${target["期限分桶"]}</span>` : ""}
-            <p class="wb-panel-subtitle" style="margin-top:6px">${zh ? "数据" : "Data"}: ${sourceMeta.source_name || "—"} · ${zh ? "行情时点" : "Quote"}: ${quoteWhen}${sourceMeta.runtime_mode && sourceMeta.runtime_mode !== "live_feed" ? (zh ? " · 非实时" : " · not live") : ""}</p>
+            <span class="wb-badge ${runtime.isLive ? "good" : "warn"}">${runtime.label}</span>
+            <p class="wb-panel-subtitle" data-bond-source-info style="margin-top:6px"></p>
         </div>
         <a class="ghost-button" href="${askLink(target.name || "")}">${zh ? "在智能体中继续研究" : "Continue in the agent"}</a>
     </div>`;
+    identity.querySelector("[data-bond-source-info]").textContent = [
+      `${zh ? "来源" : "Source"} ${sourceMeta.source_name || "—"}`,
+      `${bondQuoteWhen ? (zh ? "该券行情" : "Bond quote") : (zh ? "行情范围" : "Quote range")} ${bondQuoteWhen || quoteWhen}`,
+      ...(sourceMeta.fetched_at ? [`${zh ? "获取" : "Fetched"} ${WB.fmtFetchedAt(sourceMeta.fetched_at)}`] : []),
+    ].join(" · ");
     root.append(identity);
 
     /* Quote cards */
     const cards = document.createElement("div");
-    cards.className = "wb-grid";
+    cards.className = "wb-grid wb-grid-four";
     cards.innerHTML =
       card(zh ? "收益率" : "Yield", `${WB.fmt(target.yield_value, 4)}<small>%</small>`) +
       card(zh ? "收盘净价" : "Net price", WB.fmt(target["收盘净价(元)"], 2), zh ? "元" : "CNY") +
@@ -71,7 +75,7 @@
 
     /* Market comparison */
     const compPanel = document.createElement("section");
-    compPanel.className = "wb-panel";
+    compPanel.className = "wb-panel card";
     const outlierBadge = comparison.is_yield_outlier
       ? `<span class="wb-badge bad">${zh ? "同桶收益率异常" : "Yield outlier"}</span>`
       : "";
@@ -129,7 +133,7 @@
 
     /* On-demand AI interpretation (explicit click only; reuses the deterministic comparison above) */
     const aiPanel = document.createElement("section");
-    aiPanel.className = "wb-panel";
+    aiPanel.className = "wb-panel card";
     aiPanel.setAttribute("data-ai-explain", "");
     aiPanel.innerHTML = `<div class="wb-panel-header"><div>
             <h2 class="wb-panel-title">${zh ? "AI 解读（可选，需显式点击）" : "AI interpretation (optional, click to run)"}</h2>
@@ -166,7 +170,7 @@
     /* Rate sensitivity */
     if (rate && (rate.modified_duration != null || rate.dv01 != null)) {
       const ratePanel = document.createElement("section");
-      ratePanel.className = "wb-panel";
+      ratePanel.className = "wb-panel card";
       ratePanel.innerHTML = `<div class="wb-panel-header"><div>
             <h2 class="wb-panel-title">${zh ? "利率敏感性（教学口径）" : "Rate sensitivity (teaching caliber)"}</h2>
             <p class="wb-panel-subtitle">${zh ? (rate.note_zh || "") : (rate.note_en || "")}</p>
@@ -186,7 +190,7 @@
     /* Credit boundary (honesty) */
     if (credit && credit.available === false) {
       const creditPanel = document.createElement("section");
-      creditPanel.className = "wb-panel";
+      creditPanel.className = "wb-panel card";
       creditPanel.innerHTML = `<div class="wb-panel-header"><h2 class="wb-panel-title">${zh ? "信用边界" : "Credit boundary"}</h2></div>
         <div class="wb-panel-body"><p class="wb-panel-subtitle" style="margin:0;">${zh ? (credit.note_zh || "") : (credit.note_en || "")}</p></div>`;
       root.append(creditPanel);
@@ -194,7 +198,7 @@
 
     /* Records (multi-row honesty) */
     const recordsPanel = document.createElement("section");
-    recordsPanel.className = "wb-panel";
+    recordsPanel.className = "wb-panel card";
     recordsPanel.innerHTML = `<div class="wb-panel-header"><h2 class="wb-panel-title">${zh ? "样本内记录" : "Records in sample"}</h2></div>`;
     const recordsBody = document.createElement("div");
     recordsBody.className = "wb-panel-body nopad";
@@ -227,9 +231,22 @@
   }
 
   let loadSeq = 0;
+  async function loadSourceProfile(seq) {
+    try {
+      const profile = await WB.fetchJson(`/api/data/source?${WB.params().toString()}`);
+      if (seq === loadSeq) WB.setActiveSource(profile);
+    } catch (error) {
+      if (seq === loadSeq) WB.setSourceError(error.message || error);
+    }
+  }
+
   async function load(key) {
-    if (!key) { emptyState(); return; }
     const seq = ++loadSeq;
+    if (!key) {
+      emptyState();
+      await loadSourceProfile(seq);
+      return;
+    }
     const zh = WB.lang() === "zh";
     root.innerHTML = `<p class="wb-loading">${zh ? "正在加载…" : "Loading…"}</p>`;
     const query = WB.params();
@@ -237,9 +254,12 @@
     try {
       const payload = await WB.fetchJson(`/api/bond/detail?${query.toString()}`);
       if (seq !== loadSeq) return; // a newer request superseded this one
+      WB.setActiveSource(payload.data_source);
       render(payload);
     } catch (error) {
       if (seq !== loadSeq) return;
+      if (error.status === 404) loadSourceProfile(seq);
+      else WB.setSourceError(error.message || error);
       const hint = error.status === 404
         ? (zh ? "当前数据样本中没有这只债券。请检查代码/简称，或切换数据源。" : "This bond is not in the active sample. Check the code/name or switch the data source.")
         : "";
@@ -251,9 +271,8 @@
     event.preventDefault();
     activeKey = (keyInput.value || "").trim();
     if (activeKey) load(activeKey);
-    else emptyState();
+    else load("");
   });
 
   WB.init({ render: () => load(activeKey) });
-  if (!activeKey) emptyState();
 })();

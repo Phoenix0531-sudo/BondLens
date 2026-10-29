@@ -6,7 +6,8 @@
   const WB = window.BondLensWorkbench;
 
   const PAGE_SIZE = 25;
-  const state = { page: 1, sort: "yield", direction: "desc", loadedTypes: false, loadSeq: 0 };
+  const state = { page: 1, sort: "yield", direction: "desc", loadedTypes: false, loadSeq: 0, sourceKey: "" };
+  let gridInstance = null;
 
   const COLUMNS = [
     { key: "name", field: "name", labelZh: "债券", labelEn: "Bond", numeric: false, value: (record) => record.name },
@@ -34,6 +35,14 @@
 
   async function load() {
     const seq = ++state.loadSeq;
+    const sourceKey = `${WB.state.mode}|${WB.state.importId}`;
+    if (sourceKey !== state.sourceKey) {
+      state.sourceKey = sourceKey;
+      state.loadedTypes = false;
+      state.page = 1;
+      const typeSelect = form.querySelector('[data-filter="bond_type"]');
+      if (typeSelect) typeSelect.value = "";
+    }
     const query = WB.params();
     const values = filterValues();
     Object.entries(values).forEach(([key, value]) => query.set(key, value));
@@ -43,7 +52,7 @@
     query.set("page_size", String(PAGE_SIZE));
 
     const body = results.querySelector(".wb-panel-body");
-    const existing = results.querySelector("table");
+    const existing = results.querySelector(".bond-grid");
     if (!existing && body) {
       body.innerHTML = `<p class="wb-loading">${WB.t("正在加载…", "Loading…")}</p>`;
     }
@@ -52,15 +61,21 @@
       payload = await WB.fetchJson(`/api/bonds/search?${query.toString()}`);
     } catch (error) {
       if (seq !== state.loadSeq) return; // a newer request superseded this one
+      WB.setSourceError(error.message || error);
       results.innerHTML = `<div class="wb-panel-body"><div class="wb-error-box">${error.message || error}</div></div>`;
       return;
     }
     if (seq !== state.loadSeq) return; // a newer request superseded this one
+    WB.setActiveSource(payload.data_source);
     render(payload);
   }
 
   function render(payload) {
     const zh = WB.lang() === "zh";
+    if (gridInstance) {
+      gridInstance.destroy();
+      gridInstance = null;
+    }
     results.innerHTML = "";
 
     const header = document.createElement("div");
@@ -80,87 +95,76 @@
     }
     results.append(header);
 
-    /* Table */
+    /* Tabulator is vendored and MIT-licensed. The backend still owns sorting
+       and paging; the grid only renders the 25 returned records. */
     const wrap = document.createElement("div");
     wrap.className = "wb-table-wrap";
-    const table = document.createElement("table");
-    table.className = "wb-table";
-    const thead = document.createElement("thead");
-    const headRow = document.createElement("tr");
-    COLUMNS.forEach((column) => {
-      const th = document.createElement("th");
-      if (column.sortable !== false && column.key !== "type") {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "wb-sort";
-        button.dataset.sortKey = column.key;
-        const arrow = state.sort === column.key
-          ? `<span class="arrow">${state.direction === "asc" ? "↑" : "↓"}</span>`
-          : `<span class="arrow" style="visibility:hidden">↓</span>`;
-        button.innerHTML = `${zh ? column.labelZh : column.labelEn} ${arrow}`;
-        button.setAttribute("aria-label", `${zh ? "按" : "Sort by "}${zh ? column.labelZh : column.labelEn}`);
-        button.addEventListener("click", () => {
-          if (state.sort === column.key) {
-            state.direction = state.direction === "asc" ? "desc" : "asc";
-          } else {
-            state.sort = column.key;
-            state.direction = column.numeric ? "desc" : "asc";
-          }
-          state.page = 1;
-          load();
-        });
-        th.append(button);
-      } else {
-        th.textContent = zh ? column.labelZh : column.labelEn;
-        th.classList.add("num");
-      }
-      headRow.append(th);
-    });
-    thead.append(headRow);
-    table.append(thead);
-
-    const tbody = document.createElement("tbody");
-    const records = payload.records || [];
-    if (!records.length) {
-      const row = document.createElement("tr");
-      const cell = document.createElement("td");
-      cell.colSpan = COLUMNS.length;
-      cell.className = "wb-empty";
-      cell.textContent = zh ? "没有符合筛选条件的记录。" : "No records match the filters.";
-      row.append(cell);
-      tbody.append(row);
-    }
-    records.forEach((record) => {
-      const row = document.createElement("tr");
-      row.className = "row-link";
-      const anchor = document.createElement("a");
-      anchor.className = "row-anchor";
-      anchor.href = bondHref(record);
-      anchor.textContent = record.name || "—";
-      const nameCell = document.createElement("td");
-      nameCell.append(anchor);
-      row.append(nameCell);
-      COLUMNS.slice(1).forEach((column) => {
-        const cell = document.createElement("td");
-        cell.textContent = column.value(record) || "—";
-        if (column.numeric) cell.classList.add("num");
-        row.append(cell);
-      });
-      row.addEventListener("click", (event) => {
-        if (event.target.closest("a")) return;
-        window.location.href = bondHref(record);
-      });
-      row.addEventListener("keydown", (event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          window.location.href = bondHref(record);
-        }
-      });
-      tbody.append(row);
-    });
-    table.append(tbody);
-    wrap.append(table);
+    const host = document.createElement("div");
+    host.className = "bond-grid";
+    host.setAttribute("aria-label", zh ? "债券筛选结果" : "Bond screening results");
+    wrap.append(host);
     results.append(wrap);
+    const records = payload.records || [];
+    const sortBy = (column) => {
+      if (state.sort === column.key) {
+        state.direction = state.direction === "asc" ? "desc" : "asc";
+      } else {
+        state.sort = column.key;
+        state.direction = column.numeric ? "desc" : "asc";
+      }
+      state.page = 1;
+      load();
+    };
+    if (records.length && window.Tabulator) {
+      gridInstance = new window.Tabulator(host, {
+        data: records,
+        layout: "fitColumns",
+        responsiveLayout: "collapse",
+        responsiveLayoutCollapseStartOpen: false,
+        rowHeader: {
+          formatter: "responsiveCollapse",
+          width: 34,
+          minWidth: 34,
+          hozAlign: "center",
+          headerSort: false,
+          resizable: false,
+        },
+        placeholder: zh ? "没有符合筛选条件的记录。" : "No records match the filters.",
+        columnDefaults: { resizable: false, headerSort: false },
+        columns: COLUMNS.map((column, index) => ({
+          title: `${zh ? column.labelZh : column.labelEn}${state.sort === column.key ? (state.direction === "asc" ? " ↑" : " ↓") : ""}`,
+          field: column.field,
+          minWidth: index === 0 ? 178 : (column.key === "type" ? 95 : 112),
+          widthGrow: index === 0 ? 2 : 1,
+          responsive: index === 0 ? 0 : (index === 3 ? 1 : index + 1),
+          hozAlign: column.numeric ? "right" : "left",
+          headerHozAlign: column.numeric ? "right" : "left",
+          headerClick: column.sortable === false ? undefined : () => sortBy(column),
+          formatter: (cell) => {
+            const record = cell.getRow().getData();
+            if (index === 0) {
+              const anchor = document.createElement("a");
+              anchor.className = "row-anchor";
+              anchor.href = bondHref(record);
+              anchor.textContent = record.name || "—";
+              return anchor;
+            }
+            const span = document.createElement("span");
+            span.textContent = column.value(record) ?? "—";
+            return span;
+          },
+        })),
+      });
+      gridInstance.on("rowClick", (event, row) => {
+        if (event.target.closest("a, .tabulator-row-header, .tabulator-responsive-collapse-toggle, .tabulator-responsive-collapse")) return;
+        window.location.href = bondHref(row.getData());
+      });
+    } else {
+      host.className = "wb-empty";
+      host.textContent = !records.length
+        ? (zh ? "没有符合筛选条件的记录。" : "No records match the filters.")
+        : (zh ? "表格组件未能加载，请刷新页面。" : "Table component unavailable; please refresh.");
+    }
 
     /* Notes */
     const notes = [...(payload.notes || [])];
@@ -202,7 +206,7 @@
     if (typeSelect && !state.loadedTypes) {
       state.loadedTypes = true;
       const current = typeSelect.value;
-      typeSelect.innerHTML = `<option value="">${zh ? "全部" : "All"}</option>`;
+      typeSelect.innerHTML = `<option value="" data-lang-zh="全部" data-lang-en="All">${zh ? "全部" : "All"}</option>`;
       (available.bond_types || []).forEach((entry) => {
         const option = document.createElement("option");
         option.value = entry.bond_type;

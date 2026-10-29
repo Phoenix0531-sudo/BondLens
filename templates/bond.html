@@ -1,7 +1,9 @@
 {% extends "base.html" %}
 {% block title %}单券研究 · BondLens{% endblock %}
-{% block content %}
+{% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/workbench.css') }}">
+{% endblock %}
+{% block content %}
 
 <h1 class="page-heading" data-lang-zh="单券研究" data-lang-en="Single-Bond Research">单券研究</h1>
 <p class="page-subtitle" data-lang-zh="输入债券代码或简称，查看当前样本内的报价与同业比较；不做无依据的趋势推断或投资建议。"
@@ -9,36 +11,36 @@
     输入债券代码或简称，查看当前样本内的报价与同业比较；不做无依据的趋势推断或投资建议。
 </p>
 
-<section class="source-bar" data-source-bar>
+<section class="source-bar card" data-source-bar>
     <div class="source-bar-main">
         <label class="source-bar-label" for="bond-mode" data-lang-zh="数据源" data-lang-en="Data source">数据源</label>
-        <select id="bond-mode" data-mode-select aria-label="Data source mode">
+        <select id="bond-mode" class="form-select form-select-sm" data-mode-select aria-label="Data source mode">
             <option value="auto" {% if data_mode != 'live' and data_mode != 'static' %}selected{% endif %} data-lang-zh="自动" data-lang-en="Auto">自动</option>
             <option value="live" {% if data_mode == 'live' %}selected{% endif %} data-lang-zh="实时" data-lang-en="Live">实时</option>
             <option value="static" {% if data_mode == 'static' %}selected{% endif %} data-lang-zh="静态样例" data-lang-en="Sample">静态样例</option>
         </select>
         <input type="file" id="bond-import-file" data-import-file hidden
                accept=".csv,.xlsx,.xls" aria-label="Upload bond data file">
-        <label class="ghost-button" for="bond-import-file" tabindex="0" role="button"
+        <label class="ghost-button btn btn-outline-secondary btn-sm" for="bond-import-file" tabindex="0" role="button"
                data-lang-zh="选择文件…" data-lang-en="Choose file…">选择文件…</label>
-        <button type="button" class="wb-button secondary" data-import-upload disabled
+        <button type="button" class="wb-button secondary btn btn-outline-secondary btn-sm" data-import-upload disabled
                 data-lang-zh="上传并使用" data-lang-en="Upload & use">上传并使用</button>
-        <button type="button" class="ghost-button" data-import-clear hidden
+        <button type="button" class="ghost-button btn btn-outline-secondary btn-sm" data-import-clear hidden
                 data-lang-zh="恢复内置数据源" data-lang-en="Restore built-in source">恢复内置数据源</button>
         <span class="source-bar-status" data-source-status role="status"></span>
     </div>
     <div class="import-report" data-import-report hidden></div>
 </section>
 
-<form class="wb-panel" data-bond-search aria-label="Find a bond">
+<form class="wb-panel card" data-bond-search aria-label="Find a bond">
     <div class="wb-filters">
         <div class="wb-filter-field" style="flex:1; min-width: 260px;">
             <label for="bond-key-input" data-lang-zh="债券代码或简称" data-lang-en="Bond code or name">债券代码或简称</label>
-            <input type="text" id="bond-key-input" data-bond-key-input autocomplete="off"
+            <input type="text" class="form-control form-control-sm" id="bond-key-input" data-bond-key-input autocomplete="off"
                    placeholder="{{ bond_key or '' }}"
                    data-placeholder-zh="如：230026 或 23附息国债26" data-placeholder-en="e.g. 230026 or a bond name">
         </div>
-        <button type="submit" class="wb-button" data-lang-zh="查看" data-lang-en="View">查看</button>
+        <button type="submit" class="wb-button btn btn-primary btn-sm" data-lang-zh="查看" data-lang-en="View">查看</button>
     </div>
 </form>
 

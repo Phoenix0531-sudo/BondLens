@@ -2,9 +2,11 @@
 
 {% block title %}BondLens{% endblock %}
 
-{% block content %}
+{% block styles %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/agent.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/workspace.css') }}">
+{% endblock %}
+{% block content %}
 
 <div class="agent-hero">
   <section class="hero-copy">

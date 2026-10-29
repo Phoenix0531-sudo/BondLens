@@ -1,0 +1,188 @@
+/* BondLens terminal skin: Tabler components + a compact bond-screening layout.
+   Framework CSS and table engine are vendored under static/vendor/. */
+:root {
+  --ink: #131722;
+  --muted: #707786;
+  --line: #e0e3eb;
+  --line-strong: #c9cdd5;
+  --paper: #fff;
+  --surface: #fff;
+  --surface-soft: #f7f8fa;
+  --navy: #2962ff;
+  --navy-dark: #1d4ed8;
+  --amber: #a26c20;
+  --amber-soft: #fff8e7;
+  --red: #d44c47;
+  --green: #21875b;
+  --shadow: none;
+  --teal: var(--navy);
+  --teal-dark: var(--navy-dark);
+  --tblr-primary: #2962ff;
+  --tblr-border-color: #e0e3eb;
+  --tblr-body-bg: #fff;
+  --tblr-body-color: #131722;
+  --tblr-font-sans-serif: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", sans-serif;
+}
+
+body.theme-light { background: #fff; color: var(--ink); font-family: var(--tblr-font-sans-serif); font-size: 13px; }
+a { color: var(--navy); }
+button, input, select { font-family: inherit; }
+:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+/* Trading-terminal hierarchy: one quiet navigation rail, no decorative cards. */
+.topbar.navbar { min-height: 54px; box-shadow: none; backdrop-filter: none; background: #fff; }
+.topbar-inner.container-xl { width: min(1560px, calc(100% - 48px)); max-width: none; min-height: 54px; padding: 0; }
+.brand.navbar-brand { min-height: 0; margin: 0 28px 0 0; padding: 0; color: var(--ink); font-weight: 700; font-size: 17px; letter-spacing: -.02em; }
+.brand-mark { width: 29px; height: 29px; border-radius: 6px; background: #2962ff; font-weight: 700; font-size: 11px; }
+.topnav.navbar-nav { flex: 1; gap: 14px; align-self: stretch; flex-wrap: nowrap; white-space: nowrap; }
+.topnav .nav-link { display: inline-flex; align-items: center; padding: 0 3px; border-radius: 0; border-bottom: 2px solid transparent; color: #515762; font-weight: 500; font-size: 13px; }
+.topnav .nav-link:hover { background: none; color: var(--ink); }
+.topnav .nav-link[aria-current="page"] { background: none; border-bottom-color: #2962ff; color: var(--ink); font-weight: 650; }
+.topnav .topnav-sep { margin: auto 2px; height: 16px; }
+.topnav .topnav-secondary { font-size: 12px; }
+.topbar-actions { flex: none; }
+.language-switch { border-radius: 5px; }
+.language-option { min-width: 35px; padding: 5px 7px; font-size: 11px; }
+.language-option[aria-pressed="true"] { background: #f1f4ff; color: #2962ff; font-weight: 700; }
+
+.page-shell.container-xl { max-width: none; width: min(1560px, calc(100% - 48px)); padding: 24px 0 60px; }
+.page-heading { font-size: 22px; line-height: 1.3; font-weight: 650; margin: 0 0 3px; letter-spacing: -.02em; }
+.page-subtitle { margin: 0 0 18px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+.card, .wb-panel, .source-bar { box-shadow: none !important; border-color: var(--line); border-radius: 5px; }
+.source-bar { margin-bottom: 12px; }
+.source-bar-main { min-height: 49px; padding: 8px 13px; gap: 8px; }
+.source-bar-label { font-size: 12px; color: #555d6b; }
+.source-bar select { min-width: 105px; width: auto; padding: 5px 27px 5px 10px; font-size: 12px; line-height: 1.4; border-radius: 4px; }
+.source-bar-status { font-size: 11px; margin-left: auto; max-width: 100%; }
+.source-bar-status .mode-tag { padding: 2px 6px; }
+.btn.btn-sm { --tblr-btn-padding-x: .65rem; --tblr-btn-padding-y: .27rem; font-size: 12px; font-weight: 550; border-radius: 4px; }
+.btn.btn-primary, .wb-button:not(.secondary) { background: #2962ff; border-color: #2962ff; color: #fff; }
+.btn.btn-primary:hover, .wb-button:not(.secondary):hover { background: #1d4ed8; border-color: #1d4ed8; }
+.btn.btn-outline-secondary, .wb-button.secondary, .ghost-button { color: #374151; background: #fff; border-color: #d1d5de; }
+.btn.btn-outline-secondary:hover, .wb-button.secondary:hover, .ghost-button:hover { color: var(--ink); background: #f4f6f9; border-color: #b9c0cb; }
+.form-control.form-control-sm, .form-select.form-select-sm { min-height: 31px; border-radius: 4px; box-shadow: none; font-size: 12px; }
+.form-control:focus, .form-select:focus { border-color: #2962ff; box-shadow: 0 0 0 2px rgba(41,98,255,.1); }
+
+/* Market snapshot numbers read as a single continuous instrument strip. */
+.wb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(166px, 1fr)); gap: 1px; margin: 12px 0; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--line); }
+.wb-card { border: 0 !important; border-radius: 0; box-shadow: none !important; padding: 13px 15px; min-width: 0; background: #fff; }
+.wb-card-label { font-size: 11px; font-weight: 500; color: var(--muted); margin-bottom: 8px; }
+.wb-card-value { font-size: 20px; font-weight: 650; color: #131722; white-space: nowrap; letter-spacing: -.025em; }
+.wb-card-value small { font-size: 11px; font-weight: 500; margin-left: 3px; }
+.wb-panel { margin-bottom: 12px; }
+.wb-panel-header { padding: 12px 14px; align-items: center; border-bottom-color: var(--line); }
+.wb-panel-title { font-size: 13px; line-height: 1.4; font-weight: 650; color: #1b2230; }
+.wb-panel-subtitle { font-size: 11px; line-height: 1.45; margin: 3px 0 0; }
+.wb-panel-body { padding: 12px 14px; }
+.wb-badge { font-size: 10px; padding: 3px 7px; font-weight: 550; }
+.source-strip-header { padding: 8px 14px; }
+.source-strip-body { padding: 8px 14px; }
+.source-summary { font-size: 12px; line-height: 1.5; }
+.source-details { margin-top: 7px; }
+.source-details summary { font-size: 11px; }
+.wb-identity-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.wb-identity-item .v { font-size: 12px; }
+.bl-analysis-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; align-items: start; }
+.bl-analysis-grid .wb-panel { min-width: 0; margin-bottom: 0; }
+
+/* Bond screener: slim parameter rail and dense market-data grid. */
+.wb-filters { gap: 9px 12px; padding: 12px; align-items: end; }
+.wb-filter-field { gap: 5px; }
+.wb-filter-field label { font-size: 11px; font-weight: 500; color: #6b7280; }
+.wb-filter-field input, .wb-filter-field select { font-size: 12px; padding: 5px 9px; min-width: 112px; }
+.wb-filter-field input[type="number"] { min-width: 76px; width: 88px; }
+.wb-filter-pair { gap: 5px; }
+.wb-filter-actions { display: flex; flex: 0 0 auto; align-items: center; justify-content: flex-end; gap: 7px; margin-left: auto; }
+.wb-filter-field input:disabled { background: #f7f8fa; }
+.wb-button { font-size: 12px; padding: 6px 12px; border-radius: 4px; }
+table.wb-table { font-size: 12px; }
+table.wb-table th, table.wb-table td { padding: 8px 12px; }
+table.wb-table th { color: #606774; font-size: 11px; background: #f8f9fb; }
+table.wb-table tbody tr:hover { background: #f5f8fe; }
+table.wb-table tbody a.row-anchor { color: #2054d5; }
+.wb-pagination { gap: 9px; padding: 9px 12px; font-size: 11px; }
+.wb-pagination button { border-radius: 4px; font-size: 11px; padding: 5px 11px; }
+.wb-notes { font-size: 11px; }
+.wb-bar-row { grid-template-columns: 80px 1fr 45px; gap: 8px; font-size: 11px; }
+.wb-bar-track { height: 9px; background: #eef2f9; }
+.wb-bar-fill { background: #729aff; }
+.wb-bars { gap: 9px; }
+.wb-quick-ask input { font-size: 12px; }
+
+.bond-grid { min-height: 150px; }
+.bond-grid.tabulator { border: 0; background: #fff; font-size: 12px; font-family: inherit; }
+.bond-grid .tabulator-header { border: 0; border-bottom: 1px solid var(--line); background: #f9fafc; color: #626b79; font-size: 11px; font-weight: 550; }
+.bond-grid .tabulator-header .tabulator-col { border-right: 0; background: transparent; }
+.bond-grid .tabulator-header .tabulator-col.tabulator-sortable:hover { background: #f1f4fa; }
+.bond-grid .tabulator-header .tabulator-col .tabulator-col-content { padding: 10px 12px; }
+.bond-grid .tabulator-row { min-height: 39px; border-bottom: 1px solid #f0f1f4; background: #fff; }
+.bond-grid .tabulator-row.tabulator-row-even { background: #fff; }
+.bond-grid .tabulator-row:hover { background: #f5f8ff; cursor: pointer; }
+.bond-grid .tabulator-row .tabulator-cell { padding: 10px 12px; border-right: 0; font-variant-numeric: tabular-nums; }
+.bond-grid .tabulator-row .tabulator-cell.tabulator-responsive-collapse { padding: 8px; }
+.bond-grid a.row-anchor { color: #2359d6; font-weight: 550; text-decoration: none; }
+.bond-grid a.row-anchor:hover { text-decoration: underline; }
+.bond-grid .tabulator-tableholder { overflow-x: auto; }
+.bond-grid .bl-sort-active { color: #2962ff; }
+
+.replay-list { display: grid; gap: 0; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
+.replay-card { padding: 13px 16px; border: 0; border-bottom: 1px solid var(--line); box-shadow: none; }
+.replay-card:last-child { border-bottom: 0; }
+.replay-card h2 { font-size: 14px; margin-bottom: 4px; }
+.replay-when { font-size: 11px; }
+.replay-card p { font-size: 12px; }
+.replay-actions a { background: #fff; border-radius: 4px; font-size: 11px; }
+
+/* The legacy research form inherited white-on-dark controls even though its
+   workspace stylesheet switched the console surface to white. Normalize it to
+   the same Tabler light controls used by the screener. */
+.agent-hero { gap: 16px; }
+.hero-copy .eyebrow { color: #526b9e; font-size: 11px; letter-spacing: .05em; }
+.hero-copy h1 { color: var(--ink); font-family: var(--tblr-font-sans-serif); font-size: 28px; letter-spacing: -.03em; }
+.hero-copy .hero-lead { color: var(--muted); }
+.example-strip { gap: 9px; }
+.example-chip { min-height: 62px; background: #fff; border: 1px solid var(--line); color: #536171; border-radius: 5px; font-size: 12px; cursor: pointer; }
+.example-chip:hover { color: var(--navy); border-color: #afc3ff; background: #f7f9ff; }
+.query-console { background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 5px; padding: 20px; }
+.query-console .console-title { color: #445162; letter-spacing: 0; font-size: 13px; font-weight: 650; text-transform: none; }
+.query-console .status-pill { color: #3761a8; background: #f3f6ff; border: 1px solid #dae4ff; border-radius: 4px; letter-spacing: 0; font-weight: 500; font-size: 11px; }
+.query-console .form-field label { color: #586779; font-size: 12px; font-weight: 550; }
+.query-console textarea, .query-console select { background: #fff; color: var(--ink); border: 1px solid #d1d7e0; border-radius: 4px; font-size: 13px; }
+.query-console textarea::placeholder { color: #919aaa; }
+.query-console textarea:focus, .query-console select:focus { outline: none; border-color: #2962ff; box-shadow: 0 0 0 2px rgba(41,98,255,.1); }
+.query-console .data-notice, .query-console .config-hint { color: #53667b; }
+.query-console .data-notice { background: #f4f7fd; border-left-color: #7f9df2; }
+.query-console .run-button { color: #fff; background: #2962ff; border: 1px solid #2962ff; border-radius: 4px; padding: 10px 16px; font-size: 13px; font-weight: 600; }
+.query-console .run-button:hover { background: #1d4ed8; }
+.query-console .form-wait-note { color: var(--muted); }
+.query-console .ghost-button { border-radius: 4px; }
+.agent-hero .action-link { border-radius: 4px; font-size: 12px; color: #2c5bd3; }
+
+@media (max-width: 1190px) {
+  .bl-analysis-grid { grid-template-columns: 1fr; }
+  .topbar-inner.container-xl, .page-shell.container-xl { width: calc(100% - 32px); }
+  .topnav.navbar-nav { gap: 9px; }
+}
+@media (max-width: 780px) {
+  .topbar-inner.container-xl { flex-wrap: wrap; padding: 7px 0 0; gap: 4px 12px; }
+  .brand.navbar-brand { margin-right: auto; }
+  .topbar-actions { order: 1; }
+  .topnav.navbar-nav { order: 2; flex: 0 0 100%; min-height: 37px; gap: 17px; overflow-x: auto; }
+  .topnav .nav-link { font-size: 12px; }
+  .page-shell.container-xl { padding-top: 17px; }
+  .wb-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .wb-filter-field { flex: 1 1 138px; }
+  .wb-filter-field input, .wb-filter-field select { width: 100%; }
+  .wb-filter-pair input { min-width: 0; width: 45%; flex: 1; }
+}
+@media (max-width: 480px) {
+  .topbar-inner.container-xl, .page-shell.container-xl { width: calc(100% - 24px); }
+  .page-heading { font-size: 19px; }
+  .source-bar-status { flex: 1 1 100%; margin: 0; }
+  .source-bar-main { padding: 9px; }
+  .wb-card { padding: 10px 12px; }
+  .wb-card-value { font-size: 18px; }
+  .wb-panel-header { padding: 11px 12px; }
+  .wb-bar-row { grid-template-columns: 69px 1fr 36px; gap: 6px; }
+}

@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}BondLens{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='vendor/tabler/tabler.min.css') }}">
     <style>
         :root {
             --ink: #182b40;
@@ -245,22 +246,24 @@
             color: var(--ink);
         }
 </style>
+    {% block styles %}{% endblock %}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/terminal-ui.css') }}">
 </head>
-<body>
-    <header class="topbar">
-        <div class="topbar-inner">
-            <a class="brand" href="/">
+<body class="theme-light">
+    <header class="topbar navbar navbar-expand-md d-print-none">
+        <div class="topbar-inner container-xl">
+            <a class="brand navbar-brand" href="/">
                 <span class="brand-mark">BL</span>
                 <span>BondLens</span>
             </a>
-            <nav class="topnav" aria-label="Primary">
-                <a href="/market" {% if request.path.startswith('/market') %}aria-current="page"{% endif %} data-lang-zh="市场观察" data-lang-en="Market">市场观察</a>
-                <a href="/screen" {% if request.path.startswith('/screen') %}aria-current="page"{% endif %} data-lang-zh="债券筛选" data-lang-en="Screener">债券筛选</a>
-                <a href="/bond" {% if request.path.startswith('/bond') %}aria-current="page"{% endif %} data-lang-zh="单券研究" data-lang-en="Bond Study">单券研究</a>
-                <a href="/replay" {% if request.path.startswith('/replay') %}aria-current="page"{% endif %} data-lang-zh="研究历史" data-lang-en="History">研究历史</a>
+            <nav class="topnav navbar-nav flex-row" aria-label="Primary">
+                <a class="nav-link" href="/market" {% if request.path.startswith('/market') %}aria-current="page"{% endif %} data-lang-zh="市场观察" data-lang-en="Market">市场观察</a>
+                <a class="nav-link" href="/screen" {% if request.path.startswith('/screen') %}aria-current="page"{% endif %} data-lang-zh="债券筛选" data-lang-en="Screener">债券筛选</a>
+                <a class="nav-link" href="/bond" {% if request.path.startswith('/bond') %}aria-current="page"{% endif %} data-lang-zh="单券研究" data-lang-en="Bond Study">单券研究</a>
+                <a class="nav-link" href="/replay" {% if request.path.startswith('/replay') %}aria-current="page"{% endif %} data-lang-zh="研究历史" data-lang-en="History">研究历史</a>
                 <span class="topnav-sep" aria-hidden="true"></span>
-                <a href="/agent" data-nav-secondary="true" {% if request.path.startswith('/agent') %}aria-current="page"{% endif %} data-lang-zh="智能体问答" data-lang-en="Agent Q&A">智能体问答</a>
-                <a href="https://github.com/Phoenix0531-sudo/BondLens" data-nav-secondary="true" data-lang-zh="GitHub" data-lang-en="GitHub">GitHub</a>
+                <a class="nav-link" href="/agent" data-nav-secondary="true" {% if request.path.startswith('/agent') %}aria-current="page"{% endif %} data-lang-zh="智能体问答" data-lang-en="Agent Q&A">智能体问答</a>
+                <a class="nav-link" href="https://github.com/Phoenix0531-sudo/BondLens" data-nav-secondary="true" data-lang-zh="GitHub" data-lang-en="GitHub">GitHub</a>
             </nav>
             <div class="topbar-actions">
                 <div class="language-switch" aria-label="Language switch">
@@ -270,7 +273,7 @@
             </div>
         </div>
     </header>
-    <main class="page-shell">
+    <main class="page-shell container-xl">
         {% block content %}{% endblock %}
     </main>
     {% block scripts %}{% endblock %}

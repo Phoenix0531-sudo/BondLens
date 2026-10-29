@@ -4,25 +4,13 @@
   if (!root) return;
   const WB = window.BondLensWorkbench;
 
-  const modeLabels = {
-    live_feed: { zh: "实时数据", en: "Live feed" },
-    live_snapshot: { zh: "实时快照（缓存）", en: "Live snapshot (cached)" },
-    static_sample: { zh: "静态样例", en: "Static sample" },
-    import: { zh: "上传样本", en: "Imported sample" },
-  };
-  const modeLabel = (mode) => {
-    const entry = modeLabels[mode];
-    if (!entry) return mode || "—";
-    return WB.lang() === "en" ? entry.en : entry.zh;
-  };
-
   function card(label, value, suffix) {
-    return `<div class="wb-card"><p class="wb-card-label">${label}</p>
+    return `<div class="wb-card card"><p class="wb-card-label">${label}</p>
         <p class="wb-card-value">${value}${suffix ? ` <small>${suffix}</small>` : ""}</p></div>`;
   }
 
   function identityItem(key, value) {
-    return `<div class="wb-identity-item"><span class="k">${key}</span><span class="v">${value}</span></div>`;
+    return `<div class="wb-identity-item"><span class="k">${WB.escapeHtml(key)}</span><span class="v">${WB.escapeHtml(value)}</span></div>`;
   }
 
   function render(overview) {
@@ -39,26 +27,23 @@
        caliber grid folds into an expandable “数据与口径” block so research
        data stays above the fold without hiding the caveats. */
     const identity = document.createElement("section");
-    identity.className = "wb-panel";
-    const quoteWhen = source.mixed_timepoints
-      ? `${source.quote_date_range || "—"}${zh ? `（混合 ${source.distinct_date_count ?? "多"} 个时点）` : ` (mixed ${source.distinct_date_count ?? "multiple"} timepoints)`}`
-      : (source.sample_date ? WB.fmtDate(source.sample_date) + (source.quote_time ? ` ${source.quote_time}` : "") : (zh ? "未知" : "Unknown"));
+    identity.className = "wb-panel card";
+    const quoteWhen = WB.quoteWhen(source);
+    const runtime = WB.runtimeInfo(source);
     const summaryBits = [
       `${zh ? "来源" : "Source"} ${source.source_name || "—"}${source.provider ? ` (${source.provider})` : ""}`,
-      `${zh ? "行情时点" : "Quote time"} ${quoteWhen}`,
+      `${zh ? "最近行情" : "Latest quote"} ${WB.quoteWhen(source, true)}`,
+      ...(source.fetched_at ? [`${zh ? "获取时间" : "Fetched"} ${WB.fmtFetchedAt(source.fetched_at)}`] : []),
       `${zh ? "样本" : "Rows"} ${WB.fmt(overview.sample_count, 0)}${zh ? " 行" : ""} / ${WB.fmt(source.bond_count, 0)}${zh ? " 券" : " bonds"}`,
     ];
     identity.innerHTML = `<div class="wb-panel-header source-strip-header">
             <h2 class="wb-panel-title">${zh ? "数据来源与口径" : "Source & caliber"}</h2>
-            <div class="wb-badge-row">${
-              source.runtime_mode === "live_feed"
-                ? `<span class="wb-badge good">${modeLabel(source.runtime_mode)}</span>`
-                : `<span class="wb-badge warn">${modeLabel(source.runtime_mode)}</span>`
-            }</div>
+            <div class="wb-badge-row"><span class="wb-badge ${runtime.isLive ? "good" : "warn"}">${runtime.label}</span></div>
         </div>
         <div class="wb-panel-body source-strip-body">
-          <p class="source-summary">${summaryBits.join(" · ")}</p>
+          <p class="source-summary"></p>
         </div>`;
+    identity.querySelector(".source-summary").textContent = summaryBits.join(" · ");
     const identityBody = identity.querySelector(".source-strip-body");
     const warnText = source.mixed_timepoints
       ? (zh
@@ -77,7 +62,7 @@
     grid.className = "wb-identity-grid";
     grid.innerHTML = [
       identityItem(zh ? "行情时点" : "Quote time", quoteWhen),
-      identityItem(zh ? "获取时间" : "Fetched at", source.fetched_at ? String(source.fetched_at).replace("T", " ").slice(0, 19) : "—"),
+      identityItem(zh ? "获取时间（北京时间）" : "Fetched at (UTC+8)", WB.fmtFetchedAt(source.fetched_at)),
       identityItem(zh ? "债券代码列" : "Code column", source.has_code_column ? (zh ? "可用" : "available") : (zh ? "不可用（按简称检索）" : "unavailable (search by name)")),
       identityItem(zh ? "记录粒度" : "Record granularity", zh ? (source.record_granularity_zh || "—") : (source.record_granularity_en || "—")),
     ].join("");
@@ -106,7 +91,7 @@
     const entries = Object.entries(dist);
     const maxCount = entries.length ? Math.max(...entries.map(([, count]) => Number(count))) : 1;
     const distPanel = document.createElement("section");
-    distPanel.className = "wb-panel";
+    distPanel.className = "wb-panel card";
     distPanel.innerHTML = `<div class="wb-panel-header">
             <h2 class="wb-panel-title">${zh ? "收益率分布" : "Yield distribution"}</h2>
             <p class="wb-panel-subtitle">${zh ? "按固定收益率区间统计记录数；≥6% 作为尾部单独列出，不压缩主图刻度。" : "Row counts by fixed yield intervals; the ≥6% tail is listed as its own column so extremes never stretch the scale."}</p>
@@ -130,12 +115,11 @@
       distBody.innerHTML = `<p class="wb-empty">${zh ? "当前样本没有可用的收益率数据。" : "No usable yield data in this sample."}</p>`;
     }
     distPanel.append(distBody);
-    root.append(distPanel);
 
     /* Segments tables */
     const segments = overview.segments || {};
     const segPanel = document.createElement("section");
-    segPanel.className = "wb-panel";
+    segPanel.className = "wb-panel card";
     segPanel.innerHTML = `<div class="wb-panel-header">
             <h2 class="wb-panel-title">${zh ? "券种与期限结构" : "Type & maturity structure"}</h2>
             <p class="wb-panel-subtitle">${zh
@@ -156,11 +140,14 @@
         bucketRows.map((row) => `<tr><td>${row.bucket}</td><td class="num">${WB.fmt(row.count, 0)}</td><td class="num">${WB.fmt(row.yield_median, 2)}</td></tr>`).join("")
       }</tbody></table></div>`;
     segPanel.append(segBody);
-    root.append(segPanel);
+    const analyses = document.createElement("div");
+    analyses.className = "bl-analysis-grid";
+    analyses.append(distPanel, segPanel);
+    root.append(analyses);
 
     /* Data quality */
     const qualityPanel = document.createElement("section");
-    qualityPanel.className = "wb-panel";
+    qualityPanel.className = "wb-panel card";
     const levelBadge = quality.level === "high"
       ? "good"
       : (quality.level === "medium" ? "warn" : "bad");
@@ -177,7 +164,7 @@
 
     /* Quick ask (secondary entry to the agent) */
     const ask = document.createElement("section");
-    ask.className = "wb-panel";
+    ask.className = "wb-panel card";
     ask.innerHTML = `<div class="wb-panel-header"><div>
             <h2 class="wb-panel-title">${zh ? "快速提问" : "Quick question"}</h2>
             <p class="wb-panel-subtitle">${zh ? "跳转到智能体，对当前样本继续提问。" : "Continue with a question to the agent."}</p>
@@ -214,9 +201,11 @@
     try {
       const overview = await WB.fetchJson(`/api/market/overview?${WB.params().toString()}`);
       if (seq !== loadSeq) return; // a newer request superseded this one
+      WB.setActiveSource(overview.data_source);
       render(overview);
     } catch (error) {
       if (seq !== loadSeq) return;
+      WB.setSourceError(error.message || error);
       root.innerHTML = `<div class="wb-error-box">${error.message || error}</div>`;
     }
   }

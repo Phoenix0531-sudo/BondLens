@@ -7,6 +7,8 @@
     file: null,
     report: null,
     source: null,
+    activeSource: null,
+    sourceError: null,
     render: null,
   };
 
@@ -19,6 +21,55 @@
   };
 
   const fmtDate = (value) => (value ? String(value).slice(0, 10) : "—");
+
+  const runtimeInfo = (source = {}) => {
+    const labels = {
+      live: ["在线行情", "Live feed", "live-tag", true],
+      live_feed: ["在线行情", "Live feed", "live-tag", true],
+      live_snapshot: ["缓存行情", "Cached quotes", "fallback-tag", false],
+      static_fallback: ["样例回退", "Sample fallback", "fallback-tag", false],
+      static_sample: ["历史样例", "Historical sample", "sample-tag", false],
+      import: ["上传样本", "Imported sample", "import-tag", false],
+    };
+    const entry = labels[source.runtime_mode] || ["来源未确认", "Unverified source", "sample-tag", false];
+    return { label: t(entry[0], entry[1]), tag: entry[2], isLive: entry[3] };
+  };
+
+  const quoteWhen = (source = {}, compact = false) => {
+    if (source.mixed_timepoints) {
+      return source.quote_date_range || t("多个行情日期", "Multiple quote dates");
+    }
+    if (source.quote_time) {
+      const range = String(source.quote_time);
+      return compact && range.includes("~") ? range.split("~").pop().trim() : range;
+    }
+    if (source.sample_date) return fmtDate(source.sample_date);
+    if (source.quote_date_range) return String(source.quote_date_range);
+    return t("行情时间未提供", "Quote time unavailable");
+  };
+
+  const fmtFetchedAt = (value) => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+    }).formatToParts(date);
+    const get = (type) => parts.find((part) => part.type === type)?.value || "";
+    return `${get("year")}-${get("month")}-${get("day")} ${get("hour")}:${get("minute")} UTC+8`;
+  };
+
+  const sourceShortName = (source = {}) => {
+    if (source.source_id === "chinamoney_bond_spot_deal") return t("中国货币网", "ChinaMoney");
+    if (source.source_id === "chinamoney_bond_spot_deal_snapshot") return t("中国货币网缓存", "ChinaMoney cache");
+    if (source.source_id === "local_static_excel") return t("本地示例文件", "Local sample file");
+    return source.source_name || t("当前数据源", "Active source");
+  };
+
+  const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  })[char]);
 
   /* Query params carried across API calls and page navigations. */
   function params() {
@@ -78,22 +129,56 @@
   function renderStatus() {
     if (!el.status) return;
     el.status.classList.remove("err");
-    if (state.importId) {
+    el.status.removeAttribute("title");
+    el.status.replaceChildren();
+    if (state.activeSource) {
+      const source = state.activeSource;
+      const runtime = runtimeInfo(source);
+      const tag = document.createElement("span");
+      tag.className = `mode-tag ${runtime.tag}`;
+      tag.textContent = runtime.label;
+      const parts = [sourceShortName(source), `${t("行情", "Quote")} ${quoteWhen(source, true)}`];
+      if (source.fetched_at) parts.push(`${t("获取", "Fetched")} ${fmtFetchedAt(source.fetched_at)}`);
+      const description = document.createElement("span");
+      description.className = "source-meta-text";
+      description.textContent = parts.join(" · ");
+      el.status.append(tag, description);
+      if (source.fallback_reason) {
+        const fallback = document.createElement("span");
+        fallback.className = "source-fallback-note";
+        fallback.textContent = t("实时获取失败，已回退", "Live fetch failed; fallback active");
+        el.status.append(fallback);
+        el.status.title = source.fallback_reason;
+      }
+    } else if (state.sourceError) {
+      el.status.classList.add("err");
+      el.status.textContent = t("数据加载失败", "Data loading failed");
+      el.status.title = state.sourceError;
+    } else if (state.importId) {
       const report = state.report || {};
-      el.status.innerHTML = "";
       const text = document.createElement("span");
       text.textContent = t(`已启用上传样本「${report.file_name || ""}」`, `Using uploaded sample "${report.file_name || ""}"`);
       const tag = document.createElement("span");
       tag.className = "mode-tag import-tag";
       tag.textContent = t("上传样本", "Import");
       el.status.append(text, tag);
-    } else if (state.mode && state.mode !== "auto") {
-      /* The dropdown itself already shows the selected mode; printing it again
-         here would duplicate “静态样例/实时” three times on one bar. */
-      el.status.textContent = "";
     } else {
-      el.status.textContent = t("自动（实时不可用时回退快照/样例）", "Auto (falls back to snapshot/sample)");
+      el.status.textContent = state.mode === "static"
+        ? t("正在读取历史样例…", "Loading historical sample…")
+        : t("正在获取行情…", "Fetching quotes…");
     }
+  }
+
+  function setActiveSource(source) {
+    state.activeSource = source || null;
+    state.sourceError = null;
+    renderStatus();
+  }
+
+  function setSourceError(error) {
+    state.activeSource = null;
+    state.sourceError = String(error || "");
+    renderStatus();
   }
 
   function renderImportReport() {
@@ -268,6 +353,8 @@
       state.importId = payload.import_id || "";
       state.report = payload.report || null;
       state.source = payload.source || null;
+      state.activeSource = null;
+      state.sourceError = null;
       renderImportReport();
       renderStatus();
       setImportActive(true);
@@ -295,6 +382,8 @@
     state.mode = el.mode ? el.mode.value : "auto";
     el.mode.addEventListener("change", () => {
       state.mode = el.mode.value;
+      state.activeSource = null;
+      state.sourceError = null;
       renderStatus();
       if (state.render) state.render();
     });
@@ -311,6 +400,8 @@
       state.importId = "";
       state.report = null;
       state.source = null;
+      state.activeSource = null;
+      state.sourceError = null;
       state.file = null;
       el.file.value = "";
       el.report.hidden = true;
@@ -334,5 +425,9 @@
     if (state.render) state.render();
   }
 
-  window.BondLensWorkbench = { init, t, lang, fmt, fmtDate, params, paramObject, fetchJson, state };
+  window.BondLensWorkbench = {
+    init, t, lang, fmt, fmtDate, fmtFetchedAt, quoteWhen, runtimeInfo,
+    sourceShortName, escapeHtml, setActiveSource, setSourceError,
+    params, paramObject, fetchJson, state,
+  };
 })();
