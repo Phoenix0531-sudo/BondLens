@@ -178,44 +178,44 @@ flowchart TD
 
 ## 项目截图
 
-在本地真实工作台实拍（静态样例数据，Edge 960×1040 / 1440×1000，无 API Key → 零模型调用）。样例看板均标明样例口径与行情日期，不以静态样例冒充实时行情。
+2026 年 10 月 30 日从最新 BondLens 本地程序重新实拍（Edge 无头浏览器，1440 像素桌面视口，使用 2024 年 3 月 22 日的 Static 历史样本）。历史页的八条记录均来自本次独立演示目录，不涉及用户原有历史、实时供应商或 LLM 调用。点击图片可查看原始分辨率。
 叙事：**市场看板 · 条件筛选 · 单券研究 · 研究历史 · 可选自然语言分析 · 可审计**。
 
-当前产品图集中在 `docs/screenshots/current/`；根截图目录只保留 GitHub social preview 资产。
+最新五页截图为 `docs/screenshots/current/` 下的 13–17 号文件；旧截图仍保留供参考，下方不再展示旧版页面。
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/09-market-workbench.png" alt="市场总览工作台：收益率六档分布、成交量与来源/日期单行摘要（静态样例）">
+      <a href="docs/screenshots/current/13-market-current.png"><img src="docs/screenshots/current/13-market-current.png" alt="最新市场观察页：样本指标、收益率分布、券种结构及行情日期"></a>
       <br><strong>市场总览 — /market</strong>
-      <br>收益率分布、成交量与来源摘要；口径细节折叠可展开。
+      <br>市场指标、收益率分布、券种结构，以及明确的数据来源与日期。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/10-screener-static.png" alt="筛选页：按简称/收益率/待偿期过滤债券列表（静态样例）">
+      <a href="docs/screenshots/current/14-screen-current.png"><img src="docs/screenshots/current/14-screen-current.png" alt="最新债券筛选页：国债预设选中，显示 116 条样本记录"></a>
       <br><strong>条件筛选 — /screen</strong>
-      <br>内置样例或上传 CSV/Excel 的多条件过滤。
+      <br>静态样本中应用国债筛选预设（116 只债券），可继续按条件筛选。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/11-bond-detail.png" alt="单券研究页：券种身份、关键指标与同业对比，含按需 AI 面板">
+      <a href="docs/screenshots/current/15-bond-current.png"><img src="docs/screenshots/current/15-bond-current.png" alt="最新单券研究页：样本国债报价指标与同券种、同期限桶对比"></a>
       <br><strong>单券研究 — /bond</strong>
-      <br>关键指标、同业对比；AI 面板默认关闭，需显式点击。
+      <br>真实样本国债的关键指标、同券种及同期限桶对比。
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/12-agent-soft-result.png" alt="自然语言分析结果页：最终回答在前，来源与血缘折叠，标注未请求 AI">
+      <a href="docs/screenshots/current/16-agent-result-current.png"><img src="docs/screenshots/current/16-agent-result-current.png" alt="最新确定性研究结果：结论和指标优先展示，AI 解读默认不调用"></a>
       <br><strong>可选自然语言分析 — /agent</strong>
-      <br>此前版本截图；当前界面优先展示结论与指标，完整回答默认折叠。
+      <br>最新结果页：结论与指标优先、完整报告折叠；AI 解读需显式点击。
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="研究历史页：运行时间、问题、来源行与技术详情折叠（英文界面）">
+      <a href="docs/screenshots/current/17-history-current.png"><img src="docs/screenshots/current/17-history-current.png" alt="最新研究历史页：八条独立静态样本研究记录，支持搜索、筛选和排序"></a>
       <br><strong>可审 — 研究历史 / 证据路径</strong>
-      <br>此前版本截图；当前历史页以表格展示运行摘要，支持搜索、筛选与分页。
+      <br>最新历史表格展示隔离演示记录，支持搜索、筛选和排序，不包含私人历史。
     </td>
     <td width="50%">
-      <br><em>旧图库（01–07）保留在目录中供参考，不再在此展示。</em>
+      <br><em>旧图库（01–12）仍保留供对比，但不再作为当前界面展示。</em>
     </td>
   </tr>
 </table>

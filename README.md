@@ -178,44 +178,44 @@ See the [Tool Catalog](#tool-catalog-deterministic-operators) for the 7 determin
 
 ## Screenshots
 
-Captured from the real local workbench with the static sample dataset (Edge 960×1040 / 1440×1000, no API key → zero model calls). Sample boards show the sample caliber with its explicit source date; nothing is presented as live quotes.
+Fresh captures from the actual BondLens workbench on October 30, 2026 (headless Edge, 1440-pixel desktop viewport, local Static sample dated March 22, 2024). The History image contains only eight new research runs from an isolated demonstration directory; no private history, live provider, or LLM was accessed. Click a screenshot to inspect it at full resolution.
 Narrative: **market board · screener · single-bond research · research history · optional natural-language analysis · auditable**.
 
-Current product shots live in `docs/screenshots/current/`; the root screenshots folder now only keeps the GitHub social preview asset.
+The five current interface captures are numbered 13–17 under `docs/screenshots/current/`. Older screenshots are retained there for reference, but are not displayed below.
 
 <table>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/09-market-workbench.png" alt="Market workbench: yield six-band distribution, volume and a compact source/date summary line (static sample)">
+      <a href="docs/screenshots/current/13-market-current.png"><img src="docs/screenshots/current/13-market-current.png" alt="Current Market view with sample metrics, yield distribution, bond-type structure and source date"></a>
       <br><strong>Market workbench — /market</strong>
-      <br>Yield distribution, volume and source summary; calibers fold into expandable details.
+      <br>Market metrics, yield distribution, bond-type structure and source/date disclosure.
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/10-screener-static.png" alt="Screener: filter bonds by name/yield/maturity with a results table (static sample)">
+      <a href="docs/screenshots/current/14-screen-current.png"><img src="docs/screenshots/current/14-screen-current.png" alt="Current Screener showing the Treasury filter and 116 sample bonds"></a>
       <br><strong>Screener — /screen</strong>
-      <br>Multi-condition filtering over the built-in sample or uploaded CSV/Excel.
+      <br>Treasury preset applied to the Static sample (116 bonds); filters and results remain interactive.
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/11-bond-detail.png" alt="Single-bond research page: bond identity, key metrics and peer comparison with on-demand AI panel">
+      <a href="docs/screenshots/current/15-bond-current.png"><img src="docs/screenshots/current/15-bond-current.png" alt="Current single-bond study for a sample Treasury with yield metrics and same-type peer comparison"></a>
       <br><strong>Single-bond research — /bond</strong>
-      <br>Identity, key metrics, peer comparison; AI panel stays idle until explicitly clicked.
+      <br>Real sample Treasury, key quote metrics and same-type/maturity peer comparison.
     </td>
     <td width="50%">
-      <img src="docs/screenshots/current/12-agent-soft-result.png" alt="Natural-language analysis result: final answer first, provenance folded, AI-not-requested marker">
+      <a href="docs/screenshots/current/16-agent-result-current.png"><img src="docs/screenshots/current/16-agent-result-current.png" alt="Current deterministic research conclusion and metrics, with an explicitly optional AI interpretation button"></a>
       <br><strong>Optional NL analysis — /agent</strong>
-      <br>Previous UI screenshot; the current view leads with conclusions and metrics, with the full answer folded.
+      <br>Current result view: conclusions and metrics first, full answer folded, AI interpretation off by default.
     </td>
   </tr>
   <tr>
     <td width="50%">
-      <img src="docs/screenshots/current/08-replay-dashboard.png" alt="Research history page: run time, question, source line and technical details folded (English UI)">
+      <a href="docs/screenshots/current/17-history-current.png"><img src="docs/screenshots/current/17-history-current.png" alt="Current Research History table populated with eight isolated Static-sample analysis runs"></a>
       <br><strong>Can audit — research history / evidence path</strong>
-      <br>Previous UI screenshot; the current history page is a searchable, filterable, paginated table of run summaries.
+      <br>Current search/filter/sort table populated with isolated demo history; no user records included.
     </td>
     <td width="50%">
-      <br><em>Older gallery shots (01–07) are kept in the folder for reference but no longer shown here.</em>
+      <br><em>Legacy captures (01–12) are preserved in the folder for comparison, not presented as the current UI.</em>
     </td>
   </tr>
 </table>
