@@ -1,4 +1,4 @@
-# BondLens：面向中文债市数据的证据优先分析智能体
+# BondLens：证据优先的中文债券研究工作台
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -6,14 +6,14 @@
 
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens 徽章 — 六棱镜聚焦收益率曲线，琉瑠峰标记被检结论"/>
 
-**面向中文债的 claim 级证据智能体**  
-中文债 · 确定性工具 · 可追溯证据 · 按需显式触发的 AI 解读（护栏约束）。
+**证据优先的中文债券研究工作台**
+
+确定性计算为主 · 来源与证据可追溯 · AI 解读仅在明确请求时按需使用。
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
-**BondLens** 把一句自然语言债市问题变成一次**可审计的分析运行**：  
-实时 / 快照 / 本地数据 → 确定性工具 → 按需 AI 解读（显式点击）→ Trust Layer。
+**BondLens** 提供市场观察、债券筛选、单券研究、智能体研究和研究历史五个页面：查看数据、运行确定性研究并回溯保存的证据。普通研究无需配置 LLM，AI 解读为可选功能。
 
 [项目主页](https://phoenix0531-sudo.github.io/BondLens/) · [社交预览图](docs/figs/voxel_social.png) · 浅底徽章：[logo](docs/figs/logo_white_background.png)
 
@@ -23,22 +23,41 @@
 
 ## 运行与交付边界
 
-部署基线为 Python 3.12（支持 Python 3.11+）；保留 Flask/Jinja、pandas 3、Pydantic 2 与可选 OpenAI 兼容 SDK。同步与流式接口共用一条分析链路，无 API Key 也可完成本地样本分析。
+部署基线为 Python 3.12（支持 Python 3.11+）；工作台使用 Flask/Jinja、pandas、Pydantic，可选 OpenAI 兼容 SDK。本地样本分析无需 API Key。
 
-```bash
-python -m venv .venv
-# 激活虚拟环境后：
+**Windows PowerShell**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.lock
-# 离线分析请设置环境变量 BOND_DATA_MODE=static
+$env:BOND_DATA_MODE = 'static'
 python app.py
-# 打开 http://127.0.0.1:5000/（市场工作台首页；/agent 为智能体控制台）。
 ```
 
-运行测试或开发时，使用 `python -m pip install -r requirements.lock -r requirements-dev.txt` 同时安装锁定的运行依赖与开发附加依赖；单独安装 `requirements-dev.txt` 不包含运行依赖。本工作树最近一次 Windows 隔离回归为 **248 passed、1 skipped**；这是本地证据，不代表托管 CI 或实时供应商已验证。
+**Linux / macOS**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.lock
+export BOND_DATA_MODE=static
+python app.py
+```
+
+打开 `http://127.0.0.1:5000/`。`python app.py` 默认绑定本机回环地址和 5000 端口，可用 `PORT` 指定其他端口。上述命令显式选择 Static；未设置时应用使用其配置的模式。[GitHub Pages 项目页](https://phoenix0531-sudo.github.io/BondLens/)是静态介绍页，不是交互工作台。
+
+运行测试或开发时，使用 `python -m pip install -r requirements.lock -r requirements-dev.txt` 同时安装锁定的运行依赖与开发附加依赖；单独安装 `requirements-dev.txt` 不包含运行依赖。V1.1 的 Windows 本地回归记录为 **248 passed、1 skipped**，提交 `c07fbed` 的 GitHub Actions 也已成功；这是历史验证，不代表实时供应商已验证，当前 CI 状态请看 badge。
 
 配置从进程环境变量读取，选项见 `.env.example`。`python app.py` 仅用于本地开发；部署使用 `docker compose up --build`。Compose 端口映射默认绑定 `127.0.0.1`（`BOND_BIND_HOST`），即仅本机可访问；确需局域网或反代开放时，请显式设置绑定地址并自行部署带认证的反向代理。回环默认是安全默认值，不是完整的安全防护。容器以非 root 用户运行，采用单 Gunicorn 进程、四线程；结果缓存仍在进程内，不应直接增加 worker 数。临时结果链接在 30 分钟后或服务重启后失效；成功持久化的版本化研究历史与证据包保存在 Compose 的 `bondlens-data` 卷，重启保留，旧摘要不能恢复完整原结果，需要长期历史时备份该卷，勿执行会删除卷的 `docker compose down -v`。
 
-### 部署与维护
+### 数据模式与研究历史
+
+- **Live** 严格使用实时数据，失败即报错，绝不回退至快照或静态样本。**Auto** 依次尝试实时、有效快照、静态样本，并显示实际来源和时间。**Static** 不访问实时供应商。**Import** 保存在内存中，会话过期后需重新上传。
+- 默认启动和普通研究不会调用付费 AI；仅明确请求解读且已配置模型时才可能外联。导入数据外发前需要确认。
+- 历史及证据包保存脱敏派生结果，不保存原始上传附件或整表；部分导入自由文本无法恢复。原结果只读，重新运行生成新记录；旧摘要记录无法恢复完整版。脱敏仅为尽力处理，请勿输入密钥。
+
+**已知限制：** `/replay` 当前一次加载所有条目；曾在包含数千条历史记录的本地测试中观察到响应超过 25 秒，此问题尚未修复。演示可使用独立的 `BOND_REPLAY_DIR` 和 `BOND_EVIDENCE_PACK_DIR`，归档时按需备份目录；不要通过删除已有历史来绕过此限制。
+
+### Docker 部署与维护
 
 - 页面：`http://localhost:8765/`（市场工作台）或 `/agent`（智能体控制台）；健康检查：`/healthz`；API 契约：`/api/agent/schema`。
 - Compose 会读取 `.env` 做变量替换；直接运行 Python 不会自动加载它。离线分析设置 `BOND_DATA_MODE=static`；`auto` 按实时 → 快照 → 样本降级。
@@ -114,7 +133,7 @@ BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **
 | **Agent 核心** | 单路径：Planner → Tools → Evidence → Report |
 | **确定性工具** | 7 个公开算子：`search_bonds`、`describe_market`、`rank_bonds`、`detect_yield_outliers`、`compare_bond_to_market`、`build_market_monitor`、`generate_bond_report` |
 | **Trust 层** | 数值+语言护栏 · 答案评审 · Trust 分 · Evidence Pack · 回放 · 风险画像 |
-| **评测** | 约 213 个 pytest（212 通过 / 1 跳过基线）· CI Docker `/healthz`；详见上方实时 badge。 |
+| **评测** | V1.1 Windows 本地运行：248 通过、1 跳过；`c07fbed` 的 Actions 已通过。当前 CI 状态见 badge。 |
 | **数据** | AkShare 实时 → 缓存快照 → 静态 Excel，显式血缘与期限覆盖看板 |
 | **产品面** | Flask + Jinja · 默认中文 / 英文切换（query+cookie）· SSE 软渲染 · CI + GitHub Pages |
 

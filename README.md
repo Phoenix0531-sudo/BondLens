@@ -1,4 +1,4 @@
-# BondLens: An Evidence-First Bond Analysis Agent for Chinese Market Data
+# BondLens: An Evidence-First Chinese Bond Research Workbench
 
 [English](README.md) | [中文](README.zh-CN.md)
 
@@ -6,14 +6,14 @@
 
 <img src="docs/figs/voxel_icon.png" width="192" alt="BondLens badge — hex prism focusing a yield curve, amber peak marks the inspected claim"/>
 
-**A claim-level evidence agent for Chinese bonds**  
-Chinese bonds · deterministic tools · provenance-tracked · on-demand AI interpretation (explicit click) under guardrail.
+**An evidence-first workbench for Chinese bond research**
+
+Deterministic calculations first · traceable sources and evidence · optional AI interpretation only on explicit request.
 
 ![CI](https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml/badge.svg?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)
 
-**BondLens** turns a natural-language bond question into an **auditable analysis run**:  
-live / snapshot / static data → deterministic tools → on-demand AI interpretation (explicit click) → Trust Layer.
+**BondLens** brings together Market, Screen, Bond, Agent and History: explore data, run deterministic research and revisit saved evidence. Ordinary research needs no LLM configuration; AI interpretation is optional.
 
 [Project page](https://phoenix0531-sudo.github.io/BondLens/) · [Social preview](docs/figs/voxel_social.png) · light badge: [logo](docs/figs/logo_white_background.png)
 
@@ -23,24 +23,43 @@ live / snapshot / static data → deterministic tools → on-demand AI interpret
 
 ## Runtime and deployment
 
-Python 3.12 is the deployment baseline (Python 3.11+ supported). The stack stays deliberately small: Flask/Jinja, pandas 3, Pydantic 2, and an optional OpenAI-compatible SDK. Sync and SSE requests share one analysis pipeline. No API key is needed for local sample analysis.
+Python 3.12 is the deployment baseline (Python 3.11+ supported). Flask/Jinja, pandas and Pydantic power the workbench; an OpenAI-compatible SDK is optional. No API key is needed for local sample analysis.
 
-```bash
-python -m venv .venv
-# Activate .venv, then:
+**Windows PowerShell**
+```powershell
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.lock
-# Set BOND_DATA_MODE=static for offline sample analysis.
+$env:BOND_DATA_MODE = 'static'
 python app.py
-# Open http://127.0.0.1:5000/ (market workbench; /agent is the LLM console).
 ```
 
-For tests and development, install the pinned runtime plus development extras with `python -m pip install -r requirements.lock -r requirements-dev.txt`. The development file does not include runtime dependencies by itself. The latest isolated Windows regression in this worktree reported **248 passed, 1 skipped**; this is local test evidence, not a claim about hosted CI or live providers.
+**Linux / macOS**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.lock
+export BOND_DATA_MODE=static
+python app.py
+```
+
+Open `http://127.0.0.1:5000/`. `python app.py` binds to loopback and port 5000 by default; set `PORT` to choose another port. These examples explicitly select Static; the application otherwise uses its configured mode. The [GitHub Pages project page](https://phoenix0531-sudo.github.io/BondLens/) is static documentation, not the interactive workbench.
+
+For tests and development, install the pinned runtime plus development extras with `python -m pip install -r requirements.lock -r requirements-dev.txt`. The development file does not include runtime dependencies by itself. The V1.1 local Windows regression recorded **248 passed, 1 skipped**, and GitHub Actions succeeded for commit `c07fbed`; these are historical checks, not live-provider validation. See the badge for current CI status.
 
 Configuration is read from process environment; `.env.example` lists the options. `python app.py` is for local use, not an Internet-facing production server. For deployment, use `docker compose up --build`. The Compose port mapping binds to `127.0.0.1` by default (`BOND_BIND_HOST`), so the workbench is reachable only from the local machine; choose a trusted-network binding or an authenticating reverse proxy deliberately if you need wider access. This loopback default is a safe default, not a complete security solution. The non-root container runs one Gunicorn process with four threads; do not increase worker processes while result URLs use in-memory caching. Interactive result-cache links expire after 30 minutes or a service restart; versioned research history and exported packs survive Compose restarts in the `bondlens-data` volume when persistence succeeds. Older summary-only entries cannot restore an original result. Back up that volume if history matters; `docker compose down -v` deletes it.
 
-### Deployment operations
+### Data modes and history
 
-- Open `http://localhost:8765/` (market workbench) or `/agent` (LLM console); health check: `/healthz`; API contracts: `/api/agent/schema`.
+- **Live** requires real-time data and returns an error on failure; it never falls back to a snapshot or static sample. **Auto** tries live, then a valid snapshot, then static, and shows actual source and time. **Static** does not contact live providers. **Import** is held in memory; an expired session must be uploaded again.
+- Startup and ordinary research do not call paid AI. Only an explicit interpretation request with a configured model may contact a provider; imported data requires confirmation before it is sent.
+- Saved history and evidence packs contain sanitized derived results, not the uploaded attachment or entire table. Some imported free text cannot be restored. A saved result is read-only; re-running creates a new record. Legacy summary-only entries cannot restore the full result. Redaction is best-effort, so do not enter secrets.
+
+**Known limitation:** `/replay` currently loads all entries at once. In local testing with several thousand history entries, the page exceeded a 25-second timeout; this has not been fixed. Use separate `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` locations for demonstrations, and back up archive directories when needed. Do not delete existing history to work around this limitation.
+
+### Docker operations
+
+- Open `http://localhost:8765/` (market workbench) or `/agent` (research page); health check: `/healthz`; API contracts: `/api/agent/schema`.
 - Compose reads `.env` for variable substitution; direct Python execution does not automatically load it. Set `BOND_DATA_MODE=static` for offline sample analysis, or `auto` for live → snapshot → sample fallback.
 - Start: `docker compose up --build -d`; inspect: `docker compose logs --tail=100 bondlens`; restart: `docker compose restart bondlens`; stop without deleting history: `docker compose down`.
 - The service is `bondlens`, container `bondlens-demo`, image `bondlens:local`; port mapping is `${BOND_BIND_HOST:-127.0.0.1}:${BOND_HOST_PORT:-8765}:5000`. The default loopback binding keeps the workbench local-machine-only; to expose it on a LAN or behind a reverse proxy, set `BOND_BIND_HOST` explicitly (e.g. `0.0.0.0` or a LAN IP) and put an authenticating reverse proxy in front first. Inside the container Gunicorn still listens on `0.0.0.0:5000`.
@@ -114,7 +133,7 @@ BondLens strictly separates **deterministic financial computation** (tools never
 | **Agent core** | Single path: Planner → Tools → Evidence → Report |
 | **Deterministic tools** | 7 public operators: `search_bonds`, `describe_market`, `rank_bonds`, `detect_yield_outliers`, `compare_bond_to_market`, `build_market_monitor`, `generate_bond_report` |
 | **Trust layer** | Numeric + language guardrail · answer judge · Trust score · Evidence Pack · replay store · risk profile |
-| **Evals** | Latest isolated Windows local pytest: 248 passed / 1 skipped; 212 passed / 1 skipped was an older baseline. For current CI status, see the badge above. |
+| **Evals** | V1.1 local Windows run: 248 passed / 1 skipped; Actions passed at `c07fbed`. See the badge for current CI status. |
 | **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
 | **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
 
