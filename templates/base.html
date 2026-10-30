@@ -34,7 +34,7 @@
             margin: 0;
             color: var(--ink);
             background: var(--paper);
-            font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+            font-family: "BondLens Noto Sans SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif;
             -webkit-font-smoothing: antialiased;
         }
 
@@ -249,21 +249,18 @@
     {% block styles %}{% endblock %}
     <link rel="stylesheet" href="{{ url_for('static', filename='css/terminal-ui.css') }}">
 </head>
-<body class="theme-light">
+<body class="theme-light{% if request.path.startswith('/screen') %} bondlens-screener{% endif %}">
     <header class="topbar navbar navbar-expand-md d-print-none">
         <div class="topbar-inner container-xl">
-            <a class="brand navbar-brand" href="/">
-                <span class="brand-mark">BL</span>
+            <a class="brand navbar-brand" href="/market">
                 <span>BondLens</span>
             </a>
             <nav class="topnav navbar-nav flex-row" aria-label="Primary">
-                <a class="nav-link" href="/market" {% if request.path.startswith('/market') %}aria-current="page"{% endif %} data-lang-zh="市场观察" data-lang-en="Market">市场观察</a>
-                <a class="nav-link" href="/screen" {% if request.path.startswith('/screen') %}aria-current="page"{% endif %} data-lang-zh="债券筛选" data-lang-en="Screener">债券筛选</a>
-                <a class="nav-link" href="/bond" {% if request.path.startswith('/bond') %}aria-current="page"{% endif %} data-lang-zh="单券研究" data-lang-en="Bond Study">单券研究</a>
-                <a class="nav-link" href="/replay" {% if request.path.startswith('/replay') %}aria-current="page"{% endif %} data-lang-zh="研究历史" data-lang-en="History">研究历史</a>
-                <span class="topnav-sep" aria-hidden="true"></span>
-                <a class="nav-link" href="/agent" data-nav-secondary="true" {% if request.path.startswith('/agent') %}aria-current="page"{% endif %} data-lang-zh="智能体问答" data-lang-en="Agent Q&A">智能体问答</a>
-                <a class="nav-link" href="https://github.com/Phoenix0531-sudo/BondLens" data-nav-secondary="true" data-lang-zh="GitHub" data-lang-en="GitHub">GitHub</a>
+                <a class="nav-link" href="/market" {% if request.path.startswith('/market') %}aria-current="page"{% endif %}><span class="nav-full" data-lang-zh="市场观察" data-lang-en="Market">市场观察</span><span class="nav-short" data-lang-zh="市场" data-lang-en="Market">市场</span></a>
+                <a class="nav-link" href="{{ url_for('screen_page', data_mode=request.args.get('data_mode') or data_mode or 'auto', lang=current_lang, import_id=request.args.get('import_id') or none) }}" {% if request.path.startswith('/screen') %}aria-current="page"{% endif %}><span class="nav-full" data-lang-zh="债券筛选" data-lang-en="Screener">债券筛选</span><span class="nav-short" data-lang-zh="筛选" data-lang-en="Screen">筛选</span></a>
+                <a class="nav-link" href="/bond" {% if request.path.startswith('/bond') %}aria-current="page"{% endif %}><span class="nav-full" data-lang-zh="单券研究" data-lang-en="Bond Study">单券研究</span><span class="nav-short" data-lang-zh="单券" data-lang-en="Bond">单券</span></a>
+                <a class="nav-link" href="/agent" {% if request.path.startswith('/agent') %}aria-current="page"{% endif %}><span class="nav-full" data-lang-zh="智能体研究" data-lang-en="AI Research">智能体研究</span><span class="nav-short" data-lang-zh="AI研究" data-lang-en="AI">AI研究</span></a>
+                <a class="nav-link" href="/replay" {% if request.path.startswith('/replay') %}aria-current="page"{% endif %}><span class="nav-full" data-lang-zh="研究历史" data-lang-en="History">研究历史</span><span class="nav-short" data-lang-zh="历史" data-lang-en="History">历史</span></a>
             </nav>
             <div class="topbar-actions">
                 <div class="language-switch" aria-label="Language switch">
@@ -280,6 +277,26 @@
     <script>
         (() => {
             const storageKey = "bondlens.language";
+            window.bondlensSetSource = (mode, importId) => {
+                const url = new URL(window.location.href);
+                url.searchParams.set('data_mode', mode || 'auto');
+                if (importId) url.searchParams.set('import_id', importId);
+                else url.searchParams.delete('import_id');
+                window.history.replaceState({}, '', url);
+                syncNavigation();
+            };
+            function syncNavigation() {
+                const current = new URL(window.location.href);
+                document.querySelectorAll('.topnav a.nav-link, .brand, [data-replay-rerun], [data-preserve-source]').forEach((link) => {
+                    const target = new URL(link.href, current);
+                    for (const key of ['data_mode', 'import_id', 'lang']) {
+                        const value = current.searchParams.get(key);
+                        if (value) target.searchParams.set(key, value);
+                        else target.searchParams.delete(key);
+                    }
+                    link.href = target.pathname + target.search;
+                });
+            }
             const normalize = (value) => (value === "en" ? "en" : "zh");
 
             function setUrlLanguage(lang) {
@@ -292,6 +309,15 @@
                 const activeLang = normalize(lang);
                 document.documentElement.lang = activeLang === "en" ? "en" : "zh-CN";
                 document.documentElement.dataset.initialLang = activeLang;
+                const pageTitles = {
+                    "/market": ["市场观察", "Market Overview"],
+                    "/screen": ["债券筛选", "Bond Screener"],
+                    "/bond": ["单券研究", "Single-Bond Research"],
+                    "/agent": ["智能体研究", "AI Research"],
+                    "/replay": ["研究历史", "Research History"],
+                };
+                const titleEntry = Object.entries(pageTitles).find(([path]) => window.location.pathname === path || window.location.pathname.startsWith(`${path}/`));
+                if (titleEntry) document.title = `${titleEntry[1][activeLang === "en" ? 1 : 0]} · BondLens`;
 
                 document.querySelectorAll("[data-lang-zh][data-lang-en]").forEach((element) => {
                     element.textContent = activeLang === "en" ? element.dataset.langEn : element.dataset.langZh;
@@ -427,6 +453,7 @@
                     document.cookie = `bondlens_lang=${activeLang}; path=/; max-age=${60 * 60 * 24 * 365}; samesite=lax`;
                 }
 
+                syncNavigation();
                 // Workbench pages re-render client-side content on language switch.
                 document.dispatchEvent(new CustomEvent("bondlens:language-change", { detail: { lang: activeLang } }));
             }

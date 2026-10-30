@@ -1,6 +1,20 @@
 from app import app
 
 
+def test_unknown_page_uses_bilingual_404_but_api_and_pack_keep_default():
+    client = app.test_client()
+    page = client.get('/not-a-real-route?lang=en')
+    assert page.status_code == 404
+    html = page.get_data(as_text=True)
+    assert 'data-language-option="en"' in html
+    assert 'Page not found' in html
+    assert 'href="/market"' in html
+    for path in ('/api/no-such-route', '/packs/no-such-pack.invalid'):
+        response = client.get(path)
+        assert response.status_code == 404
+        assert 'data-language-option' not in response.get_data(as_text=True)
+
+
 def test_agent_pages_smoke():
     client = app.test_client()
 

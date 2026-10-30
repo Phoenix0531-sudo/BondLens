@@ -341,7 +341,7 @@ def test_agent_can_use_live_bond_feed_without_openai(monkeypatch):
     assert "25国开20" in result["final_answer"]
 
 
-def test_agent_live_feed_enriches_known_bond_maturity(monkeypatch):
+def test_agent_live_feed_keeps_missing_maturity_missing(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_BASE_URL", raising=False)
 
@@ -360,10 +360,9 @@ def test_agent_live_feed_enriches_known_bond_maturity(monkeypatch):
     result = BondAnalystAgent(data_mode="live", live_fetcher=fake_fetcher).answer("搜索23附息国债26并给出收益率分析")
     record = result["data_evidence"]["search"]["records"][0]
 
-    assert record["待偿期"] is not None
-    assert record["待偿期(年)"] is not None
-    assert result["data_source"]["maturity_coverage"]["filled_count"] == 1
-    assert "待偿期 None" not in result["final_answer"]
+    assert record["待偿期"] is None
+    assert record["待偿期(年)"] is None
+    assert result["data_source"]["maturity_coverage"]["filled_count"] == 0
 
 
 def test_agent_advisory_refusal_blocks_recommendations(monkeypatch):

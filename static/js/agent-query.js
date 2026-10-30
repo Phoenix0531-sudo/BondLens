@@ -31,6 +31,7 @@
       return;
     }
 
+    let lastFinalPayload = null;
     let activeController = null;
     let timer = null;
     let streamChars = 0;
@@ -197,7 +198,8 @@
       return (result && (result.final_answer || result.answer)) || "";
     }
 
-    function renderSoftFinal(payload) {
+    function renderSoftFinal(payload, options = {}) {
+      lastFinalPayload = payload;
       const lang = currentLang();
       const result = payload.result || {};
       const view = payload.view || {};
@@ -249,6 +251,34 @@
  softSourceLine.textContent = lineageNote ? `${sourceNote} · ${lineageNote}` : sourceNote;
  }
 
+      const summary = (view.answer_summary_by_lang || {})[lang] || view.answer_summary || {};
+      const summarySection = document.getElementById("agent-soft-summary");
+      const sentences = document.getElementById("agent-soft-sentences");
+      const metrics = document.getElementById("agent-soft-metrics");
+      const sentenceItems = summary.sentences || [];
+      const metricItems = summary.key_metrics || [];
+      if (sentences) {
+        sentences.replaceChildren(...sentenceItems.map((text) => {
+          const item = document.createElement("li");
+          item.textContent = text;
+          return item;
+        }));
+      }
+      if (metrics) {
+        metrics.replaceChildren(...metricItems.map((metric) => {
+          const item = document.createElement("div");
+          item.className = "metric";
+          const label = document.createElement("p");
+          label.className = "metric-label";
+          label.textContent = (lang === "en" ? metric.label_en : metric.label_zh) || metric.label || "";
+          const value = document.createElement("p");
+          value.className = "metric-value";
+          value.textContent = metric.value ?? "—";
+          item.append(label, value);
+          return item;
+        }));
+      }
+      if (summarySection) summarySection.hidden = !sentenceItems.length && !metricItems.length;
       if (softAnswer) softAnswer.textContent = pickAnswer(result, view, lang);
       if (softOpenLink) {
         softOpenLink.href = resultUrl;
@@ -264,12 +294,12 @@
       if (softAiPanel) softAiPanel.hidden = !payload.result_id;
       if (softResult) {
         softResult.hidden = false;
-        softResult.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (!options.languageOnly) softResult.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-      if (typeof window.applyLanguage === "function") {
+      if (!options.languageOnly && typeof window.applyLanguage === "function") {
         try { window.applyLanguage(lang); } catch (_) { /* optional */ }
       }
-      if (payload.result_id) {
+      if (!options.languageOnly && payload.result_id) {
         try {
           const url = new URL(window.location.href);
           url.pathname = "/agent";
@@ -280,6 +310,12 @@
         } catch (_) { /* ignore */ }
       }
     }
+
+    document.addEventListener("bondlens:language-change", () => {
+      if (lastFinalPayload && softResult && !softResult.hidden) {
+        renderSoftFinal(lastFinalPayload, { languageOnly: true });
+      }
+    });
 
     function currentImportId() {
       return (importIdInput && importIdInput.value) || "";
@@ -319,6 +355,14 @@
       }
     }
 
+    const initialImport = new URLSearchParams(window.location.search).get("import_id") || "";
+    if (initialImport && importIdInput) {
+      importIdInput.value = initialImport;
+      setImportActive(true, null);
+      setImportStatus(currentLang() === "en" ? "Uploaded dataset selected; it may need to be re-uploaded if expired." : "已选择上传数据；若已过期，请重新上传。");
+    }
+    if (dataModeSelect) dataModeSelect.addEventListener("change", () => window.bondlensSetSource?.(dataModeSelect.value, currentImportId()));
+
     if (importFile && importButton) {
       importFile.addEventListener("change", () => {
         importButton.disabled = !(importFile.files && importFile.files.length) || importFile.disabled;
@@ -338,6 +382,7 @@
             throw new Error(payload.error || (`HTTP ${response.status}`));
           }
           if (importIdInput) importIdInput.value = payload.import_id || "";
+          window.bondlensSetSource?.(dataModeSelect?.value || "auto", currentImportId());
           setImportActive(true, payload);
         } catch (err) {
           importButton.disabled = false;
@@ -349,6 +394,7 @@
       importClearButton.addEventListener("click", () => {
         if (importFile) importFile.value = "";
         setImportActive(false, null);
+        window.bondlensSetSource?.(dataModeSelect?.value || "auto", "");
       });
     }
 
@@ -581,9 +627,13 @@
         stopTimer();
         setBusy(false);
         activeController = null;
+        if (progress) progress.hidden = false;
         if (errorBox) {
           errorBox.hidden = false;
           const aborted = (err && (err.name === "AbortError" || String(err).includes("abort")));
+          if (title) title.textContent = aborted
+            ? (lang === "en" ? "Stopped" : "已停止")
+            : (lang === "en" ? "Analysis failed" : "分析失败");
           if (aborted) {
             errorBox.textContent = lang === "en"
               ? "Stopped receiving. Analysis may still finish on the server."

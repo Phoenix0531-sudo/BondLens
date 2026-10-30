@@ -54,7 +54,81 @@ try {
   };
   const shot = async name => { const r=await call('Page.captureScreenshot',{format:'png'}); await writeFile(join(output,name),Buffer.from(r.data,'base64')); };
   await call('Page.enable'); await call('Runtime.enable');
+  // Deterministically simulate a stalled market read without touching real data or AI.
+  const injected = await call('Page.addScriptToEvaluateOnNewDocument', {source: `
+    (() => {
+      const realFetch = window.fetch.bind(window);
+      const realTimeout = window.setTimeout.bind(window);
+      let first = true;
+      window.setTimeout = (fn, ms, ...args) => realTimeout(fn, ms === 30000 ? 50 : ms, ...args);
+      window.fetch = (url, options) => {
+        if (first && String(url).includes('/api/market/overview')) {
+          first = false;
+          return new Promise((resolve, reject) => options.signal.addEventListener('abort', () => { window.setTimeout = realTimeout; reject(new DOMException('Aborted', 'AbortError')); }, {once:true}));
+        }
+        return realFetch(url, options);
+      };
+    })();`});
+  await navigate('http://127.0.0.1:8876/market?data_mode=static&lang=zh');
+  await until(()=>js('!!document.querySelector("[data-source-retry]")'),'timeout retry visible');
+  assert.ok(await js('document.querySelector("[data-source-status]").textContent.includes("数据加载失败")'),'visible failure');
+  assert.equal(await js('document.querySelector("[data-source-status] .mode-tag") === null'),true,'no stale success source');
+  await click('[data-source-retry]');
+  await until(()=>js('document.querySelector("[data-market-root] .wb-card") !== null'),'retry recovers market');
+  assert.ok(await js('document.querySelector("[data-source-status]").textContent.includes("2024-03-22")'),'retry restores actual static date');
+  await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:injected.identifier});
+  const hostile = await call('Page.addScriptToEvaluateOnNewDocument', {source: `
+    (() => { const original = window.fetch.bind(window); window.fetch = (url, options) =>
+      /\\/api\\/(market\\/overview|bonds\\/search|bond\\/detail)/.test(String(url))
+        ? Promise.resolve(new Response(JSON.stringify({error:'<img src=x onerror=alert(1)> provider failure'}), {status:500, headers:{'Content-Type':'application/json'}}))
+        : original(url, options); })();`});
+  for (const route of ['/market', '/screen', '/bond/230026']) {
+    await navigate(`http://127.0.0.1:8876${route}?data_mode=static`);
+    await until(()=>js('!!document.querySelector(".wb-error-box")'),'injected error displayed');
+    assert.ok(await js('document.querySelector(".wb-error-box").textContent.includes("<img src=x")'),'error displayed literally');
+    assert.equal(await js('!!document.querySelector(".wb-error-box img")'),false,'error markup not interpreted');
+  }
+  await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:hostile.identifier});
+  await navigate('http://127.0.0.1:8876/not-a-real-route?lang=en');
+  assert.ok(await js('document.body.textContent.includes("Page not found") && [...document.querySelectorAll(".topnav a")].some(a => new URL(a.href).pathname === "/market")'),'404 recovery navigation');
   await call('Emulation.setDeviceMetricsOverride',{width:960,height:1040,deviceScaleFactor:1,mobile:false});
+  const streamFailure = await call('Page.addScriptToEvaluateOnNewDocument', {source: `
+    (() => { const original = window.fetch.bind(window); window.fetch = (url, options) =>
+      String(url).includes('/api/agent/stream')
+        ? Promise.resolve(new Response('event: error\\ndata: {"error":"offline fixture"}\\n\\n', {headers:{'Content-Type':'text/event-stream'}}))
+        : original(url, options); })();`});
+  await navigate('http://127.0.0.1:8876/agent?data_mode=static&lang=en');
+  await click('#question'); await call('Input.insertText',{text:'test stream failure'});
+  await click('#run-agent-button');
+  await until(()=>js('!document.querySelector("#agent-async-error").hidden'),'stream error');
+  assert.equal(await js('document.querySelector("#agent-async-error").offsetParent !== null'),true,'stream error visible');
+  assert.equal(await js('document.querySelector("#run-agent-button").disabled'),false,'retry enabled');
+  await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:streamFailure.identifier});
+  const timeoutFixture = await call('Page.addScriptToEvaluateOnNewDocument', {source: `
+    (() => { const original = window.fetch.bind(window); window.fetch = (url, options) =>
+      String(url).includes('/api/agent/stream')
+        ? Promise.resolve(new Response('event: error\\ndata: {"error":"Live data unavailable; please retry."}\\n\\n', {headers:{'Content-Type':'text/event-stream'}}))
+        : original(url, options); })();`});
+  await navigate('http://127.0.0.1:8876/agent?data_mode=live&lang=en');
+  await click('#question'); await call('Input.insertText',{text:'timeout test'}); await click('#run-agent-button');
+  await until(()=>js('!document.querySelector("#agent-async-error").hidden'),'timeout terminal');
+  assert.ok(await js('document.querySelector("#agent-async-error").textContent.includes("Live data unavailable")'));
+  assert.equal(await js('document.querySelector("#agent-async-error").offsetParent !== null && !document.querySelector("#run-agent-button").disabled'),true,'timeout visible and retry enabled');
+  await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:timeoutFixture.identifier});
+  const stall = await call('Page.addScriptToEvaluateOnNewDocument', {source: `
+    (() => { const original = window.fetch.bind(window); window.fetch = (url, options) =>
+      String(url).includes('/api/agent/stream')
+        ? new Promise((resolve, reject) => options.signal.addEventListener('abort', () => reject(new DOMException('Aborted','AbortError')), {once:true}))
+        : original(url, options); })();`});
+  await navigate('http://127.0.0.1:8876/agent?data_mode=static&lang=en');
+  await click('#question'); await call('Input.insertText',{text:'cancel test'});
+  await click('#run-agent-button');
+  await until(()=>js('!document.querySelector("#agent-cancel-button").disabled'),'cancel enabled');
+  await click('#agent-cancel-button');
+  await until(()=>js('!document.querySelector("#agent-async-error").hidden'),'cancel terminal');
+  assert.ok(await js('document.querySelector("#agent-async-error").textContent.includes("Stopped receiving")'));
+  assert.equal(await js('document.querySelector("#agent-async-error").offsetParent !== null && !document.querySelector("#run-agent-button").disabled'),true,'cancel visible and retry enabled');
+  await call('Page.removeScriptToEvaluateOnNewDocument',{identifier:stall.identifier});
   await navigate('http://127.0.0.1:8876/agent?data_mode=static&lang=zh');
   await until(()=>js('!!document.querySelector("#question")'),'form');
   await click('#run-agent-button');
@@ -64,6 +138,13 @@ try {
   await until(()=>js('document.querySelector("#agent-soft-answer").textContent.length > 30'),'SSE final result');
   assert.equal(await js('(document.querySelector("#agent-soft-answer").compareDocumentPosition(document.querySelector("#agent-soft-tech-details")) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0'),true,'final answer precedes provenance details');
   assert.equal(await js('document.querySelector("#agent-soft-source-line").textContent.length > 4'),true,'compact source line rendered');
+  assert.equal(await js('!document.querySelector("#agent-soft-summary").hidden && document.querySelector("#agent-soft-sentences li") !== null'),true,'summary conclusions visible');
+  assert.equal(await js('!document.querySelector("#agent-soft-full-answer").open'),true,'full answer initially collapsed');
+  await call('Emulation.setDeviceMetricsOverride',{width:440,height:900,deviceScaleFactor:1,mobile:false});
+  await js('document.querySelector("#agent-soft-result").scrollIntoView()');
+  await shot('bondlens-agent-result-440.png');
+  console.log(`440 result screenshot: ${output}`);
+  await call('Emulation.setDeviceMetricsOverride',{width:960,height:1040,deviceScaleFactor:1,mobile:false});
   assert.equal(await js('document.querySelector("#run-agent-button").disabled'),false);
   assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'),true,'horizontal overflow');
   await shot('bondlens-960-result.png');
@@ -98,6 +179,7 @@ try {
   await writeFile(csvPath, csv, 'utf8');
   await navigate('http://127.0.0.1:8876/agent?data_mode=static&lang=zh');
   await until(()=>js('!!document.querySelector("#import-file")'),'import panel');
+  await click('.agent-advanced summary');
   await call('DOM.enable');
   const doc = await call('DOM.getDocument');
   const fileInput = await call('DOM.querySelector', {nodeId: doc.root.nodeId, selector: '#import-file'});
@@ -134,11 +216,49 @@ try {
 
   // Screener: filter → real rows → row click into single-bond research.
   await navigate('http://127.0.0.1:8876/screen?data_mode=static&lang=zh');
-  await until(()=>js('!!document.querySelector("[data-screen-results] tbody tr.row-link")'),'screen rows');
+  await until(()=>js('!!document.querySelector("[data-screen-results] .tabulator-row")'),'screen rows');
   await click('[data-filter="name"]'); await call('Input.insertText',{text:'国债'});
   await click('[data-screen-filters] button[type="submit"]');
-  await until(()=>js('document.querySelector("[data-screen-results] .wb-panel-title").textContent.includes("116")'),'filtered count');
-  await click('[data-screen-results] tbody tr.row-link a.row-anchor');
+  await until(()=>js('document.querySelector("[data-screen-results] .bl-results-count")?.textContent.includes("116")'),'filtered count');
+  await call('Emulation.setDeviceMetricsOverride',{width:440,height:900,deviceScaleFactor:1,mobile:false});
+  await until(()=>js('!!document.querySelector(".tabulator-responsive-collapse-toggle")'),'responsive collapse control');
+  const collapse = '.tabulator-row .tabulator-responsive-collapse-toggle';
+  await until(()=>js(`document.querySelector(${JSON.stringify(collapse)})?.getAttribute('role') === 'button'`),'collapse accessibility');
+  assert.equal(await js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('tabindex')`),'0');
+  await js(`document.querySelector(${JSON.stringify(collapse)}).scrollIntoView({block:'center',behavior:'instant'})`);
+  await until(()=>js(`(()=>{const e=document.querySelector(${JSON.stringify(collapse)}); if(!e||!e.isConnected)return false; e.focus(); window.__collapseTest=e; return document.activeElement===e && e===document.querySelector(${JSON.stringify(collapse)});})()`),'collapse focused and attached before Enter');
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await call('Input.dispatchKeyEvent',{type:'keyUp',key:'Enter',code:'Enter',windowsVirtualKeyCode:13});
+  await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'true'`),'collapse opens by Enter');
+  await until(()=>js(`(()=>{const e=document.querySelector(${JSON.stringify(collapse)}); e.focus(); return document.activeElement===e;})()`),'collapse refocused before Space');
+  await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+  await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+  await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'false'`),'collapse closes by Space');
+  for (let n = 0; n < 3; n++) {
+    await js(`document.querySelector(${JSON.stringify(collapse)}).focus()`);
+    await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'true'`),'repeat space opens');
+    await js(`document.querySelector(${JSON.stringify(collapse)}).focus()`);
+    await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
+    await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'false'`),'repeat space closes');
+  }
+  await call('Emulation.setDeviceMetricsOverride',{width:960,height:1040,deviceScaleFactor:1,mobile:false});
+  const rowAnchor = '[data-screen-results] .tabulator-row a.row-anchor';
+  await js(`document.querySelector(${JSON.stringify(rowAnchor)}).scrollIntoView({block:'center',behavior:'instant'})`);
+  let previous = null;
+  let point;
+  try { point = await until(async () => {
+    const current = await js(`(()=>{const e=document.querySelector(${JSON.stringify(rowAnchor)}); if(!e)return null; const r=e.getBoundingClientRect(), x=r.x+r.width/2, y=r.y+r.height/2, hit=document.elementFromPoint(x,y); return {x,y,width:r.width,height:r.height,hit:!!hit&&(hit===e||e.contains(hit)),tag:hit?.tagName||null};})()`);
+    const stable = current && previous && Math.abs(current.x-previous.x)<0.5 && Math.abs(current.y-previous.y)<0.5 && current.width>0 && current.height>0 && current.hit;
+    previous = current;
+    return stable ? current : null;
+  }, 'stable row anchor hit target'); } catch (error) {
+    throw Error(`Row anchor did not stabilize or was occluded: ${JSON.stringify(previous)}; ${error.message}`);
+  }
+  await call('Input.dispatchMouseEvent',{type:'mousePressed',button:'left',clickCount:1,x:point.x,y:point.y});
+  await call('Input.dispatchMouseEvent',{type:'mouseReleased',button:'left',clickCount:1,x:point.x,y:point.y});
   await until(()=>js('location.pathname.startsWith("/bond/")'),'row click opens bond page');
   await until(()=>js('!!document.querySelector("[data-bond-root] .wb-bond-identity h2")'),'bond identity rendered');
   assert.ok(await js('document.querySelector("[data-bond-root]").textContent.includes("同业对比") || document.querySelector("[data-bond-root]").textContent.includes("Peer comparison")'),'peer comparison shown');
@@ -161,12 +281,12 @@ try {
   assert.ok(await js('document.querySelector("[data-import-report]").textContent.includes("应计利息")'),'accrued-interest reason');
   assert.equal(await js('[...document.querySelectorAll("[data-import-report] select option")].some(o=>["全价","成交金额"].includes(o.value))'),false,'forbidden columns not offered as mappings');
   await until(()=>js('document.querySelector("[data-source-status]").textContent.includes("上传样本")'),'import active on workbench');
-  await until(()=>js('document.querySelector("[data-screen-results] .wb-panel-title").textContent.includes("2")'),'screen reflects imported sample');
+  await until(()=>js('document.querySelector("[data-screen-results] .bl-results-count")?.textContent.includes("2")'),'screen reflects imported sample');
   await shot('bondlens-screen-import.png');
   await click('[data-import-clear]');
   await until(()=>js('!document.querySelector("[data-import-report] h3")'),'import cleared on workbench');
   await until(()=>js('!document.querySelector("[data-source-status]").textContent.includes("上传样本")'),'status back to built-in source');
-  await until(()=>js('document.querySelector("[data-screen-results] .wb-panel-title").textContent.includes("3,365")'),'screen back to the full built-in sample');
+  await until(()=>js('document.querySelector("[data-screen-results] .bl-results-count")?.textContent.includes("3,365")'),'screen back to the full built-in sample');
 
   await navigate('http://127.0.0.1:8876/agent?result_id=expired&lang=en&data_mode=static');
   await until(()=>js('document.body.textContent.includes("Run the analysis again")'),'expired result message');
@@ -179,22 +299,29 @@ try {
   await navigate('http://127.0.0.1:8876/market?data_mode=static&lang=en');
   await until(()=>js('document.body.textContent.includes("Market Overview")'),'market English heading');
   await until(()=>js('document.querySelector("[data-market-root]").textContent.includes("Yield distribution")'),'market English content rendered');
-  assert.equal(await js('document.querySelector("[data-source-status]").textContent.trim() === ""'),true,'source bar deduplicated in explicit static mode');
+  assert.ok(await js('document.querySelector("[data-source-status]").textContent.includes("Historical sample") && document.querySelector("[data-source-status]").textContent.includes("2024-03-22")'),'static source and quote date visible');
   assert.equal(await js('!!document.querySelector(".source-summary")'),true,'compact source summary line');
   assert.equal(await js('!!document.querySelector(".source-details")'),true,'foldable source & caliber details');
   assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'),true,'market 1440 overflow');
   await shot('bondlens-market-1440.png');
   await navigate('http://127.0.0.1:8876/replay?lang=en');
   await until(()=>js('document.body.textContent.includes("Research history")'),'history page heading');
-  assert.ok(await js('document.body.textContent.includes("recent research runs") || document.body.textContent.includes("No research history yet")'),'history summary or empty state');
-  if (await js('document.querySelector(".replay-card")')) {
-    assert.equal(await js('!!document.querySelector(".replay-card .replay-tech")'),true,'history card technical details folded');
-    assert.equal(await js('!!document.querySelector(".replay-actions a")'),true,'history card actions (re-run / evidence pack)');
+  assert.equal(await js('!!document.querySelector(".replay-table") && !!document.querySelector("[data-replay-search]") && !!document.querySelector("[data-replay-next]")'),true,'history table search and pagination');
+  if (await js('document.querySelector("[data-replay-row]")')) {
+    assert.equal(await js('!!document.querySelector("[data-replay-row] details")'),true,'history details available');
+    assert.equal(await js('!!document.querySelector("[data-replay-row] .replay-detail a, [data-replay-row] .replay-detail [aria-disabled]")'),true,'history actions or missing pack state');
   }
   assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'),true,'replay 1440 overflow');
   await shot('bondlens-replay-1440.png');
+  await call('Emulation.setDeviceMetricsOverride',{width:293,height:600,deviceScaleFactor:1,mobile:false});
+  for (const route of ['/market','/screen','/bond','/agent','/replay']) {
+    await navigate(`http://127.0.0.1:8876${route}?data_mode=static&lang=en`);
+    await until(()=>js('document.title.includes("BondLens")'),'page title');
+    const layout = await js('({width:innerWidth,scroll:document.documentElement.scrollWidth,title:document.title})');
+    console.log(`293 viewport ${route}: ${JSON.stringify(layout)}`);
+  }
   assert.deepEqual(errors,[],'uncaught browser exceptions');
-  console.log('PASS: 960x1040 native input/click, required field, SSE final (answer first, provenance folded), full report (core-conclusions hero + on-demand AI panel, provenance "AI not requested"), HTML pack, CSV import (upload→query→lineage→clear), expired result; workbench: / → /market, four entries, quick ask prefill, screen filter→row→bond peer comparison + bond AI panel, shared import panel with rejected calibers and correction UI, deduplicated source bar + compact source summary; 1440x1000 bilingual market page + research history page (reading cards, technical details folded); no horizontal overflow or JS exceptions.');
+  console.log('PASS: timeout recovery, escaped error messages, 404 navigation, SSE summary and folded full answer, HTML evidence pack, CSV import and clear, expired result; five navigation entries, market source/date, screen keyboard expansion and bond navigation, import mapping, bilingual market and searchable history table; checked viewport overflow and uncaught JS exceptions.');
   console.log(`Screenshots: ${output}`);
 } finally {
   socket?.close(); browser?.kill(); server?.kill();

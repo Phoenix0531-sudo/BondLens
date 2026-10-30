@@ -74,17 +74,20 @@
 
     /* Metric cards */
     const cards = document.createElement("div");
-    cards.className = "wb-grid";
+    cards.className = "wb-grid market-kpis";
     cards.innerHTML =
       card(zh ? "样本记录 / 债券" : "Rows / bonds", `${WB.fmt(overview.sample_count, 0)} / ${WB.fmt(source.bond_count, 0)}`) +
       card(zh ? "有效收益率" : "Valid yields", WB.fmt(yieldSummary.count, 0)) +
       card(zh ? "收益率中位" : "Yield median", `${WB.fmt(yieldSummary.median, 2)}<small>%</small>`) +
-      (weighted.weighted_mean !== undefined
-        ? card(zh ? "交易量加权收益率" : "Volume-weighted yield", `${WB.fmt(weighted.weighted_mean, 2)}<small>%</small>`)
-        : "") +
       card(zh ? "待偿期中位" : "Maturity median", `${WB.fmt(maturitySummary.median, 2)}<small>${zh ? "年" : "yrs"}</small>`) +
       card(zh ? "成交中位" : "Volume median", volumeSummary.count ? `${WB.fmt(volumeSummary.median, 2)}<small>${zh ? "亿元" : "100M"}</small>` : "—");
     root.append(cards);
+    if (weighted.weighted_mean !== undefined) {
+      const weightedNote = document.createElement("p");
+      weightedNote.className = "market-weighted-note";
+      weightedNote.textContent = `${zh ? "交易量加权收益率" : "Volume-weighted yield"}：${WB.fmt(weighted.weighted_mean, 2)}%`;
+      root.append(weightedNote);
+    }
 
     /* Yield distribution bars */
     const dist = overview.yield_distribution || {};
@@ -206,7 +209,7 @@
     } catch (error) {
       if (seq !== loadSeq) return;
       WB.setSourceError(error.message || error);
-      root.innerHTML = `<div class="wb-error-box">${error.message || error}</div>`;
+      root.innerHTML = `<div class="wb-error-box">${WB.escapeHtml(error.message || error)}</div>`;
     }
   }
 

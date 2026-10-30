@@ -74,19 +74,35 @@
   /* Query params carried across API calls and page navigations. */
   function params() {
     const query = new URLSearchParams();
-    if (state.mode && state.mode !== "auto") query.set("data_mode", state.mode);
+    if (state.mode) query.set("data_mode", state.mode);
     if (state.importId) query.set("import_id", state.importId);
     const activeLang = lang();
-    if (activeLang !== "zh") query.set("lang", activeLang);
+    query.set("lang", activeLang);
     return query;
   }
 
   const paramObject = () => Object.fromEntries(params().entries());
 
   async function fetchJson(url, options) {
-    const response = await fetch(url, options);
+    // Bound read requests only; uploads are not retried or timed out here.
+    const isRead = !options || !options.method || options.method.toUpperCase() === "GET";
+    const controller = isRead && !(options && options.signal) ? new AbortController() : null;
+    let timedOut = false;
+    const timer = controller ? setTimeout(() => { timedOut = true; controller.abort(); }, 30000) : null;
+    let response;
     let body = null;
-    try { body = await response.json(); } catch { /* non-JSON error body */ }
+    try {
+      response = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
+      try { body = await response.json(); } catch (error) {
+        if (timedOut) throw error;
+        /* non-JSON error body */
+      }
+    } catch (error) {
+      if (timedOut) throw new Error(t("数据请求超时，请重试或切换数据源。", "Data request timed out. Retry or switch data source."));
+      throw error;
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
     if (!response.ok) {
       const detail = body && (body.error || body.message || JSON.stringify(body));
       const error = new Error(typeof detail === "string" ? detail : t("请求失败", "Request failed"));
@@ -152,8 +168,24 @@
       }
     } else if (state.sourceError) {
       el.status.classList.add("err");
-      el.status.textContent = t("数据加载失败", "Data loading failed");
-      el.status.title = state.sourceError;
+      const message = document.createElement("span");
+      message.textContent = state.importId
+        ? t("上传数据不可用或已过期，请重新导入。", "Uploaded data is unavailable or expired; please import again.")
+        : state.mode === "live"
+          ? t("实时数据不可用，请重试。", "Live data unavailable; please retry.")
+          : t("数据加载失败或超时。请重试或切换数据源。", "Data loading failed or timed out. Retry or switch data source.");
+      const retry = document.createElement("button");
+      retry.type = "button";
+      retry.className = "ghost-button";
+      retry.setAttribute("data-source-retry", "");
+      retry.textContent = t("重试", "Retry");
+      retry.addEventListener("click", () => {
+        state.sourceError = null;
+        state.activeSource = null;
+        renderStatus();
+        if (state.render) state.render();
+      });
+      el.status.append(message, retry);
     } else if (state.importId) {
       const report = state.report || {};
       const text = document.createElement("span");
@@ -351,6 +383,7 @@
     try {
       const payload = await fetchJson("/api/import", { method: "POST", body });
       state.importId = payload.import_id || "";
+      window.bondlensSetSource?.(state.mode, state.importId);
       state.report = payload.report || null;
       state.source = payload.source || null;
       state.activeSource = null;
@@ -379,9 +412,14 @@
 
   function wireSourceBar() {
     if (!collect()) return;
+    const initial = new URLSearchParams(window.location.search);
     state.mode = el.mode ? el.mode.value : "auto";
+    state.importId = initial.get("import_id") || "";
+    setImportActive(Boolean(state.importId));
+    window.bondlensSetSource?.(state.mode, state.importId);
     el.mode.addEventListener("change", () => {
       state.mode = el.mode.value;
+      window.bondlensSetSource?.(state.mode, state.importId);
       state.activeSource = null;
       state.sourceError = null;
       renderStatus();
@@ -398,6 +436,7 @@
     });
     el.clear.addEventListener("click", () => {
       state.importId = "";
+      window.bondlensSetSource?.(state.mode, "");
       state.report = null;
       state.source = null;
       state.activeSource = null;
@@ -417,6 +456,9 @@
   function init(options) {
     state.render = options && options.render ? options.render : null;
     wireSourceBar();
+    const syncSource = () => window.bondlensSetSource?.(state.mode, state.importId);
+    if (window.bondlensSetSource) syncSource();
+    else document.addEventListener("DOMContentLoaded", syncSource, { once: true });
     document.addEventListener("bondlens:language-change", () => {
       renderStatus();
       if (state.report) renderImportReport();

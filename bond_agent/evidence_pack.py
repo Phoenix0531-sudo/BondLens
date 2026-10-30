@@ -5,6 +5,7 @@ from __future__ import annotations
 import html
 import json
 import os
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -17,13 +18,13 @@ LIMITATIONS_TEMPLATE_ZH = [
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",
-    "实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。",
+    "Auto 模式可能回退至快照或本地样本；Live 模式不回退。请以 data_source 血缘为准。",
 ]
 LIMITATIONS_TEMPLATE_EN = [
     "Non-investment advice. For learning and research only.",
     "The market feed does not include issuer ratings, financial statements, guarantees, or credit events.",
     "Yield level is a risk signal, not a buy/sell instruction.",
-    "Live access may degrade to snapshot or local sample; trust the data_source lineage.",
+    "Auto may fall back to a snapshot or local sample; Live does not fall back. Check data_source lineage.",
 ]
 
 
@@ -81,6 +82,20 @@ def build_evidence_pack(response: dict[str, Any], *, pack_id: str | None = None)
     return pack
 
 
+def _atomic_write(path: Path, text: str) -> None:
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, prefix=".pack-", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def export_evidence_pack(
     response: dict[str, Any],
     *,
@@ -94,12 +109,17 @@ def export_evidence_pack(
     out_dir.mkdir(parents=True, exist_ok=True)
     stem = _safe_stem(pack["id"])
     json_path = out_dir / f"{stem}.json"
-    json_path.write_text(json.dumps(pack, ensure_ascii=False, indent=2), encoding="utf-8")
-
-    html_path = None
-    if write_html:
-        html_path = out_dir / f"{stem}.html"
-        html_path.write_text(render_evidence_pack_html(pack), encoding="utf-8")
+    json_content = json.dumps(pack, ensure_ascii=False, indent=2)
+    html_content = render_evidence_pack_html(pack) if write_html else None
+    html_path = out_dir / f"{stem}.html" if write_html else None
+    try:
+        if html_path is not None:
+            _atomic_write(html_path, html_content)
+        _atomic_write(json_path, json_content)
+    except OSError:
+        if html_path is not None and html_path.exists():
+            html_path.unlink()
+        raise
 
     return {
         "id": pack["id"],

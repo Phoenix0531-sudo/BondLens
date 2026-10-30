@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import math
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
@@ -322,19 +323,20 @@ def load_live_bond_data(
     write_cache: bool = True,
     security_master: pd.DataFrame | None = None,
     timeout_seconds: float | None = None,
+    allow_static_maturity: bool = True,
 ) -> pd.DataFrame:
     if fetcher is None:
         fetcher = fetch_chinamoney_bond_spot_deal
 
     timeout = _live_fetch_timeout_seconds(timeout_seconds)
     raw_df = _call_with_timeout(fetcher, timeout_seconds=timeout, label="live bond fetch")
-    df = normalize_live_bond_data(raw_df, security_master=security_master)
+    df = normalize_live_bond_data(raw_df, security_master=security_master, allow_static_maturity=allow_static_maturity)
     if write_cache:
         save_live_snapshot(df, cache_path=cache_path)
     return df
 
 
-def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame | None = None) -> pd.DataFrame:
+def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame | None = None, *, allow_static_maturity: bool = True) -> pd.DataFrame:
     required = ["债券简称", "成交净价", "最新收益率", "加权收益率", "交易量"]
     missing = [column for column in required if column not in raw_df.columns]
     if missing:
@@ -356,9 +358,21 @@ def normalize_live_bond_data(raw_df: pd.DataFrame, security_master: pd.DataFrame
     df[VOLUME] = pd.to_numeric(raw_df["交易量"], errors="coerce")
     if "涨跌" in raw_df.columns:
         df[LIVE_CHANGE_BP] = pd.to_numeric(raw_df["涨跌"], errors="coerce")
+    # Required quote values must be finite on the same named row. Optional
+    # malformed/nonfinite values (or negative traded volume) become missing;
+    # do not impose arbitrary yield bounds or reject valid negative yields.
+    numeric_columns = [PRICE, YIELD, WEIGHTED_YIELD, VOLUME]
+    if LIVE_CHANGE_BP in df:
+        numeric_columns.append(LIVE_CHANGE_BP)
+    for column in numeric_columns:
+        df[column] = df[column].where(df[column].map(lambda value: pd.notna(value) and math.isfinite(value)))
+    df[VOLUME] = df[VOLUME].where(df[VOLUME] >= 0)
+    df = df[(df[BOND_NAME] != "") & df[PRICE].notna() & df[YIELD].notna()].copy()
+    if df.empty:
+        raise ValueError("Live feed has no usable bond names, prices or yields")
     df = _apply_maturity_details(df, source_label="chinamoney_term_to_maturity")
-    df = df[df[BOND_NAME] != ""].copy()
-    df = enrich_live_maturity_from_static_master(df, security_master=security_master)
+    if allow_static_maturity:
+        df = enrich_live_maturity_from_static_master(df, security_master=security_master)
     return _attach_rate_sensitivity(df)
 
 
@@ -448,6 +462,10 @@ def load_live_snapshot(cache_path: str | Path | None = None, max_age_hours: floa
     return df[df[BOND_NAME] != ""].copy(), {"snapshot_path": snapshot_path, "cached_at": cached_at}
 
 
+class LiveDataUnavailable(RuntimeError):
+    """Safe user-facing failure for strict live mode."""
+
+
 def resolve_bond_data(
     mode: str = "static",
     path: str | Path | None = DEFAULT_DATA_PATH,
@@ -463,10 +481,12 @@ def resolve_bond_data(
 
     if normalized_mode in {"auto", "live"}:
         try:
-            df = load_live_bond_data(fetcher=live_fetcher, cache_path=live_cache_path)
+            df = load_live_bond_data(fetcher=live_fetcher, cache_path=live_cache_path, allow_static_maturity=normalized_mode != "live")
             return df, _build_live_profile(df, requested_mode=normalized_mode)
-        except Exception as exc:  # noqa: BLE001 - live network/provider failures must fall back
-            live_error = f"{type(exc).__name__}: {exc}"
+        except Exception as exc:  # Source boundary: strict error or auto fallback.
+            if normalized_mode == "live":
+                raise LiveDataUnavailable("实时数据不可用，请重试。 / Live data unavailable; please retry.") from exc
+            live_error = "Live provider timed out" if isinstance(exc, TimeoutError) else "Live provider unavailable"
             try:
                 df, snapshot = load_live_snapshot(cache_path=live_cache_path, max_age_hours=cache_max_age)
                 return df, _build_snapshot_profile(
@@ -477,7 +497,7 @@ def resolve_bond_data(
                     fallback_reason=live_error,
                 )
             except Exception as snapshot_exc:  # noqa: BLE001 - snapshot path also degrades honestly
-                fallback_reason = f"{live_error}; snapshot fallback failed: {type(snapshot_exc).__name__}: {snapshot_exc}"
+                fallback_reason = f"{live_error}; snapshot fallback unavailable ({type(snapshot_exc).__name__})"
             df = load_bond_data(data_path)
             return df, _build_static_profile(
                 df,
@@ -618,7 +638,7 @@ def _build_live_profile(df: pd.DataFrame, requested_mode: str) -> dict:
             "Public live endpoint availability depends on third-party source stability and trading session.",
             "Native residual maturity comes from ChinaMoney termToMaturity when present; perpetual-style +N legs are only partially parsed.",
             "Issuer rating, credit events, and macro curve fields are still not attached.",
-            "Rows without native maturity may fall back to the local static sample by exact bond name.",
+            "Rows without native maturity may fall back to the local static sample by exact bond name." if requested_mode == "auto" else "Missing native maturity remains unavailable in strict live mode.",
             "Use live results as market monitoring evidence, not investment advice.",
         ],
     }
@@ -698,19 +718,20 @@ def _live_fetch_timeout_seconds(value: float | None = None) -> float:
 def _call_with_timeout(func, *, timeout_seconds: float, label: str = "operation"):
     """Run a blocking call with a hard wall-clock timeout.
 
-    Live market fetchers (AkShare/network) can hang far longer than a demo page
-    should wait. Timing out here lets auto/live modes fall back to snapshot/static
-    instead of freezing the Flask request forever.
+    Return promptly on timeout. A running fetch thread cannot be forcibly stopped;
+    the provider must also enforce its own network timeout.
     """
     if timeout_seconds <= 0:
         return func()
-    with ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(func)
-        try:
-            return future.result(timeout=timeout_seconds)
-        except FuturesTimeoutError as exc:
-            future.cancel()
-            raise TimeoutError(f"{label} timed out after {timeout_seconds:.1f}s") from exc
+    executor = ThreadPoolExecutor(max_workers=1)
+    future = executor.submit(func)
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FuturesTimeoutError as exc:
+        future.cancel()
+        raise TimeoutError(f"{label} timed out after {timeout_seconds:.1f}s") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 
@@ -895,6 +916,8 @@ def _parse_maturity_part(text: str) -> float | None:
         return None
 
     amount = float(match.group(1))
+    if not math.isfinite(amount):
+        return None
     unit = match.group(2) or "Y"
     if unit == "Y":
         return amount

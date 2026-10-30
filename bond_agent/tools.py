@@ -18,6 +18,7 @@ from .data_loader import (
     MODIFIED_DURATION,
     PERPETUAL_MOD_DURATION,
     PRICE,
+    QUOTE_TIME,
     VOLUME,
     WEIGHTED_YIELD,
     YIELD,
@@ -76,7 +77,14 @@ def _summary(series: pd.Series) -> dict:
 
 
 def _resolve_frame(data_frame: pd.DataFrame | None = None, data_path: str | None = None) -> pd.DataFrame:
-    return data_frame.copy() if data_frame is not None else load_bond_data(data_path) if data_path else load_bond_data()
+    frame = data_frame.copy() if data_frame is not None else load_bond_data(data_path) if data_path else load_bond_data()
+    for column in (YIELD, WEIGHTED_YIELD, VOLUME, PRICE, MATURITY_YEARS):
+        if column in frame:
+            numeric = pd.to_numeric(frame[column], errors='coerce').replace([float('inf'), -float('inf')], float('nan'))
+            if column in (VOLUME, MATURITY_YEARS):
+                numeric = numeric.where(numeric >= 0)
+            frame[column] = numeric
+    return frame
 
 
 def search_bonds(
@@ -497,7 +505,12 @@ def compare_bond_to_market(
     yield_zscore = None if target_yield is None or yield_std == 0 else (target_yield - yield_mean) / yield_std
     is_yield_outlier = bool(yield_zscore is not None and abs(yield_zscore) >= outlier_threshold)
 
-    peers = peer_bucket_frame(df, target_maturity, bond_type=bond_type, exclude_name=target_name)
+    peer_frame = df
+    if QUOTE_TIME in df.columns:
+        dates = pd.to_datetime(df[QUOTE_TIME], errors="coerce", format="mixed").dt.date
+        target_date = pd.to_datetime(target.get(QUOTE_TIME), errors="coerce")
+        peer_frame = df.loc[dates == target_date.date()] if pd.notna(target_date) else df.iloc[0:0]
+    peers = peer_bucket_frame(peer_frame, target_maturity, bond_type=bond_type, exclude_name=target_name)
     peer_yield = (
         pd.to_numeric(peers[YIELD], errors="coerce").dropna()
         if YIELD in peers.columns
@@ -625,16 +638,19 @@ def compare_bond_to_market(
             "note_en": "Active feed has no issuer/issue rating; no credit-rating inference is made.",
         },
         "peer_comparison": {
+            "quote_date": str(target_date.date()) if QUOTE_TIME in df.columns and pd.notna(target_date) else None,
             "peer_count": peer_count,
             "peer_status": peer_status,
             "bond_type": bond_type,
             "maturity_bucket": bucket,
             "peer_definition_zh": (
-                "同业口径：同一数据时点、券种相同、期限桶相同、排除目标券本身；不跨券种凑样本。"
+                "同业口径：有行情日期时限定同日，券种及期限桶相同、排除目标券；"
+                "无行情日期列时无法核验同日，使用当前样本；目标券日期缺失时不比较。"
             ),
             "peer_definition_en": (
-                "Peers = same snapshot, same bond type, same maturity bucket, target excluded; "
-                "never silently widened across types."
+                "Peers share bond type and maturity bucket, excluding the target. When quote dates exist, "
+                "only the same date is used; without a date column same-day status cannot be verified. "
+                "No comparison is made when the target date is missing."
             ),
             "peer_yield_median": None if peer_yield.empty else round(float(peer_yield.median()), 4),
             "peer_yield_mean": None if peer_mean is None else round(float(peer_mean), 4),

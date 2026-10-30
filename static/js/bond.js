@@ -69,8 +69,7 @@
       card(zh ? "收益率" : "Yield", `${WB.fmt(target.yield_value, 4)}<small>%</small>`) +
       card(zh ? "收盘净价" : "Net price", WB.fmt(target["收盘净价(元)"], 2), zh ? "元" : "CNY") +
       card(zh ? "成交量" : "Volume", WB.fmt(target.volume_value, 2), zh ? "亿元" : "100M") +
-      card(zh ? "待偿期" : "Maturity", target.maturity_value || "—",
-        target["待偿期(年)"] != null ? `≈ ${WB.fmt(target["待偿期(年)"], 2)}${zh ? "年" : "yrs"}` : "");
+      card(zh ? "待偿期" : "Maturity", target.maturity_value ?? "—");
     root.append(cards);
 
     /* Market comparison */
@@ -90,7 +89,7 @@
 
     const compTable = document.createElement("div");
     compTable.className = "wb-table-wrap";
-    const row = (label, value, hint) => `<tr><td>${label}${hint ? ` <span style="color:var(--muted); font-size:12px;">(${hint})</span>` : ""}</td><td class="num">${value}</td></tr>`;
+    const row = (label, value, hint) => `<tr><td>${label}${hint ? ` <span style="color:var(--muted); font-size:13px;">(${hint})</span>` : ""}</td><td class="num">${value}</td></tr>`;
     compTable.innerHTML = `<table class="wb-table"><tbody>
         ${row(zh ? "收益率分位（全样本）" : "Yield percentile (all)", `${WB.fmt(comparison.yield_percentile, 1)}%`)}
         ${row(zh ? "收益率 z 分数" : "Yield z-score", WB.fmt(comparison.yield_zscore, 2))}
@@ -167,6 +166,14 @@
     aiPanel.append(aiBodyWrap);
     root.append(aiPanel);
 
+    /* Secondary technical material stays available without dominating the page. */
+    const technical = document.createElement("details");
+    technical.className = "wb-panel card bond-technical";
+    const technicalSummary = document.createElement("summary");
+    technicalSummary.textContent = zh ? "技术参数与研究依据" : "Technical parameters and research basis";
+    technical.append(technicalSummary);
+    root.append(technical);
+
     /* Rate sensitivity */
     if (rate && (rate.modified_duration != null || rate.dv01 != null)) {
       const ratePanel = document.createElement("section");
@@ -184,7 +191,7 @@
         </tbody></table>
         <p class="wb-panel-subtitle" style="margin:8px 0 0;">${zh ? (rate.assumptions_zh || "") : (rate.assumptions_en || "")}</p></div>`;
       ratePanel.append(rateBody);
-      root.append(ratePanel);
+      technical.append(ratePanel);
     }
 
     /* Credit boundary (honesty) */
@@ -193,7 +200,7 @@
       creditPanel.className = "wb-panel card";
       creditPanel.innerHTML = `<div class="wb-panel-header"><h2 class="wb-panel-title">${zh ? "信用边界" : "Credit boundary"}</h2></div>
         <div class="wb-panel-body"><p class="wb-panel-subtitle" style="margin:0;">${zh ? (credit.note_zh || "") : (credit.note_en || "")}</p></div>`;
-      root.append(creditPanel);
+      technical.append(creditPanel);
     }
 
     /* Records (multi-row honesty) */
@@ -211,7 +218,7 @@
             <td class="num">${WB.fmt(record.volume_value, 2)}</td><td class="num">${WB.fmt(record["收盘净价(元)"], 2)}</td></tr>`).join("")
     }</tbody></table></div>`;
     recordsPanel.append(recordsBody);
-    root.append(recordsPanel);
+    technical.append(recordsPanel);
 
     const notes = [...(payload.notes || [])];
     if (payload.multi_row) {
@@ -226,7 +233,7 @@
         item.textContent = note;
         noteList.append(item);
       });
-      root.append(noteList);
+      technical.append(noteList);
     }
   }
 
@@ -263,7 +270,7 @@
       const hint = error.status === 404
         ? (zh ? "当前数据样本中没有这只债券。请检查代码/简称，或切换数据源。" : "This bond is not in the active sample. Check the code/name or switch the data source.")
         : "";
-      root.innerHTML = `<div class="wb-error-box">${error.message || error}${hint ? `<br>${hint}` : ""}</div>`;
+      root.innerHTML = `<div class="wb-error-box">${WB.escapeHtml(error.message || error)}${hint ? `<br>${WB.escapeHtml(hint)}` : ""}</div>`;
     }
   }
 

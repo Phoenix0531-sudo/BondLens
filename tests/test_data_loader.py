@@ -161,7 +161,7 @@ def test_maturity_coverage_lists_unmatched_records(tmp_path):
         )
 
     _df, profile = resolve_bond_data(
-        mode="live",
+        mode="auto",
         live_fetcher=fake_fetcher,
         live_cache_path=tmp_path / "live_snapshot.csv",
     )
@@ -229,7 +229,7 @@ def test_resolve_bond_data_uses_cached_live_snapshot_before_static_sample(tmp_pa
     assert profile["active_live_feed"] is False
     assert profile["active_live_snapshot"] is True
     assert profile["row_count"] == 2
-    assert "network down" in profile["fallback_reason"]
+    assert "provider unavailable" in profile["fallback_reason"]
 
 
 def test_resolve_bond_data_falls_back_to_static_sample_when_live_and_snapshot_fail(tmp_path):
@@ -248,8 +248,8 @@ def test_resolve_bond_data_falls_back_to_static_sample_when_live_and_snapshot_fa
     assert profile["requested_mode"] == "auto"
     assert profile["active_live_feed"] is False
     assert profile["active_live_snapshot"] is False
-    assert "network down" in profile["fallback_reason"]
-    assert "snapshot fallback failed" in profile["fallback_reason"]
+    assert "provider unavailable" in profile["fallback_reason"]
+    assert "snapshot fallback unavailable" in profile["fallback_reason"]
 
 
 def test_resolve_bond_data_times_out_slow_live_fetch_and_uses_snapshot(tmp_path, monkeypatch):

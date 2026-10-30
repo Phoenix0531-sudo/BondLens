@@ -34,9 +34,9 @@ python app.py
 # Open http://127.0.0.1:5000/ (market workbench; /agent is the LLM console).
 ```
 
-For tests and development, install the pinned runtime plus development extras with `python -m pip install -r requirements.lock -r requirements-dev.txt`. The development file does not include runtime dependencies by itself.
+For tests and development, install the pinned runtime plus development extras with `python -m pip install -r requirements.lock -r requirements-dev.txt`. The development file does not include runtime dependencies by itself. The latest isolated Windows regression in this worktree reported **248 passed, 1 skipped**; this is local test evidence, not a claim about hosted CI or live providers.
 
-Configuration is read from process environment; `.env.example` lists the options. `python app.py` is for local use, not an Internet-facing production server. For deployment, use `docker compose up --build`. The Compose port mapping binds to `127.0.0.1` by default (`BOND_BIND_HOST`), so the workbench is reachable only from the local machine; choose a trusted-network binding or an authenticating reverse proxy deliberately if you need wider access. This loopback default is a safe default, not a complete security solution. The non-root container runs one Gunicorn process with four threads; do not increase worker processes while result URLs use in-memory caching. Results expire after 30 minutes or a service restart; exported packs and replay summaries survive Compose restarts in the `bondlens-data` volume. Back up that volume if history matters; `docker compose down -v` deletes it.
+Configuration is read from process environment; `.env.example` lists the options. `python app.py` is for local use, not an Internet-facing production server. For deployment, use `docker compose up --build`. The Compose port mapping binds to `127.0.0.1` by default (`BOND_BIND_HOST`), so the workbench is reachable only from the local machine; choose a trusted-network binding or an authenticating reverse proxy deliberately if you need wider access. This loopback default is a safe default, not a complete security solution. The non-root container runs one Gunicorn process with four threads; do not increase worker processes while result URLs use in-memory caching. Interactive result-cache links expire after 30 minutes or a service restart; versioned research history and exported packs survive Compose restarts in the `bondlens-data` volume when persistence succeeds. Older summary-only entries cannot restore an original result. Back up that volume if history matters; `docker compose down -v` deletes it.
 
 ### Deployment operations
 
@@ -45,7 +45,7 @@ Configuration is read from process environment; `.env.example` lists the options
 - Start: `docker compose up --build -d`; inspect: `docker compose logs --tail=100 bondlens`; restart: `docker compose restart bondlens`; stop without deleting history: `docker compose down`.
 - The service is `bondlens`, container `bondlens-demo`, image `bondlens:local`; port mapping is `${BOND_BIND_HOST:-127.0.0.1}:${BOND_HOST_PORT:-8765}:5000`. The default loopback binding keeps the workbench local-machine-only; to expose it on a LAN or behind a reverse proxy, set `BOND_BIND_HOST` explicitly (e.g. `0.0.0.0` or a LAN IP) and put an authenticating reverse proxy in front first. Inside the container Gunicorn still listens on `0.0.0.0:5000`.
 - Native Linux deployment can use `gunicorn --workers 1 --threads 4 --timeout 180 -b 127.0.0.1:5000 app:app`. Gunicorn is not supported on Windows; use Docker there for this deployment setup.
-- `BOND_REPLAY_ENABLED` controls replay summaries. `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` override storage roots; keep Docker overrides under `/app/.tmp` to retain volume persistence.
+- `BOND_REPLAY_ENABLED` controls history. `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` override storage roots; defaults are `.tmp/replays` and `.tmp/evidence_packs`. Keep Docker overrides under `/app/.tmp` to retain volume persistence. History stores a sanitized derived result (maximum 2 MiB), including bounded result rows, not the raw uploaded file or complete table. Imported free text and bond names are omitted from saved projections and cannot be recovered; other redaction is best-effort, so do not enter secrets or sensitive identifiers in questions or bond names. No automatic historical deletion is performed.
 - Optional host Ollama from Docker: set `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`, `OPENAI_MODEL` to an installed model, and `OPENAI_API_STYLE=chat`. No paid model is required. Demo scripts clear `OPENAI_*` unless `BOND_DEMO_WITH_LLM=1` is explicitly set.
 - Update dependencies intentionally: `uv pip compile requirements.txt --python-version 3.12 --universal --output-file requirements.lock`, then validate before rebuilding.
 
@@ -114,7 +114,7 @@ BondLens strictly separates **deterministic financial computation** (tools never
 | **Agent core** | Single path: Planner → Tools → Evidence → Report |
 | **Deterministic tools** | 7 public operators: `search_bonds`, `describe_market`, `rank_bonds`, `detect_yield_outliers`, `compare_bond_to_market`, `build_market_monitor`, `generate_bond_report` |
 | **Trust layer** | Numeric + language guardrail · answer judge · Trust score · Evidence Pack · replay store · risk profile |
-| **Evals** | ~213 pytest cases (212 passed / 1 skipped baseline) · Docker `/healthz` in CI; see badges above for the live run. |
+| **Evals** | Latest isolated Windows local pytest: 248 passed / 1 skipped; 212 passed / 1 skipped was an older baseline. For current CI status, see the badge above. |
 | **Data** | AkShare live → cached snapshot → static Excel, with explicit lineage and maturity coverage board |
 | **Product surface** | Flask + Jinja · zh-default / en switch (query+cookie) · SSE soft-render · CI + GitHub Pages |
 
@@ -122,7 +122,7 @@ BondLens strictly separates **deterministic financial computation** (tools never
 
 ### Product surfaces (answer-first)
 
-- **Research workbench (homepage)**: four entries — 市场观察 (`/market`, source/caliber-honest overview), 债券筛选 (`/screen`, filter/sort/paginate, rows link into single-bond research), 单券研究 (`/bond`, quote + same-timepoint peer comparison), 研究历史 (`/replay`)
+- **Research workbench**: five navigation entries — Market (`/market`), Screener (`/screen`), Bond Study (`/bond`), AI Research (`/agent`), and Research History (`/replay`, searchable and filterable table with pagination).
 - **Answer Snapshot** + SSE soft final render: tool-step progress, token preview, final summary card without forced full-page reload; share/full board still via `result_url`
 - **Bilingual UI (zh default)** + maturity/residual boards: high yield / low volume / yield outliers / missing maturity; same-type + same-bucket peer comparison
 - **Trust score + stress view + audit folds**: guardrail / judge / risk / ledger behind `<details>`; research-history page for past runs
@@ -186,14 +186,14 @@ Current product shots live in `docs/screenshots/current/`; the root screenshots 
     <td width="50%">
       <img src="docs/screenshots/current/12-agent-soft-result.png" alt="Natural-language analysis result: final answer first, provenance folded, AI-not-requested marker">
       <br><strong>Optional NL analysis — /agent</strong>
-      <br>Deterministic final answer first; lineage and provenance fold into details.
+      <br>Previous UI screenshot; the current view leads with conclusions and metrics, with the full answer folded.
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/current/08-replay-dashboard.png" alt="Research history page: run time, question, source line and technical details folded (English UI)">
       <br><strong>Can audit — research history / evidence path</strong>
-      <br>Research history page for past runs (traceable output, summaries only).
+      <br>Previous UI screenshot; the current history page is a searchable, filterable, paginated table of run summaries.
     </td>
     <td width="50%">
       <br><em>Older gallery shots (01–07) are kept in the folder for reference but no longer shown here.</em>
@@ -244,7 +244,7 @@ export PORT=8765
 export BOND_DATA_MODE=auto   # live first, then snapshot, then static
 python app.py
 # force live: BOND_DATA_MODE=live
-# watch data_source.runtime_mode, maturity board, and trust score when live degrades
+# in auto mode, inspect data_source.runtime_mode and fallback reason; live mode returns an error instead
 ```
 
 On-demand AI interpretation (optional; even when configured it takes an explicit "Generate AI interpretation" click on the result page to fire a single request):
@@ -448,8 +448,8 @@ Final fallback: data/testdata.xlsx
 Modes:
 
 ```text
-auto   -> live first, cached snapshot second, local fallback third
-live   -> live source requested; fallback reason shown if it degrades
+auto   -> live first, cached snapshot second, local fallback third; shows fallback reason
+live   -> strictly real-time; failure returns an error, never a snapshot or static fallback
 static -> local Excel only
 ```
 

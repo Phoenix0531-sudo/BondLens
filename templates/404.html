@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}404 · BondLens{% endblock %}
+{% block content %}
+<section class="wb-panel card" aria-labelledby="not-found-title">
+  <div class="wb-panel-body">
+    <h1 id="not-found-title" class="page-heading" data-lang-zh="页面不存在" data-lang-en="Page not found">页面不存在</h1>
+    <p data-lang-zh="该页面不存在或地址有误。请检查地址，或返回市场观察。" data-lang-en="This page does not exist or the address is incorrect. Check the address or return to Market Overview.">该页面不存在或地址有误。请检查地址，或返回市场观察。</p>
+    <a class="wb-button btn btn-primary" href="/market" data-lang-zh="返回市场观察" data-lang-en="Return to Market Overview">返回市场观察</a>
+  </div>
+</section>
+{% endblock %}

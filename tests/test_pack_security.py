@@ -36,6 +36,17 @@ def test_configured_pack_root_still_works(pack_roots):
     assert response.get_json() == {"ok": True}
 
 
+def test_replay_marks_only_existing_pack_formats_available(pack_roots):
+    allowed, _ = pack_roots
+    (allowed / "example.html").write_text("example", encoding="utf-8")
+    replay = web._build_replay_view({"evidence_pack_id": "example"}, "zh")
+    assert replay["pack_html_available"] is True
+    assert replay["pack_json_available"] is False
+    missing = web._build_replay_view({"evidence_pack_id": "missing"}, "zh")
+    assert missing["pack_html_available"] is False
+    assert missing["pack_json_available"] is False
+
+
 def test_symlink_cannot_escape_download_root(pack_roots):
     allowed, private = pack_roots
     target = private / "secret.json"

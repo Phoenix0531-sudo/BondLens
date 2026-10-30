@@ -34,9 +34,9 @@ python app.py
 # 打开 http://127.0.0.1:5000/（市场工作台首页；/agent 为智能体控制台）。
 ```
 
-运行测试或开发时，使用 `python -m pip install -r requirements.lock -r requirements-dev.txt` 同时安装锁定的运行依赖与开发附加依赖；单独安装 `requirements-dev.txt` 不包含运行依赖。
+运行测试或开发时，使用 `python -m pip install -r requirements.lock -r requirements-dev.txt` 同时安装锁定的运行依赖与开发附加依赖；单独安装 `requirements-dev.txt` 不包含运行依赖。本工作树最近一次 Windows 隔离回归为 **248 passed、1 skipped**；这是本地证据，不代表托管 CI 或实时供应商已验证。
 
-配置从进程环境变量读取，选项见 `.env.example`。`python app.py` 仅用于本地开发；部署使用 `docker compose up --build`。Compose 端口映射默认绑定 `127.0.0.1`（`BOND_BIND_HOST`），即仅本机可访问；确需局域网或反代开放时，请显式设置绑定地址并自行部署带认证的反向代理。回环默认是安全默认值，不是完整的安全防护。容器以非 root 用户运行，采用单 Gunicorn 进程、四线程；结果缓存仍在进程内，不应直接增加 worker 数。结果链接在 30 分钟后或服务重启后失效；证据包与回放摘要保存在 Compose 的 `bondlens-data` 卷，重启保留，需要长期历史时备份该卷，勿执行会删除卷的 `docker compose down -v`。
+配置从进程环境变量读取，选项见 `.env.example`。`python app.py` 仅用于本地开发；部署使用 `docker compose up --build`。Compose 端口映射默认绑定 `127.0.0.1`（`BOND_BIND_HOST`），即仅本机可访问；确需局域网或反代开放时，请显式设置绑定地址并自行部署带认证的反向代理。回环默认是安全默认值，不是完整的安全防护。容器以非 root 用户运行，采用单 Gunicorn 进程、四线程；结果缓存仍在进程内，不应直接增加 worker 数。临时结果链接在 30 分钟后或服务重启后失效；成功持久化的版本化研究历史与证据包保存在 Compose 的 `bondlens-data` 卷，重启保留，旧摘要不能恢复完整原结果，需要长期历史时备份该卷，勿执行会删除卷的 `docker compose down -v`。
 
 ### 部署与维护
 
@@ -45,7 +45,7 @@ python app.py
 - 启动：`docker compose up --build -d`；日志：`docker compose logs --tail=100 bondlens`；重启：`docker compose restart bondlens`；停止并保留历史：`docker compose down`。
 - 服务名 `bondlens`、容器名 `bondlens-demo`、镜像 `bondlens:local`；端口映射 `${BOND_BIND_HOST:-127.0.0.1}:${BOND_HOST_PORT:-8765}:5000`。默认回环绑定即仅本机可访问；如需局域网或反向代理开放，请显式设置 `BOND_BIND_HOST`（如 `0.0.0.0` 或内网地址），并先自行部署带认证的反向代理。容器内 Gunicorn 仍监听 `0.0.0.0:5000`。
 - 原生 Linux 可运行 `gunicorn --workers 1 --threads 4 --timeout 180 -b 127.0.0.1:5000 app:app`。Gunicorn 不支持 Windows；此部署方案在 Windows 使用 Docker。
-- `BOND_REPLAY_ENABLED` 控制回放摘要；`BOND_REPLAY_DIR` 与 `BOND_EVIDENCE_PACK_DIR` 可覆盖保存目录，在 Docker 中应保持在 `/app/.tmp` 下以使用持久卷。
+- `BOND_REPLAY_ENABLED` 控制历史；`BOND_REPLAY_DIR` 与 `BOND_EVIDENCE_PACK_DIR` 可覆盖保存目录，默认分别为 `.tmp/replays` 与 `.tmp/evidence_packs`，Docker 中应保持在 `/app/.tmp` 下以使用持久卷。历史保存脱敏后的派生结果及有限结果行（上限 2 MiB），不保存原上传文件或整表；导入来源的自由文本及债券名称在保存投影时省略，无法恢复；其他脱敏仅为尽力处理，请勿在问题或债券名称中输入密钥或敏感标识。不会自动删除旧历史。
 - Docker 连接宿主机 Ollama：设置 `OPENAI_BASE_URL=http://host.docker.internal:11434/v1`、`OPENAI_MODEL` 为已安装模型、`OPENAI_API_STYLE=chat`；不需要付费模型。演示脚本默认清空 `OPENAI_*`，仅显式设置 `BOND_DEMO_WITH_LLM=1` 时透传。
 - 有意升级依赖时运行 `uv pip compile requirements.txt --python-version 3.12 --universal --output-file requirements.lock`，验证后再重建。
 
@@ -122,7 +122,7 @@ BondLens 严格区分 **确定性金融计算**（工具不编造数字）与 **
 
 ### 产品面（答案优先）
 
-- **研究工作台（首页）**：四大入口 —— 市场观察（`/market`，来源与口径如实标注的整体画像）、债券筛选（`/screen`，筛选/排序/分页，行可进入单券研究）、单券研究（`/bond`，行情 + 同一时点同业对比）、研究历史（`/replay`）
+- **研究工作台**：五个导航入口 —— 市场观察（`/market`）、债券筛选（`/screen`）、单券研究（`/bond`）、智能体研究（`/agent`）、研究历史（`/replay`，表格支持搜索、筛选与分页）。
 - **Answer Snapshot** + SSE 软终渲染：工具步骤进度、token 预览、最终摘要卡，无需强制整页刷新；完整看板仍走 `result_url`
 - **双语界面（默认中文）** + 期限/残期看板：高收益 / 低成交 / 收益异常 / 缺期限；同券种 + 同分桶同业利差
 - **信任分 + 压力视图 + 审计折叠**：护栏 / 评审 / 风险 / 账本收在 details 后；研究历史页可查过去运行
@@ -186,14 +186,14 @@ flowchart TD
     <td width="50%">
       <img src="docs/screenshots/current/12-agent-soft-result.png" alt="自然语言分析结果页：最终回答在前，来源与血缘折叠，标注未请求 AI">
       <br><strong>可选自然语言分析 — /agent</strong>
-      <br>确定性最终回答在前；血缘与来源折入详情。
+      <br>此前版本截图；当前界面优先展示结论与指标，完整回答默认折叠。
     </td>
   </tr>
   <tr>
     <td width="50%">
       <img src="docs/screenshots/current/08-replay-dashboard.png" alt="研究历史页：运行时间、问题、来源行与技术详情折叠（英文界面）">
       <br><strong>可审 — 研究历史 / 证据路径</strong>
-      <br>历史运行研究页（可追溯输出，仅存摘要）。
+      <br>此前版本截图；当前历史页以表格展示运行摘要，支持搜索、筛选与分页。
     </td>
     <td width="50%">
       <br><em>旧图库（01–07）保留在目录中供参考，不再在此展示。</em>
@@ -244,7 +244,7 @@ export PORT=8765
 export BOND_DATA_MODE=auto   # 实时优先，失败后快照/本地
 python app.py
 # 强制实时：BOND_DATA_MODE=live
-# 观察 data_source.runtime_mode、期限补全看板与信任分在降级时的变化
+# auto 模式下观察 data_source.runtime_mode 和回退原因；live 模式失败时直接报错
 ```
 
 按需 AI 解读（可选，配置后仍需在结果页显式点击「生成 AI 解读」才发起单次请求）：
@@ -449,8 +449,8 @@ GET  /api/data/source        # 当前数据源身份与可用列
 模式：
 
 ```text
-auto   -> 实时优先，快照次之，本地兜底
-live   -> 请求实时；降级时展示 fallback 原因
+auto   -> 实时优先，快照次之，本地兜底；展示回退原因
+live   -> 严格实时；失败即报错，绝不降级到快照或本地样本
 static -> 仅本地 Excel
 ```
 

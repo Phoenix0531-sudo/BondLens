@@ -104,6 +104,35 @@ def _clean_inflight():
     app_module._BOND_EXPLAIN_CACHE.clear()
 
 
+def test_normal_research_routes_never_create_model_client(monkeypatch, tmp_path):
+    monkeypatch.setenv('BOND_REPLAY_DIR', str(tmp_path / 'history'))
+    monkeypatch.setenv('BOND_EVIDENCE_PACK_DIR', str(tmp_path / 'packs'))
+    monkeypatch.setattr(BondAnalystAgent, '_create_openai_client', lambda *a, **kw: pytest.fail('unexpected model call'))
+    client = _client()
+    payload = {'question': '概览当前市场', 'data_mode': 'static'}
+    query = client.post('/api/agent/query', json=payload)
+    assert query.status_code == 200 and query.get_json()['used_llm'] is False
+    stream = client.post('/api/agent/stream', json=payload)
+    assert b'event: final' in stream.data and b'event: error' not in stream.data
+    assert client.post('/agent', data=payload).status_code == 200
+    assert client.get('/api/market/overview?data_mode=static').status_code == 200
+    assert client.get('/api/bond/detail?data_mode=static&name=23附息国债26').status_code == 200
+
+
+def test_stream_failure_has_error_terminal(monkeypatch):
+    class FailingAgent:
+        def iter_answer_events(self, *args, **kwargs):
+            yield {'type': 'status', 'stage': 'tool', 'message_zh': 'running'}
+            raise TimeoutError('private provider details')
+
+    monkeypatch.setattr(app_module, '_get_agent', lambda mode: FailingAgent())
+    response = _client().post('/api/agent/stream', json={'question': 'test', 'data_mode': 'static'})
+    assert b'event: status' in response.data
+    assert b'event: error' in response.data
+    assert b'event: final' not in response.data
+    assert b'private provider details' not in response.data
+
+
 def test_explain_requires_identifier():
     resp = _client().post("/api/agent/explain", json={})
     assert resp.status_code == 400

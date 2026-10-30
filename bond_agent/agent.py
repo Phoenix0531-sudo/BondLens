@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
 import re
 import time
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pandas as pd
@@ -16,7 +18,7 @@ from .evidence_pack import export_evidence_pack
 from .evidence_quality import assess_evidence_quality
 from .llm_guardrail import assess_llm_faithfulness
 from .planner import classify_intent
-from .replay_store import save_replay
+from .replay_store import _new_replay_id, project_result, save_replay
 from .risk_knowledge import retrieve_risk_explanations
 from .risk_profile import build_risk_profile
 from .schemas import AgentResponse
@@ -1153,7 +1155,8 @@ class BondAnalystAgent:
             "evidence_pack_paths": None,
         }
         validated = AgentResponse.model_validate(response).model_dump(mode="json")
-        pack_meta = self._maybe_export_evidence_pack(validated)
+        validated["replay_id"] = _new_replay_id()
+        pack_meta = self._maybe_export_evidence_pack(project_result(validated))
         if pack_meta:
             validated["evidence_pack_id"] = pack_meta.get("id")
             validated["evidence_pack_paths"] = {
@@ -1163,8 +1166,16 @@ class BondAnalystAgent:
         replay_record = save_replay(validated)
         if replay_record:
             validated["replay_id"] = replay_record["id"]
-            if not validated.get("evidence_pack_id"):
-                validated["evidence_pack_id"] = replay_record["id"]
+        else:
+            if pack_meta:
+                for key in ("json_path", "html_path"):
+                    if pack_meta.get(key):
+                        with contextlib.suppress(OSError):
+                            Path(pack_meta[key]).unlink(missing_ok=True)
+                validated["evidence_pack_id"] = None
+                validated["evidence_pack_paths"] = None
+            validated["replay_id"] = None
+            validated["limitations"].append("研究历史未能保存；当前结果仅在临时缓存中可用。 / History could not be saved; this result is temporary.")
         validated = AgentResponse.model_validate(validated).model_dump(mode="json")
         yield {"type": "final", "result": validated}
 

@@ -8,6 +8,45 @@ from bond_agent.tools import (
 )
 
 
+def test_peer_comparison_excludes_other_quote_dates():
+    import pandas as pd
+
+    from bond_agent.data_loader import MATURITY, MATURITY_YEARS, QUOTE_TIME
+    frame = pd.DataFrame({BOND_NAME: ['23国债01', '23国债02', '23国债03'],
+                          YIELD: [2.0, 3.0, 8.0], VOLUME: [1, 1, 1],
+                          MATURITY: ['2Y', '2Y', '2Y'], MATURITY_YEARS: [2.0, 2.0, 2.0],
+                          QUOTE_TIME: ['2024-03-22', '2024-03-22', '2024-03-21']})
+    result = compare_bond_to_market(bond_name='23国债01', data_frame=frame)
+    assert result['peer_comparison']['quote_date'] == '2024-03-22'
+    assert result['peer_comparison']['peer_count'] == 1
+    assert result['peer_comparison']['peer_yield_mean'] == 3.0
+
+
+def test_peer_definition_explicitly_discloses_missing_dates():
+    import pandas as pd
+
+    from bond_agent.data_loader import MATURITY_YEARS
+    frame = pd.DataFrame({BOND_NAME: ['23国债01', '23国债02'], YIELD: [2.0, 3.0],
+                          VOLUME: [1, 1], MATURITY_YEARS: [2.0, 2.0]})
+    peer = compare_bond_to_market(bond_name='23国债01', data_frame=frame)['peer_comparison']
+    assert peer['quote_date'] is None
+    assert peer['peer_count'] == 1
+    assert '无法核验同日' in peer['peer_definition_zh']
+
+
+def test_nonfinite_quotes_excluded_but_negative_yield_kept():
+    import pandas as pd
+
+    from bond_agent.data_loader import MATURITY_YEARS
+    frame = pd.DataFrame({BOND_NAME: ['23国债01', '23国债02', '23国债03'],
+                          YIELD: [-0.5, float('inf'), float('nan')],
+                          VOLUME: [1, 2, 3], MATURITY_YEARS: [2, -1, float('inf')]})
+    summary = describe_market(data_frame=frame)['yield_summary']
+    assert summary['count'] == 1
+    assert summary['min'] == -0.5
+    assert len(rank_bonds(data_frame=frame)['records']) == 1
+
+
 def test_describe_market_returns_core_statistics():
     result = describe_market()
 

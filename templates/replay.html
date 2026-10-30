@@ -1,155 +1,41 @@
 {% extends 'base.html' %}
-
 {% block title %}BondLens 研究历史{% endblock %}
-
-{% block styles %}
-<style>
-  .replay-lead {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 16px;
-    flex-wrap: wrap;
-    margin-bottom: 18px;
-  }
-
-  .replay-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .replay-card {
-    padding: 16px 18px;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    box-shadow: var(--shadow);
-  }
-
-  .replay-when {
-    margin: 0 0 6px;
-    color: var(--muted);
-    font-size: 13.5px;
-    line-height: 1.5;
-  }
-
-  .replay-card h2 {
-    margin: 0 0 8px;
-    font-size: 16.5px;
-    line-height: 1.45;
-    font-weight: 650;
-    color: #2c333d;
-  }
-
-  .replay-card p {
-    margin: 0;
-    color: var(--muted);
-    font-size: 14px;
-    line-height: 1.55;
-  }
-
-  .replay-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 10px;
-  }
-
-  .replay-actions a {
-    padding: 5px 10px;
-    border: 1px solid var(--line);
-    background: #f5f6f8;
-    color: #34424f;
-    font-size: 13px;
-    text-decoration: none;
-  }
-
-  .replay-actions a:hover {
-    border-color: #34424f;
-  }
-
-  .replay-tech {
-    margin-top: 12px;
-    border-top: 1px solid var(--line);
-    padding-top: 8px;
-  }
-
-  .replay-tech summary {
-    color: #34424f;
-    font-size: 13.5px;
-    font-weight: 600;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .replay-tech ul {
-    margin: 10px 0 2px;
-    padding-left: 18px;
-  }
-
-  .replay-tech li {
-    margin: 4px 0;
-    color: var(--muted);
-    font-size: 13.5px;
-    line-height: 1.55;
-  }
-
-  .empty-state {
-    padding: 24px;
-    border: 1px solid var(--line);
-    background: var(--surface);
-    color: var(--muted);
-  }
-</style>
-{% endblock %}
 {% block content %}
-
 <h1 class="page-heading" data-lang-zh="研究历史" data-lang-en="Research history">研究历史</h1>
-<p class="page-subtitle" data-lang-zh="最近研究运行的持久摘要：研究问题、数据来源与行情日期、证据包。完整结果页约 30 分钟缓存，过期后仅本页摘要与证据包可查，可一键重新运行该问题；AI 解读仅在显式请求时发生。" data-lang-en="Persistent summaries of recent research runs: question, data source and quote date, evidence pack. Full result pages are cached for about 30 minutes; afterwards only this summary and the evidence pack remain viewable, and the question can be re-run in one click. AI interpretation only ever happens on explicit request.">最近研究运行的持久摘要：研究问题、数据来源与行情日期、证据包。完整结果页约 30 分钟缓存，过期后仅本页摘要与证据包可查，可一键重新运行该问题；AI 解读仅在显式请求时发生。</p>
-
-{% if replays %}
-  <section class="replay-list">
-    {% for replay in replays %}
-      <article class="replay-card">
-        <p class="replay-when" data-lang-zh="运行时间 {{ replay.created_display }} · 数据：{{ replay.source_line_zh }}" data-lang-en="Run {{ replay.created_display }} · Data: {{ replay.source_line_en }}">运行时间 {{ replay.created_display }} · 数据：{{ replay.source_line_zh }}</p>
-        <h2>{{ replay.question }}</h2>
-        <p data-lang-zh="研究意图：{{ replay.intent_label_zh }}；主要工具：{{ replay.tool_labels_zh }}" data-lang-en="Intent: {{ replay.intent_label_en }}; tools: {{ replay.tool_labels_en }}">研究意图：{{ replay.intent_label }}；主要工具：{{ replay.tool_labels }}</p>
-        <div class="replay-actions">
-          {% if replay.question %}
-            <a href="/agent?question={{ replay.question | urlencode }}" data-lang-zh="重新运行该问题" data-lang-en="Re-run this question">重新运行该问题</a>
-          {% endif %}
-          {% if replay.evidence_pack_id %}
-            <a href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='html') }}" target="_blank" rel="noopener" data-lang-zh="打开证据包 (HTML)" data-lang-en="Open evidence pack (HTML)">打开证据包 (HTML)</a>
-            <a href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='json') }}" data-lang-zh="下载证据包 (JSON)" data-lang-en="Download evidence pack (JSON)">下载证据包 (JSON)</a>
-          {% else %}
-            <span class="replay-when" data-lang-zh="本次运行未生成证据包。" data-lang-en="No evidence pack was generated for this run.">本次运行未生成证据包。</span>
-          {% endif %}
-        </div>
-        <details class="replay-tech">
-          <summary data-lang-zh="技术详情（信任分 / 证据评分 / AI 使用 / 风险与压力）" data-lang-en="Technical detail (trust / evidence score / AI usage / risk & stress)">技术详情（信任分 / 证据评分 / AI 使用 / 风险与压力）</summary>
-          <ul>
-            <li data-lang-zh="信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}/100（{{ replay.trust_score.level if replay.trust_score else 'n/a' }}）" data-lang-en="Trust score: {{ replay.trust_score.score if replay.trust_score else '—' }}/100 ({{ replay.trust_score.level if replay.trust_score else 'n/a' }})">信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}/100（{{ replay.trust_score.level if replay.trust_score else 'n/a' }}）</li>
-            <li data-lang-zh="证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}" data-lang-en="Evidence score: {{ replay.evidence_quality.score }}/100, level {{ replay.evidence_quality.level }}">证据评分：{{ replay.evidence_quality.score }}/100，等级 {{ replay.evidence_quality.level }}</li>
-            {% if replay.llm.status == 'disabled' %}
-              <li data-lang-zh="AI 解读：未请求（按需；结论为确定性计算，不依赖模型）" data-lang-en="AI interpretation: not requested (on-demand; the conclusion is deterministic and never depends on a model)">AI 解读：未请求（按需；结论为确定性计算，不依赖模型）</li>
-            {% elif replay.llm.status == 'success' %}
-              <li data-lang-zh="AI 解读：已生成（数值护栏 {{ replay.llm.guardrail_status }}）" data-lang-en="AI interpretation: generated (numeric guardrail {{ replay.llm.guardrail_status }})">AI 解读：已生成（数值护栏 {{ replay.llm.guardrail_status }}）</li>
-            {% else %}
-              <li data-lang-zh="AI 解读：{{ replay.llm.status }}（护栏 {{ replay.llm.guardrail_status }}）" data-lang-en="AI interpretation: {{ replay.llm.status }} (guardrail {{ replay.llm.guardrail_status }})">AI 解读：{{ replay.llm.status }}（护栏 {{ replay.llm.guardrail_status }}）</li>
-            {% endif %}
-            <li data-lang-zh="最终答案：{{ replay.llm.final_answer_source }}" data-lang-en="Final answer: {{ replay.llm.final_answer_source }}">最终答案：{{ replay.llm.final_answer_source }}</li>
-            <li data-lang-zh="风险：{{ replay.risk.summary_zh }}" data-lang-en="Risk: {{ replay.risk.summary_en }}">风险：{{ replay.risk.summary_zh }}</li>
-            {% if replay.stress_view and replay.stress_view.severity %}
-              <li data-lang-zh="运行压力：{{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %}（建议复核）{% endif %}" data-lang-en="Stress: {{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %} (review recommended){% endif %}">运行压力：{{ replay.stress_view.severity }}{% if replay.stress_view.requires_review %}（建议复核）{% endif %}</li>
-            {% endif %}
-            <li class="replay-meta" data-lang-zh="记录 ID：{{ replay.id }}" data-lang-en="Record ID: {{ replay.id }}">记录 ID：{{ replay.id }}</li>
-          </ul>
-        </details>
-      </article>
-    {% endfor %}
-  </section>
-{% else %}
-  <section class="empty-state">
-    <p data-lang-zh="还没有研究历史。先到智能体页面运行一次查询，这里会自动出现最近运行的摘要。" data-lang-en="No research history yet. Run a query on the Agent page and recent run summaries will appear here automatically.">还没有研究历史。先到智能体页面运行一次查询，这里会自动出现最近运行的摘要。</p>
-  </section>
-{% endif %}
+<p class="page-subtitle" data-lang-zh="最近研究运行的持久摘要；时间按浏览器本地时区显示。" data-lang-en="Recent research summaries; times use your browser's local timezone.">最近研究运行的持久摘要；时间按浏览器本地时区显示。</p>
+<section class="replay-workbench" data-replay-workbench>
+  <p><span data-lang-zh="记录总数" data-lang-en="Total records">记录总数</span>：<strong data-replay-total>{{ replays|length }}</strong></p>
+  <div class="replay-filters">
+    <label><span data-lang-zh="搜索问题" data-lang-en="Search questions">搜索问题</span> <input type="search" data-replay-search></label>
+    <label><span data-lang-zh="时间" data-lang-en="Time">时间</span> <select data-replay-time><option value="" data-lang-zh="全部" data-lang-en="All">全部</option><option value="7" data-lang-zh="最近 7 天" data-lang-en="Last 7 days">最近 7 天</option><option value="30" data-lang-zh="最近 30 天" data-lang-en="Last 30 days">最近 30 天</option></select></label>
+    <label><span data-lang-zh="来源" data-lang-en="Source">来源</span> <select data-replay-source>{% set namespace_sources = namespace(items=[]) %}<option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for replay in replays if replay.data_runtime_label_zh %}{% if replay.data_runtime_label_zh not in namespace_sources.items %}{% set _ = namespace_sources.items.append(replay.data_runtime_label_zh) %}<option value="{{ replay.data_runtime_label_zh }}" data-lang-zh="{{ replay.data_runtime_label_zh }}" data-lang-en="{{ replay.data_runtime_label_en }}">{{ replay.data_runtime_label_zh }}</option>{% endif %}{% endfor %}</select></label>
+    <label><span data-lang-zh="AI 状态" data-lang-en="AI status">AI 状态</span> <select data-replay-status><option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for status in replays|map(attribute='llm.status')|unique %}<option value="{{ status }}">{{ status or '—' }}</option>{% endfor %}</select></label>
+    <label><span data-lang-zh="排序" data-lang-en="Sort">排序</span> <select data-replay-sort><option value="desc" data-lang-zh="最新优先" data-lang-en="Newest first">最新优先</option><option value="asc" data-lang-zh="最早优先" data-lang-en="Oldest first">最早优先</option></select></label>
+  </div>
+  <div class="replay-table-wrap"><table class="replay-table"><thead><tr><th data-lang-zh="研究时间（本地）" data-lang-en="Time (local)">研究时间（本地）</th><th data-lang-zh="研究问题" data-lang-en="Question">研究问题</th><th class="replay-secondary" data-lang-zh="数据来源" data-lang-en="Source">数据来源</th><th class="replay-secondary" data-lang-zh="状态" data-lang-en="Status">状态</th><th data-lang-zh="操作" data-lang-en="Actions">操作</th></tr></thead><tbody>
+  {% for replay in replays %}
+    <tr data-replay-row data-created="{{ replay.created_at or '' }}" data-source="{{ replay.data_runtime_label_zh }}" data-status="{{ replay.llm.status or '' }}" data-question="{{ replay.question or '' }}">
+      <td><time datetime="{{ replay.created_at or '' }}" data-replay-date>{{ replay.created_display }}</time></td>
+      <td class="replay-question" title="{{ replay.question or '' }}">{{ replay.question or '—' }}</td>
+      <td class="replay-secondary" data-lang-zh="{{ replay.source_line_zh }}" data-lang-en="{{ replay.source_line_en }}">{{ replay.source_line_zh }}</td><td class="replay-secondary">{{ replay.llm.status or '—' }}</td>
+      <td><details><summary data-lang-zh="详情" data-lang-en="Details">详情</summary><div class="replay-detail">
+        <p>{{ replay.question or '—' }}</p><p data-lang-zh="{{ replay.source_line_zh }}" data-lang-en="{{ replay.source_line_en }}">{{ replay.source_line_zh }}</p>
+        <p data-lang-zh="研究意图：{{ replay.intent_label_zh }}；主要工具：{{ replay.tool_labels_zh }}" data-lang-en="Intent: {{ replay.intent_label_en }}; tools: {{ replay.tool_labels_en }}">研究意图：{{ replay.intent_label_zh }}；主要工具：{{ replay.tool_labels_zh }}</p>
+        <p>AI: {{ replay.llm.status or '—' }} · {{ replay.llm.final_answer_source or '—' }} · {{ replay.llm.guardrail_status or '—' }}</p>
+        <p data-lang-zh="信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}；证据评分：{{ replay.evidence_quality.score }}；风险：{{ replay.risk.summary_zh }}" data-lang-en="Trust: {{ replay.trust_score.score if replay.trust_score else '—' }}; evidence: {{ replay.evidence_quality.score }}; risk: {{ replay.risk.summary_en }}">信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}；证据评分：{{ replay.evidence_quality.score }}；风险：{{ replay.risk.summary_zh }}</p>
+        <p>{{ replay.id }}{% if replay.stress_view.severity %} · {{ replay.stress_view.severity }}{% endif %}</p>
+        {% if replay.restorable %}<a href="{{ url_for('replay_result', replay_id=replay.id, lang=current_lang) }}" data-lang-zh="查看当时原始结果" data-lang-en="View original result">查看当时原始结果</a>{% else %}<span data-lang-zh="仅摘要，原始结果不可恢复" data-lang-en="Summary only; original result unavailable">仅摘要，原始结果不可恢复</span>{% endif %}
+        {% if replay.question %}<a data-replay-rerun href="{{ url_for('agent_page', question=replay.question, data_mode=request.args.get('data_mode') or 'auto', lang=current_lang, import_id=request.args.get('import_id') or none) }}" data-lang-zh="重新运行该问题" data-lang-en="Re-run question">重新运行该问题</a>{% endif %}
+        {% if replay.evidence_pack_id %}
+          {% if replay.pack_html_available %}<a href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='html') }}" target="_blank" rel="noopener">HTML</a>{% else %}<span aria-disabled="true" data-lang-zh="HTML 文件不存在" data-lang-en="HTML file missing">HTML 文件不存在</span>{% endif %}
+          {% if replay.pack_json_available %}<a href="{{ url_for('evidence_pack_file', pack_id=replay.evidence_pack_id, ext='json') }}">JSON</a>{% else %}<span aria-disabled="true" data-lang-zh="JSON 文件不存在" data-lang-en="JSON file missing">JSON 文件不存在</span>{% endif %}
+        {% else %}<span data-lang-zh="未生成证据包" data-lang-en="No evidence pack generated">未生成证据包</span>{% endif %}
+      </div></details></td>
+    </tr>
+  {% endfor %}
+  </tbody></table></div>
+  <p data-replay-empty hidden data-lang-zh="没有符合条件的记录。" data-lang-en="No matching records.">没有符合条件的记录。</p>
+  <div class="wb-pagination"><button type="button" data-replay-prev data-lang-zh="上一页" data-lang-en="Previous">上一页</button><span data-replay-page></span><button type="button" data-replay-next data-lang-zh="下一页" data-lang-en="Next">下一页</button></div>
+</section>
 {% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/replay.js') }}" defer></script>{% endblock %}

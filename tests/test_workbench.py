@@ -59,7 +59,7 @@ def test_topbar_has_four_primary_entries():
     html = client.get("/market?data_mode=static").get_data(as_text=True)
 
     assert 'href="/market"' in html
-    assert 'href="/screen"' in html
+    assert 'href="/screen?data_mode=static' in html
     assert 'href="/bond"' in html
     assert 'href="/replay"' in html
     assert 'href="/agent"' in html  # secondary entry stays available

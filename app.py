@@ -35,6 +35,7 @@ from bond_agent.data_loader import (
     PRICE,
     VOLUME,
     YIELD,
+    LiveDataUnavailable,
     records_from_frame,
     resolve_bond_data,
 )
@@ -47,7 +48,7 @@ from bond_agent.importer import (
     prepare_import_frame,
     read_table,
 )
-from bond_agent.replay_store import list_replays
+from bond_agent.replay_store import list_replays, load_replay
 from bond_agent.schemas import AgentQueryRequest, ApiError, HealthResponse, api_schema_bundle
 from bond_agent.taxonomy import annotate_frame
 from bond_agent.tools import compare_bond_to_market, describe_market, search_bonds
@@ -204,6 +205,7 @@ def import_dataset():
     except ValueError as exc:
         return jsonify(ApiError(error=str(exc)).model_dump(mode="json", exclude_none=True)), 400
     source = describe_import_source(frame, report)
+    source["source_name"] = "uploaded dataset"
     import_id = _store_import(frame, source)
     preview = records_from_frame(frame.head(10))
     return jsonify({
@@ -221,6 +223,14 @@ def _request_payload():
     if not isinstance(payload, dict):
         return None, (jsonify(error="Request body must be a valid JSON object."), 400)
     return payload, None
+
+
+@app.errorhandler(404)
+def page_not_found(error):
+    # Preserve the existing HTTP exception response for API and file routes.
+    if request.path.startswith(("/api/", "/packs/", "/static/")):
+        return error
+    return _with_language_cookie(render_template("404.html"), _resolve_language()), 404
 
 
 @app.errorhandler(413)
@@ -252,6 +262,13 @@ def inject_language_context():
 def healthz():
     response = HealthResponse(status="ok", service="BondLens", checks={"app": "ok"})
     return jsonify(response.model_dump(mode="json"))
+
+
+@app.errorhandler(LiveDataUnavailable)
+def handle_live_unavailable(exc):
+    if request.path.startswith("/api/"):
+        return jsonify(ApiError(error=str(exc)).model_dump(mode="json", exclude_none=True)), 502
+    return str(exc), 502
 
 
 @app.route("/agent", methods=["GET", "POST"])
@@ -349,7 +366,7 @@ def agent_query():
     include_view = bool(payload.get("include_view")) if isinstance(payload, dict) else False
     body = dict(result)
     body["result_id"] = result_id
-    body["result_url"] = url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode)
+    body["result_url"] = url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode, import_id=(import_entry[2] if import_entry else None))
     if include_view:
         body["view"] = _build_agent_view_model(result, lang=lang)
     return jsonify(body)
@@ -404,7 +421,7 @@ def agent_stream():
                     body = {
                         "type": "final",
                         "result_id": result_id,
-                        "result_url": url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode),
+                        "result_url": url_for("agent_page", result_id=result_id, lang=lang, data_mode=data_mode, import_id=(import_entry[2] if import_entry else None)),
                         "result": result,
                         "view": view,
                         "question": question,
@@ -428,6 +445,9 @@ def agent_stream():
                         "message_en": event.get("message_en"),
                     }
                     yield f"event: status\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
+        except LiveDataUnavailable as exc:
+            body = {"type": "error", "error": str(exc)}
+            yield f"event: error\ndata: {_json.dumps(body, ensure_ascii=False)}\n\n"
         except Exception:  # Log failures without leaking server details.
             app.logger.exception("Agent stream failed")
             body = {"type": "error", "error": "Analysis failed. Please retry or use local sample mode."}
@@ -732,6 +752,8 @@ def _resolve_active_market(frame, source, data_mode):
 
 
 def _market_resolution_error(exc: Exception):
+    if isinstance(exc, LiveDataUnavailable):
+        return jsonify(ApiError(error=str(exc)).model_dump(mode="json", exclude_none=True)), 502
     app.logger.exception("Workbench data resolution failed")
     return (
         jsonify(
@@ -1061,22 +1083,36 @@ def api_data_source():
     return jsonify(_json_safe(active_source))
 
 
+@app.route("/replay/<replay_id>")
+def replay_result(replay_id):
+    record = load_replay(replay_id)
+    if not record or record.get("schema_version") != 2 or not isinstance(record.get("result"), dict):
+        abort(404)
+    result = record["result"]
+    lang = _resolve_language()
+    view = _build_agent_view_model(result, lang=lang)
+    return _with_language_cookie(render_template(
+        "agent.html", result=result, view=view, question=record.get("question") or "",
+        data_mode=(record.get("data_source") or {}).get("requested_mode") or "auto",
+        form_error=None, lang=lang, result_id=None, historical=True,
+    ), lang)
+
+
 @app.route("/replay")
 def replay_page():
     lang = _resolve_language()
-    replays = [_build_replay_view(record, lang) for record in list_replays()]
+    replays = [_build_replay_view(record, lang) for record in list_replays(limit=None)]
     html = render_template("replay.html", replays=replays, lang=lang)
     return _with_language_cookie(html, lang)
 
 
-@app.route("/packs/<pack_id>.<ext>")
-def evidence_pack_file(pack_id: str, ext: str):
-    """Serve a previously exported Evidence Pack (JSON or HTML)."""
+def _find_evidence_pack(pack_id: str, ext: str) -> Path | None:
+    """Find a pack using the same server-controlled roots as the download route."""
     if ext not in {"json", "html"}:
-        abort(404)
-    safe_id = "".join(ch if ch.isalnum() or ch in {"-", "_"} else "-" for ch in pack_id).strip("-")
-    if not safe_id:
-        abort(404)
+        return None
+    safe_id = "".join(ch if ch.isascii() and (ch.isalnum() or ch in {"-", "_"}) else "" for ch in pack_id)
+    if not safe_id or safe_id != pack_id:
+        return None
     filename = f"{safe_id}.{ext}"
     search_dirs = []
     # Download roots are server-controlled; never accept filesystem paths from clients.
@@ -1088,9 +1124,18 @@ def evidence_pack_file(pack_id: str, ext: str):
         root = Path(directory).resolve()
         path = (root / filename).resolve()
         if path.parent == root and path.is_file():
-            mimetype = "application/json" if ext == "json" else "text/html"
-            return send_file(path, mimetype=mimetype, download_name=filename, as_attachment=ext == "json")
-    abort(404)
+            return path
+    return None
+
+
+@app.route("/packs/<pack_id>.<ext>")
+def evidence_pack_file(pack_id: str, ext: str):
+    """Serve a previously exported Evidence Pack (JSON or HTML)."""
+    path = _find_evidence_pack(pack_id, ext)
+    if path is None:
+        abort(404)
+    mimetype = "application/json" if ext == "json" else "text/html"
+    return send_file(path, mimetype=mimetype, download_name=path.name, as_attachment=ext == "json")
 
 
 @app.route("/api/maturity/unmatched", methods=["GET", "POST"])
@@ -1119,8 +1164,13 @@ def export_unmatched_maturity():
     if not isinstance(coverage, dict):
         return jsonify(error="maturity_coverage must be an object."), 400
     if not isinstance(records, list):
+        import_entry = _resolve_import_request({"import_id": request.args.get("import_id") or payload.get("import_id")})
+        if isinstance(import_entry, tuple) and len(import_entry) == 2:
+            return _import_error_response(import_entry[1], _resolve_language())
+        frame_override, source_override = (import_entry[0], import_entry[1]) if import_entry else (None, None)
         result = _get_agent(data_mode).answer(
-            payload.get("question") or "打开今日市场监控面板：高收益、低成交与异常"
+            payload.get("question") or "打开今日市场监控面板：高收益、低成交与异常",
+            data_frame=frame_override, data_source=source_override,
         )
         coverage = (result.get("data_source") or {}).get("maturity_coverage") or {}
         records = coverage.get("unmatched_records") or []
@@ -1361,8 +1411,8 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
             for item in (stress.get("signals") or [])
         ],
         "evidence_pack_id": pack_id,
-        "pack_html_url": f"/packs/{pack_id}.html" if pack_id else None,
-        "pack_json_url": f"/packs/{pack_id}.json" if pack_id else None,
+        "pack_html_url": f"/packs/{pack_id}.html" if pack_id and _find_evidence_pack(str(pack_id), "html") else None,
+        "pack_json_url": f"/packs/{pack_id}.json" if pack_id and _find_evidence_pack(str(pack_id), "json") else None,
         "yield_bars": _distribution_bars(market.get("yield_distribution") or {}),
         "segment_type_rows": (market.get("segments") or {}).get("by_bond_type") or [],
         "segment_bucket_rows": (market.get("segments") or {}).get("by_maturity_bucket") or [],
@@ -1463,6 +1513,10 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
 
 def _build_replay_view(record: dict, lang: str) -> dict:
     replay = {**record}
+    pack_id = record.get("evidence_pack_id")
+    replay["restorable"] = record.get("schema_version") == 2 and isinstance(record.get("result"), dict)
+    replay["pack_html_available"] = bool(pack_id and _find_evidence_pack(str(pack_id), "html"))
+    replay["pack_json_available"] = bool(pack_id and _find_evidence_pack(str(pack_id), "json"))
     tools = record.get("tools_used") or []
     replay["tool_labels"] = "、".join(_tool_label(tool, lang) for tool in tools)
     replay["tool_labels_zh"] = "、".join(_tool_label(tool, "zh") for tool in tools)
@@ -1481,7 +1535,7 @@ def _build_replay_view(record: dict, lang: str) -> dict:
     replay["created_display"] = f"{created[:16].replace('T', ' ')} UTC" if created else "—"
     source_name = str(data_source.get("source_name") or "").strip()
     row_count = data_source.get("row_count")
-    fetched_at = data_source.get("fetched_at")
+    fetched_at = data_source.get("quote_time") or data_source.get("sample_date") or data_source.get("fetched_at")
     runtime_zh = replay["data_runtime_label_zh"]
     runtime_en = replay["data_runtime_label_en"]
     parts_zh = []

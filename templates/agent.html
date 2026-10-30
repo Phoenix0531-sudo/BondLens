@@ -8,12 +8,10 @@
 {% endblock %}
 {% block content %}
 
-<div class="agent-hero">
+{% if historical %}<p class="data-notice" data-lang-zh="历史保存结果（只读，不重新请求数据）；为保护隐私，部分字段可能被省略或遮盖。重新分析请返回历史列表。" data-lang-en="Saved historical result (read-only; no data is fetched). Some fields may be omitted or redacted for privacy. Re-run from history.">历史保存结果（只读，不重新请求数据）；为保护隐私，部分字段可能被省略或遮盖。重新分析请返回历史列表。</p>{% endif %}
+<div class="agent-hero"{% if historical %} hidden{% endif %}>
   <section class="hero-copy">
-    <p class="eyebrow" data-lang-zh="BondLens / 债券研究" data-lang-en="BondLens / Fixed income research">BondLens / 债券研究</p>
-    <h1 data-lang-zh="从问题到证据" data-lang-en="From question to evidence">从问题到证据</h1>
-    <p class="hero-lead" data-lang-zh="查询收益与成交，比较债券，追踪异常。每个结论均可核对来源和计算证据。" data-lang-en="Explore yields and turnover, compare bonds, and investigate outliers. Check the sources and calculations behind each conclusion.">查询收益与成交，比较债券，追踪异常。每个结论均可核对来源和计算证据。</p>
-    <a class="action-link" href="/replay?lang={{ lang }}" data-lang-zh="查看历史分析 →" data-lang-en="Analysis history →">查看历史分析 →</a>
+    <h1 data-lang-zh="智能体研究" data-lang-en="AI Research">智能体研究</h1>
     <div class="example-strip" aria-label="示例问题" data-lang-zh-aria="示例问题" data-lang-en-aria="Example questions">
       <button type="button" class="example-chip" data-fill-question-zh="当前样本收益率分布是什么样？" data-fill-question-en="What does the current yield distribution look like?" data-lang-zh="当前样本收益率分布是什么样？" data-lang-en="What does the current yield distribution look like?">当前样本收益率分布是什么样？</button>
       <button type="button" class="example-chip" data-fill-question-zh="按收益率列出最高的前5只债券" data-fill-question-en="List the top 5 bonds by yield." data-lang-zh="按收益率列出最高的前5只债券" data-lang-en="List the top 5 bonds by yield.">按收益率列出最高的前5只债券</button>
@@ -37,6 +35,8 @@
         <textarea id="question" name="question" maxlength="4000" required placeholder="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-zh="例如：找出收益率最高的债券，并说明是否有异常收益率样本。" data-placeholder-en="Example: list the highest-yield bonds and explain whether any yield outliers appear.">{{ question }}</textarea>
       </div>
       <p id="data-mode-note" class="data-notice" role="status"></p>
+      <details class="agent-advanced">
+        <summary data-lang-zh="高级选项：数据源与上传" data-lang-en="Advanced: data source and upload">高级选项：数据源与上传</summary>
       <div class="console-config-grid" aria-label="Run configuration" data-lang-zh-aria="运行配置" data-lang-en-aria="Run configuration">
         <div class="form-field">
           <label for="data_mode" data-lang-zh="数据源模式" data-lang-en="Data source mode">数据源模式</label>
@@ -55,6 +55,7 @@
           <p id="import-status" class="data-notice" role="status" aria-live="polite" data-lang-zh="上传后仅在本机内存中解析，文件不会保存；缺少的字段会自动禁用相关分析。" data-lang-en="Uploads are parsed in memory only and never stored; missing fields disable the dependent analyses.">上传后仅在本机内存中解析，文件不会保存；缺少的字段会自动禁用相关分析。</p>
         </div>
       </div>
+      </details>
       <button class="run-button" type="submit" id="run-agent-button" data-lang-zh="开始分析" data-lang-en="Analyze" data-busy-zh="分析中，请稍候…" data-busy-en="Analyzing, please wait…">开始分析</button>
       <p class="form-wait-note" id="agent-wait-note" hidden data-lang-zh="正在分析，请勿重复提交。停止接收不会终止服务器计算。" data-lang-en="Analysis in progress. Do not submit again. Stopping receipt does not cancel server computation.">正在分析，请勿重复提交。停止接收不会终止服务器计算。</p>
       <div class="async-progress" id="agent-async-progress" role="status" aria-live="polite" hidden>
@@ -63,7 +64,7 @@
         <div class="async-progress-bar" aria-hidden="true"><span></span></div>
         <ol class="async-tool-steps" id="agent-tool-steps" aria-live="polite"></ol>
         <div class="async-stream-actions" id="agent-stream-actions" hidden>
-          <button type="button" class="cancel-button" id="agent-cancel-button" data-lang-zh="取消请求" data-lang-en="Cancel request">取消请求</button>
+          <button type="button" class="cancel-button" id="agent-cancel-button" data-lang-zh="停止接收" data-lang-en="Stop receiving">停止接收</button>
           <button type="button" class="ghost-button" id="agent-copy-stream-button" data-lang-zh="复制流式预览" data-lang-en="Copy stream preview" hidden>复制流式预览</button>
         </div>
         <pre class="async-stream-preview" id="agent-stream-preview" hidden></pre>
@@ -81,8 +82,15 @@
     </div>
     <div class="surface-body">
       <div class="soft-result-meta" id="agent-soft-meta"></div>
-      <h3 class="surface-title" style="font-size:16px;margin:10px 0 8px" data-lang-zh="最终回答" data-lang-en="Final answer">最终回答</h3>
-      <div class="soft-result-answer answer-box" id="agent-soft-answer"></div>
+      <section id="agent-soft-summary" hidden>
+        <h3 class="surface-title" data-lang-zh="研究结论" data-lang-en="Research conclusions">研究结论</h3>
+        <ol id="agent-soft-sentences"></ol>
+        <div class="metric-grid" id="agent-soft-metrics"></div>
+      </section>
+      <details id="agent-soft-full-answer">
+        <summary data-lang-zh="展开完整回答" data-lang-en="Expand full answer">展开完整回答</summary>
+        <div class="soft-result-answer answer-box" id="agent-soft-answer"></div>
+      </details>
       <p class="surface-subtitle" id="agent-soft-source-line" style="margin:8px 0 0"></p>
       <div class="action-row" style="margin-top:14px">
         <a class="action-link" id="agent-soft-open-link" href="#" data-lang-zh="打开完整结果页" data-lang-en="Open full result page">打开完整结果页</a>
@@ -161,7 +169,7 @@
           <div class="fold-body answer-box" data-answer-target>{{ view.final_answer }}</div>
         </details>
         <script id="answer-translations" type="application/json">{{ view.final_answer_by_lang | tojson }}</script>
-        <div class="ai-explain-panel" data-ai-explain>
+        {% if not historical %}<div class="ai-explain-panel" data-ai-explain>
           {% if result.ai_explanation and result.ai_explanation.text %}
             <h3 class="surface-title" style="font-size:16px;margin:12px 0 6px" data-lang-zh="AI 解读（已生成）" data-lang-en="AI interpretation (generated)">AI 解读（已生成）</h3>
             <div class="answer-box ai-explain-body" data-ai-body>{{ result.ai_explanation.text }}</div>
@@ -173,17 +181,17 @@
             <p class="surface-subtitle" data-ai-status hidden></p>
             <div class="answer-box ai-explain-body" data-ai-body hidden></div>
           {% endif %}
-        </div>
+        </div>{% endif %}
         {% if view.evidence_pack_id %}
           <div class="action-row">
             <span class="badge" data-lang-zh="证据包 {{ view.evidence_pack_id }}" data-lang-en="Evidence pack {{ view.evidence_pack_id }}">证据包 {{ view.evidence_pack_id }}</span>
             {% if view.pack_html_url %}
               <a class="action-link" href="{{ view.pack_html_url }}" target="_blank" rel="noopener" data-lang-zh="打开证据包 HTML" data-lang-en="Open Evidence Pack HTML">打开证据包 HTML</a>
-            {% endif %}
+            {% else %}<span data-lang-zh="HTML 文件不存在" data-lang-en="HTML file missing">HTML 文件不存在</span>{% endif %}
             {% if view.pack_json_url %}
               <a class="action-link" href="{{ view.pack_json_url }}" data-lang-zh="下载证据包 JSON" data-lang-en="Download Evidence Pack JSON">下载证据包 JSON</a>
-            {% endif %}
-            <a class="action-link" href="/replay" data-lang-zh="查看历史分析" data-lang-en="Analysis history">查看历史分析</a>
+            {% else %}<span data-lang-zh="JSON 文件不存在" data-lang-en="JSON file missing">JSON 文件不存在</span>{% endif %}
+            <a class="action-link" data-preserve-source href="/replay" data-lang-zh="查看历史分析" data-lang-en="Analysis history">查看历史分析</a>
           </div>
         {% endif %}
         <p class="surface-subtitle">{{ result.disclaimer }}</p>
@@ -627,8 +635,8 @@
         </table>
         {% endif %}
         <div class="maturity-board-actions">
-          <a class="action-link" href="{{ view.maturity_export_csv_url }}" data-lang-zh="导出未匹配 CSV" data-lang-en="Export unmatched CSV">导出未匹配 CSV</a>
-          <a class="action-link" href="{{ view.maturity_export_json_url }}" data-lang-zh="导出未匹配 JSON" data-lang-en="Export unmatched JSON">导出未匹配 JSON</a>
+          <a class="action-link" data-preserve-source href="{{ view.maturity_export_csv_url }}" data-lang-zh="导出未匹配 CSV" data-lang-en="Export unmatched CSV">导出未匹配 CSV</a>
+          <a class="action-link" data-preserve-source href="{{ view.maturity_export_json_url }}" data-lang-zh="导出未匹配 JSON" data-lang-en="Export unmatched JSON">导出未匹配 JSON</a>
           <span class="badge" data-maturity-board-note data-lang-zh="{{ view.maturity_board_by_lang.zh.note }}" data-lang-en="{{ view.maturity_board_by_lang.en.note }}">{{ view.maturity_board.note }}</span>
         </div>
         <script id="maturity-board-translations" type="application/json">{{ view.maturity_board_by_lang | tojson }}</script>
