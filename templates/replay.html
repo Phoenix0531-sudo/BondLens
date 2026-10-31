@@ -4,26 +4,30 @@
 <h1 class="page-heading" data-lang-zh="研究历史" data-lang-en="Research history">研究历史</h1>
 <p class="page-subtitle" data-lang-zh="最近研究运行的持久摘要；时间按浏览器本地时区显示。" data-lang-en="Recent research summaries; times use your browser's local timezone.">最近研究运行的持久摘要；时间按浏览器本地时区显示。</p>
 <section class="replay-workbench" data-replay-workbench>
-  <p><span data-lang-zh="记录总数" data-lang-en="Total records">记录总数</span>：<strong data-replay-total>{{ replays|length }}</strong></p>
-  <div class="replay-filters">
-    <label><span data-lang-zh="搜索问题" data-lang-en="Search questions">搜索问题</span> <input type="search" data-replay-search></label>
-    <label><span data-lang-zh="时间" data-lang-en="Time">时间</span> <select data-replay-time><option value="" data-lang-zh="全部" data-lang-en="All">全部</option><option value="7" data-lang-zh="最近 7 天" data-lang-en="Last 7 days">最近 7 天</option><option value="30" data-lang-zh="最近 30 天" data-lang-en="Last 30 days">最近 30 天</option></select></label>
-    <label><span data-lang-zh="来源" data-lang-en="Source">来源</span> <select data-replay-source>{% set namespace_sources = namespace(items=[]) %}<option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for replay in replays if replay.data_runtime_label_zh %}{% if replay.data_runtime_label_zh not in namespace_sources.items %}{% set _ = namespace_sources.items.append(replay.data_runtime_label_zh) %}<option value="{{ replay.data_runtime_label_zh }}" data-lang-zh="{{ replay.data_runtime_label_zh }}" data-lang-en="{{ replay.data_runtime_label_en }}">{{ replay.data_runtime_label_zh }}</option>{% endif %}{% endfor %}</select></label>
-    <label><span data-lang-zh="AI 状态" data-lang-en="AI status">AI 状态</span> <select data-replay-status><option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for status in replays|map(attribute='llm.status')|unique %}<option value="{{ status }}">{{ status or '—' }}</option>{% endfor %}</select></label>
-    <label><span data-lang-zh="排序" data-lang-en="Sort">排序</span> <select data-replay-sort><option value="desc" data-lang-zh="最新优先" data-lang-en="Newest first">最新优先</option><option value="asc" data-lang-zh="最早优先" data-lang-en="Oldest first">最早优先</option></select></label>
-  </div>
+  <form class="replay-filters" method="get" action="{{ url_for('replay_page') }}">
+    <input type="hidden" name="lang" value="{{ current_lang }}">
+    {% if request.args.get('data_mode') %}<input type="hidden" name="data_mode" value="{{ request.args.get('data_mode') }}">{% endif %}
+    {% if request.args.get('import_id') %}<input type="hidden" name="import_id" value="{{ request.args.get('import_id') }}">{% endif %}
+    <label><span data-lang-zh="搜索问题" data-lang-en="Search questions">搜索问题</span> <input type="search" name="q" value="{{ params.q }}" maxlength="200" data-replay-search></label>
+    <label><span data-lang-zh="起始日期" data-lang-en="Start date">起始日期</span> <input type="date" name="start" value="{{ params.start }}"></label>
+    <label><span data-lang-zh="结束日期" data-lang-en="End date">结束日期</span> <input type="date" name="end" value="{{ params.end }}"></label>
+    <label><span data-lang-zh="来源" data-lang-en="Source">来源</span> <select name="source" data-replay-source><option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for value, zh, en in [('live','实时','Live'),('live_snapshot','快照','Snapshot'),('static_sample','静态样本','Static sample'),('static_fallback','静态回退','Static fallback'),('import','上传数据','Imported'),('unknown','未知','Unknown')] %}<option value="{{ value }}" {% if params.source == value %}selected{% endif %} data-lang-zh="{{ zh }}" data-lang-en="{{ en }}">{{ zh }}</option>{% endfor %}</select></label>
+    <label><span data-lang-zh="AI 状态" data-lang-en="AI status">AI 状态</span> <select name="status" data-replay-status><option value="" data-lang-zh="全部" data-lang-en="All">全部</option>{% for value, zh, en in [('disabled','未启用','Not enabled'),('success','成功','Success'),('failed','失败','Failed'),('unavailable','不可用','Unavailable'),('guardrail_failed','护栏未通过','Guardrail failed'),('blocked','已拦截','Blocked'),('unknown','未知','Unknown')] %}<option value="{{ value }}" {% if params.status == value %}selected{% endif %} data-lang-zh="{{ zh }}" data-lang-en="{{ en }}">{{ zh }}</option>{% endfor %}</select></label>
+    <label><span data-lang-zh="排序" data-lang-en="Sort">排序</span> <select name="order" data-replay-sort><option value="desc" data-lang-zh="最新优先" data-lang-en="Newest first">最新优先</option><option value="asc" {% if params.order == 'asc' %}selected{% endif %} data-lang-zh="最早优先" data-lang-en="Oldest first">最早优先</option></select></label>
+    <button type="submit" data-lang-zh="筛选" data-lang-en="Filter">筛选</button>
+  </form>
   <div class="replay-table-wrap"><table class="replay-table"><thead><tr><th data-lang-zh="研究时间（本地）" data-lang-en="Time (local)">研究时间（本地）</th><th data-lang-zh="研究问题" data-lang-en="Question">研究问题</th><th class="replay-secondary" data-lang-zh="数据来源" data-lang-en="Source">数据来源</th><th class="replay-secondary" data-lang-zh="状态" data-lang-en="Status">状态</th><th data-lang-zh="操作" data-lang-en="Actions">操作</th></tr></thead><tbody>
   {% for replay in replays %}
     <tr data-replay-row data-created="{{ replay.created_at or '' }}" data-source="{{ replay.data_runtime_label_zh }}" data-status="{{ replay.llm.status or '' }}" data-question="{{ replay.question or '' }}">
       <td><time datetime="{{ replay.created_at or '' }}" data-replay-date>{{ replay.created_display }}</time></td>
       <td class="replay-question" title="{{ replay.question or '' }}">{{ replay.question or '—' }}</td>
-      <td class="replay-secondary" data-lang-zh="{{ replay.source_line_zh }}" data-lang-en="{{ replay.source_line_en }}">{{ replay.source_line_zh }}</td><td class="replay-secondary">{{ replay.llm.status or '—' }}</td>
+      <td class="replay-secondary" data-lang-zh="{{ replay.source_line_zh }}" data-lang-en="{{ replay.source_line_en }}">{{ replay.source_line_zh }}</td><td class="replay-secondary" data-lang-zh="{{ replay.status_zh }}" data-lang-en="{{ replay.status_en }}">{{ replay.status_zh }}</td>
       <td><details><summary data-lang-zh="详情" data-lang-en="Details">详情</summary><div class="replay-detail">
         <p>{{ replay.question or '—' }}</p><p data-lang-zh="{{ replay.source_line_zh }}" data-lang-en="{{ replay.source_line_en }}">{{ replay.source_line_zh }}</p>
         <p data-lang-zh="研究意图：{{ replay.intent_label_zh }}；主要工具：{{ replay.tool_labels_zh }}" data-lang-en="Intent: {{ replay.intent_label_en }}; tools: {{ replay.tool_labels_en }}">研究意图：{{ replay.intent_label_zh }}；主要工具：{{ replay.tool_labels_zh }}</p>
-        <p>AI: {{ replay.llm.status or '—' }} · {{ replay.llm.final_answer_source or '—' }} · {{ replay.llm.guardrail_status or '—' }}</p>
+        <p data-lang-zh="AI：{{ replay.status_zh }} · {{ replay.final_zh }} · {{ replay.guard_zh }}" data-lang-en="AI: {{ replay.status_en }} · {{ replay.final_en }} · {{ replay.guard_en }}">AI：{{ replay.status_zh }} · {{ replay.final_zh }} · {{ replay.guard_zh }}</p>
         <p data-lang-zh="信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}；证据评分：{{ replay.evidence_quality.score }}；风险：{{ replay.risk.summary_zh }}" data-lang-en="Trust: {{ replay.trust_score.score if replay.trust_score else '—' }}; evidence: {{ replay.evidence_quality.score }}; risk: {{ replay.risk.summary_en }}">信任分：{{ replay.trust_score.score if replay.trust_score else '—' }}；证据评分：{{ replay.evidence_quality.score }}；风险：{{ replay.risk.summary_zh }}</p>
-        <p>{{ replay.id }}{% if replay.stress_view.severity %} · {{ replay.stress_view.severity }}{% endif %}</p>
+        <p>{{ replay.id }}{% if replay.stress_view.severity %} · <span data-lang-zh="{{ replay.severity_zh }}" data-lang-en="{{ replay.severity_en }}">{{ replay.severity_zh }}</span>{% endif %}</p>
         {% if replay.restorable %}<a href="{{ url_for('replay_result', replay_id=replay.id, lang=current_lang) }}" data-lang-zh="查看当时原始结果" data-lang-en="View original result">查看当时原始结果</a>{% else %}<span data-lang-zh="仅摘要，原始结果不可恢复" data-lang-en="Summary only; original result unavailable">仅摘要，原始结果不可恢复</span>{% endif %}
         {% if replay.question %}<a data-replay-rerun href="{{ url_for('agent_page', question=replay.question, data_mode=request.args.get('data_mode') or 'auto', lang=current_lang, import_id=request.args.get('import_id') or none) }}" data-lang-zh="重新运行该问题" data-lang-en="Re-run question">重新运行该问题</a>{% endif %}
         {% if replay.evidence_pack_id %}
@@ -34,8 +38,8 @@
     </tr>
   {% endfor %}
   </tbody></table></div>
-  <p data-replay-empty hidden data-lang-zh="没有符合条件的记录。" data-lang-en="No matching records.">没有符合条件的记录。</p>
-  <div class="wb-pagination"><button type="button" data-replay-prev data-lang-zh="上一页" data-lang-en="Previous">上一页</button><span data-replay-page></span><button type="button" data-replay-next data-lang-zh="下一页" data-lang-en="Next">下一页</button></div>
+  {% if not replays %}<p data-replay-empty data-lang-zh="没有符合条件的记录。" data-lang-en="No matching records.">没有符合条件的记录。</p>{% endif %}
+  <div class="wb-pagination">{% if has_prev and replays %}<a data-replay-prev href="{{ url_for('replay_page', cursor=replays[0].id, direction='prev', **page_args) }}" data-lang-zh="上一页" data-lang-en="Previous">上一页</a>{% endif %}<span data-lang-zh="每页最多 20 条" data-lang-en="Up to 20 per page">每页最多 20 条</span>{% if has_next and replays %}<a data-replay-next href="{{ url_for('replay_page', cursor=replays[-1].id, direction='next', **page_args) }}" data-lang-zh="下一页" data-lang-en="Next">下一页</a>{% endif %}</div>
 </section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', filename='js/replay.js') }}" defer></script>{% endblock %}

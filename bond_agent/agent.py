@@ -39,7 +39,6 @@ LIMITATIONS_TEMPLATE = [
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",
-    "实时链路可能降级到快照或本地样本，请以 data_source 血缘为准。",
 ]
 
 
@@ -177,6 +176,17 @@ class BondAnalystAgent:
         coverage = data_source.get("maturity_coverage") or {}
         ratio = float(coverage.get("coverage_ratio") or 0)
         runtime = data_source.get("runtime_mode") or ""
+        requested = data_source.get('requested_mode') or runtime
+        if runtime == 'import':
+            merged.append('本次使用上传数据；数据范围与质量以所提供的样本为准。')
+        elif requested == 'live':
+            merged.append('Live 严格使用实时数据，失败即报错，不回退至快照或静态样本。')
+        elif requested == 'auto':
+            merged.append('Auto 可回退至有效快照或静态样本；实际来源与时间以数据血缘为准。')
+        elif requested in {'static', 'static_sample'} or runtime == 'static_sample':
+            merged.append('本次使用本地静态样本，不代表实时行情。')
+        else:
+            merged.append('数据来源与时间以数据血缘为准。')
         if runtime in {"live", "live_snapshot"}:
             source_counts = coverage.get("source_counts") or {}
             native = sum(int(v) for k, v in source_counts.items() if str(k).startswith("chinamoney"))

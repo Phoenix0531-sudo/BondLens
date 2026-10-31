@@ -300,6 +300,88 @@ def test_missing_one_pack_never_advertised(monkeypatch, tmp_path):
     assert f'/packs/{rid}.json' in page
 
 
+def test_disabled_history_preserves_existing_files_and_pack_access(monkeypatch, tmp_path):
+    from app import app
+    from bond_agent.replay_store import load_replay
+    monkeypatch.setenv('BOND_REPLAY_DIR', str(tmp_path / 'history'))
+    monkeypatch.setenv('BOND_EVIDENCE_PACK_DIR', str(tmp_path / 'packs'))
+    record = save_replay({'question': 'q', 'final_answer': 'ok', 'data_source': {}})
+    pack = tmp_path / 'packs'
+    pack.mkdir()
+    (pack / 'independent.json').write_text('{}')
+    monkeypatch.setenv('BOND_REPLAY_ENABLED', 'false')
+    assert load_replay(record['id']) is None and list_replays() == []
+    assert save_replay({'question': 'new'}) is None
+    client = app.test_client()
+    assert client.get('/replay').status_code == 404
+    assert client.get('/replay/' + record['id']).status_code == 404
+    assert client.get('/packs/independent.json').status_code == 200
+    monkeypatch.setenv('BOND_REPLAY_ENABLED', 'true')
+    assert load_replay(record['id']) is not None
+
+
+def test_keyset_pagination_search_and_read_bound(monkeypatch, tmp_path):
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    import bond_agent.replay_store as store
+    from app import app
+    monkeypatch.setenv('BOND_REPLAY_DIR', str(tmp_path))
+    for n in range(45):
+        rid = (datetime(2025, 1, 1, tzinfo=timezone.utc) + timedelta(seconds=n)).strftime('%Y%m%d-%H%M%S') + '-12345678'
+        (tmp_path / f'{rid}.json').write_text(json.dumps({'id': rid, 'created_at': '2025-01-01T00:00:00Z', 'question': 'needle' if n == 2 else 'other', 'data_source': {'runtime_mode': 'import'}, 'llm': {'status': 'disabled'}}))
+    original = store.load_replay
+    calls = []
+    def counted(rid):
+        calls.append(rid)
+        return original(rid)
+    monkeypatch.setattr(store, 'load_replay', counted)
+    client = app.test_client()
+    first = client.get('/replay')
+    assert first.status_code == 200 and first.data.count(b'data-replay-row ') == 20
+    assert len(calls) == 21
+    cursor = '20250101-000025-12345678'
+    calls.clear()
+    second = client.get('/replay', query_string={'cursor': cursor})
+    assert second.data.count(b'data-replay-row ') == 20 and len(calls) == 21
+    search = client.get('/replay?q=needle&source=import&status=disabled')
+    assert search.data.count(b'data-replay-row ') == 1 and b'20250101-000002-12345678' in search.data
+    assert client.get('/replay?cursor=../bad').status_code == 400
+    assert client.get('/replay?order=bad').status_code == 400
+    rows, prev, nxt = store.page_replays(cursor='20250101-000005-12345678')
+    assert len(rows) == 5 and prev and not nxt
+    rows, prev, nxt = store.page_replays(cursor='20250101-000025-12345678', direction='prev')
+    assert len(rows) == 19 and not prev and nxt
+    rows, prev, nxt = store.page_replays(order='asc')
+    assert rows[0]['id'] == '20250101-000000-12345678' and not prev and nxt
+    assert store.page_replays(start='2025-01-02')[0] == []
+
+
+def test_history_status_filters_and_severity_labels_are_bilingual(monkeypatch, tmp_path):
+    import json
+
+    from app import app
+
+    monkeypatch.setenv('BOND_REPLAY_DIR', str(tmp_path))
+    for index, status in enumerate(('unavailable', 'guardrail_failed', 'blocked')):
+        rid = f'20250101-00000{index}-12345678'
+        record = {'id': rid, 'question': f'question-{status}', 'data_source': {},
+                  'llm': {'status': status}, 'stress_view': {'severity': 'high'}}
+        (tmp_path / f'{rid}.json').write_text(json.dumps(record), encoding='utf-8')
+    client = app.test_client()
+    for status, zh, en in [('unavailable', '不可用', 'Unavailable'),
+                            ('guardrail_failed', '护栏未通过', 'Guardrail failed'),
+                            ('blocked', '已拦截', 'Blocked')]:
+        html = client.get('/replay', query_string={'status': status, 'lang': 'zh'}).get_data(as_text=True)
+        assert html.count('data-replay-row ') == 1
+        assert f'value="{status}" selected' in html
+        assert f'data-lang-zh="{zh}" data-lang-en="{en}"' in html
+        assert '· <span data-lang-zh="高" data-lang-en="High">高</span>' in html
+        assert '· high</p>' not in html
+        english = client.get('/replay', query_string={'status': status, 'lang': 'en'}).get_data(as_text=True)
+        assert 'data-lang-zh="高" data-lang-en="High"' in english
+
+
 def test_history_page_can_read_more_than_default_limit(monkeypatch, tmp_path):
     monkeypatch.setenv("BOND_REPLAY_DIR", str(tmp_path))
     for index in range(35):
@@ -310,4 +392,4 @@ def test_history_page_can_read_more_than_default_limit(monkeypatch, tmp_path):
 
     response = app.test_client().get('/replay?lang=en')
     assert response.status_code == 200
-    assert response.get_data(as_text=True).count('data-replay-row ') == 35
+    assert response.get_data(as_text=True).count('data-replay-row ') == 20

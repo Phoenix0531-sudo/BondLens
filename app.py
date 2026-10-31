@@ -48,7 +48,7 @@ from bond_agent.importer import (
     prepare_import_frame,
     read_table,
 )
-from bond_agent.replay_store import list_replays, load_replay
+from bond_agent.replay_store import _enabled as replay_enabled, load_replay, page_replays
 from bond_agent.schemas import AgentQueryRequest, ApiError, HealthResponse, api_schema_bundle
 from bond_agent.taxonomy import annotate_frame
 from bond_agent.tools import compare_bond_to_market, describe_market, search_bonds
@@ -1101,8 +1101,26 @@ def replay_result(replay_id):
 @app.route("/replay")
 def replay_page():
     lang = _resolve_language()
-    replays = [_build_replay_view(record, lang) for record in list_replays(limit=None)]
-    html = render_template("replay.html", replays=replays, lang=lang)
+    if not replay_enabled():
+        abort(404)
+    params = {key: request.args.get(key, '').strip() for key in ('cursor', 'direction', 'order', 'q', 'source', 'status', 'start', 'end')}
+    if len(params['q']) > 200 or any(len(params[k]) > 40 for k in ('source', 'status', 'start', 'end')):
+        abort(400)
+    from datetime import date
+    try:
+        for key in ('start', 'end'):
+            if params[key] and date.fromisoformat(params[key]).isoformat() != params[key]:
+                raise ValueError('Invalid date')
+        if params['start'] and params['end'] and params['start'] > params['end']:
+            raise ValueError('Invalid date range')
+        records, has_prev, has_next = page_replays(cursor=params['cursor'], direction=params['direction'] or 'next',
+            order=params['order'] or 'desc', query=params['q'], source=params['source'], status=params['status'],
+            start=params['start'], end=params['end'])
+    except ValueError:
+        abort(400)
+    replays = [_build_replay_view(record, lang) for record in records]
+    page_args = {key: value for key, value in request.args.items() if key not in {'cursor', 'direction'}}
+    html = render_template("replay.html", replays=replays, lang=lang, params=params, has_prev=has_prev, has_next=has_next, page_args=page_args)
     return _with_language_cookie(html, lang)
 
 
@@ -1513,6 +1531,14 @@ def _build_agent_view_model(result: dict, lang: str = "zh") -> dict:
 
 def _build_replay_view(record: dict, lang: str) -> dict:
     replay = {**record}
+    for key in ('llm', 'evidence_quality', 'risk', 'trust_score', 'stress_view'):
+        replay[key] = record.get(key) or {}
+    llm = replay['llm']
+    for language in ('zh', 'en'):
+        replay[f'severity_{language}'] = _localized_status(replay['stress_view'].get('severity'), language)
+    for field, key in [('status', 'status'), ('final', 'final_answer_source'), ('guard', 'guardrail_status')]:
+        for language in ('zh', 'en'):
+            replay[f'{field}_{language}'] = _localized_status(llm.get(key) or 'unknown', language)
     pack_id = record.get("evidence_pack_id")
     replay["restorable"] = record.get("schema_version") == 2 and isinstance(record.get("result"), dict)
     replay["pack_html_available"] = bool(pack_id and _find_evidence_pack(str(pack_id), "html"))
@@ -1959,6 +1985,7 @@ def _localized_status(value: object, lang: str) -> str:
         return "N/A"
     if lang == "en":
         mapping_en = {
+            "unknown": "Unknown",
             "live": "Live",
             "live_snapshot": "Live snapshot",
             "static_sample": "Local sample",
@@ -1966,6 +1993,9 @@ def _localized_status(value: object, lang: str) -> str:
             "deterministic_fallback": "Rule fallback",
             "success": "Success",
             "failed": "Failed",
+            "unavailable": "Unavailable",
+            "guardrail_failed": "Guardrail failed",
+            "blocked": "Blocked",
             "disabled": "Disabled",
             "passed": "Passed",
             "not_run": "Not triggered",
@@ -1983,6 +2013,7 @@ def _localized_status(value: object, lang: str) -> str:
         }
         return mapping_en.get(str(value), str(value))
     mapping = {
+        "unknown": "未知",
         "live": "实时行情",
         "live_snapshot": "实时快照",
         "static_sample": "本地样本",
@@ -1990,6 +2021,9 @@ def _localized_status(value: object, lang: str) -> str:
         "deterministic_fallback": "规则兜底",
         "success": "成功",
         "failed": "失败",
+        "unavailable": "不可用",
+        "guardrail_failed": "护栏未通过",
+        "blocked": "已拦截",
         "disabled": "未启用",
         "passed": "通过",
         "not_run": "未触发",

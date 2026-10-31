@@ -1,6 +1,6 @@
 // Dependency-free headless Edge functional smoke test; screenshots are not visual approval.
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import assert from 'node:assert/strict';
@@ -235,11 +235,11 @@ try {
   await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
   await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'false'`),'collapse closes by Space');
   for (let n = 0; n < 3; n++) {
-    await js(`document.querySelector(${JSON.stringify(collapse)}).focus()`);
+    await until(()=>js(`(()=>{const e=document.querySelector(${JSON.stringify(collapse)}); e.scrollIntoView({block:'center',behavior:'instant'}); e.focus(); return document.activeElement===e;})()`),'repeat collapse focused');
     await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
     await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
     await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'true'`),'repeat space opens');
-    await js(`document.querySelector(${JSON.stringify(collapse)}).focus()`);
+    await until(()=>js(`(()=>{const e=document.querySelector(${JSON.stringify(collapse)}); e.scrollIntoView({block:'center',behavior:'instant'}); e.focus(); return document.activeElement===e;})()`),'repeat collapse refocused');
     await call('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
     await call('Input.dispatchKeyEvent',{type:'keyUp',key:' ',code:'Space',windowsVirtualKeyCode:32});
     await until(()=>js(`document.querySelector(${JSON.stringify(collapse)}).getAttribute('aria-expanded') === 'false'`),'repeat space closes');
@@ -304,9 +304,24 @@ try {
   assert.equal(await js('!!document.querySelector(".source-details")'),true,'foldable source & caliber details');
   assert.equal(await js('document.documentElement.scrollWidth <= innerWidth'),true,'market 1440 overflow');
   await shot('bondlens-market-1440.png');
+  await mkdir(join(temp, 'replays'), {recursive:true});
+  for (let i=0;i<25;i++) {
+    const id=`20200101-0000${String(i).padStart(2,'0')}-12345678`;
+    await writeFile(join(temp,'replays',`${id}.json`),JSON.stringify({id,created_at:'2020-01-01T00:00:00Z',question:i===0?'unique-test-needle':'fixture',data_source:{runtime_mode:'static_sample'},llm:{status:'disabled'}}));
+  }
   await navigate('http://127.0.0.1:8876/replay?lang=en');
   await until(()=>js('document.body.textContent.includes("Research history")'),'history page heading');
-  assert.equal(await js('!!document.querySelector(".replay-table") && !!document.querySelector("[data-replay-search]") && !!document.querySelector("[data-replay-next]")'),true,'history table search and pagination');
+  assert.equal(await js('document.querySelectorAll("[data-replay-row]").length'),20,'server page bounded');
+  await click('[data-replay-next]');
+  await until(()=>js('location.search.includes("cursor=")'),'history next page');
+  assert.ok(await js('!!document.querySelector("[data-replay-prev]")'),'history previous page');
+  await click('[data-replay-prev]');
+  await until(()=>js('location.search.includes("direction=prev")'),'history previous navigation');
+  await click('[data-replay-search]'); await call('Input.insertText',{text:'unique-test-needle'});
+  await click('.replay-filters button[type=submit]');
+  await until(()=>js('location.search.includes("q=unique-test-needle")'),'history search');
+  assert.equal(await js('document.querySelectorAll("[data-replay-row]").length'),1,'search across all pages');
+  assert.equal(await js('!!document.querySelector(".replay-table") && !!document.querySelector("[data-replay-search]")'),true,'history table search and pagination');
   if (await js('document.querySelector("[data-replay-row]")')) {
     assert.equal(await js('!!document.querySelector("[data-replay-row] details")'),true,'history details available');
     assert.equal(await js('!!document.querySelector("[data-replay-row] .replay-detail a, [data-replay-row] .replay-detail [aria-disabled]")'),true,'history actions or missing pack state');

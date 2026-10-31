@@ -55,7 +55,7 @@ Configuration is read from process environment; `.env.example` lists the options
 - Startup and ordinary research do not call paid AI. Only an explicit interpretation request with a configured model may contact a provider; imported data requires confirmation before it is sent.
 - Saved history and evidence packs contain sanitized derived results, not the uploaded attachment or entire table. Some imported free text cannot be restored. A saved result is read-only; re-running creates a new record. Legacy summary-only entries cannot restore the full result. Redaction is best-effort, so do not enter secrets.
 
-**Known limitation:** `/replay` currently loads all entries at once. In local testing with several thousand history entries, the page exceeded a 25-second timeout; this has not been fixed. Use separate `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` locations for demonstrations, and back up archive directories when needed. Do not delete existing history to work around this limitation.
+History uses server-side cursor pagination (20 records per page). Search and metadata filters scan historical records; a cold search for the oldest match among 3,300 isolated 16 KiB records took approximately 19.5 seconds in independent local testing. `BOND_REPLAY_ENABLED=false` disables history reads and writes without deleting existing files; evidence-pack downloads remain separate. Use separate `BOND_REPLAY_DIR` and `BOND_EVIDENCE_PACK_DIR` locations for demonstrations, and back up archives when needed.
 
 ### Docker operations
 
@@ -210,9 +210,9 @@ The five current interface captures are numbered 13–17 under `docs/screenshots
   </tr>
   <tr>
     <td width="50%">
-      <a href="docs/screenshots/current/17-history-current.png"><img src="docs/screenshots/current/17-history-current.png" alt="Current Research History table populated with eight isolated Static-sample analysis runs"></a>
+      <a href="docs/screenshots/current/17-history-current-20261031.png"><img src="docs/screenshots/current/17-history-current-20261031.png" alt="Current server-paginated Research History, with eight isolated Static-sample research runs and localized status labels"></a>
       <br><strong>Can audit — research history / evidence path</strong>
-      <br>Current search/filter/sort table populated with isolated demo history; no user records included.
+      <br>Server-paginated search/filter/sort table with localized statuses and isolated demo history; no user records included.
     </td>
     <td width="50%">
       <br><em>Legacy captures (01–12) are preserved in the folder for comparison, not presented as the current UI.</em>

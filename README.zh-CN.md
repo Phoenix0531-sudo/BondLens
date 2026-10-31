@@ -55,7 +55,7 @@ python app.py
 - 默认启动和普通研究不会调用付费 AI；仅明确请求解读且已配置模型时才可能外联。导入数据外发前需要确认。
 - 历史及证据包保存脱敏派生结果，不保存原始上传附件或整表；部分导入自由文本无法恢复。原结果只读，重新运行生成新记录；旧摘要记录无法恢复完整版。脱敏仅为尽力处理，请勿输入密钥。
 
-**已知限制：** `/replay` 当前一次加载所有条目；曾在包含数千条历史记录的本地测试中观察到响应超过 25 秒，此问题尚未修复。演示可使用独立的 `BOND_REPLAY_DIR` 和 `BOND_EVIDENCE_PACK_DIR`，归档时按需备份目录；不要通过删除已有历史来绕过此限制。
+历史使用服务端游标分页（每页 20 条）；搜索和元数据筛选需要扫描历史记录；独立本地测试中，对 3,300 条约 16 KiB 的隔离记录搜索最旧匹配项，冷查询约需 19.5 秒。`BOND_REPLAY_ENABLED=false` 禁止历史读取和写入，但不删除已有文件；证据包下载独立控制。演示可使用独立的 `BOND_REPLAY_DIR` 和 `BOND_EVIDENCE_PACK_DIR`，归档时按需备份。
 
 ### Docker 部署与维护
 
@@ -210,9 +210,9 @@ flowchart TD
   </tr>
   <tr>
     <td width="50%">
-      <a href="docs/screenshots/current/17-history-current.png"><img src="docs/screenshots/current/17-history-current.png" alt="最新研究历史页：八条独立静态样本研究记录，支持搜索、筛选和排序"></a>
+      <a href="docs/screenshots/current/17-history-current-20261031.png"><img src="docs/screenshots/current/17-history-current-20261031.png" alt="最新研究历史页：服务端分页、中文状态标签及八条隔离静态样本研究记录"></a>
       <br><strong>可审 — 研究历史 / 证据路径</strong>
-      <br>最新历史表格展示隔离演示记录，支持搜索、筛选和排序，不包含私人历史。
+      <br>最新历史表格支持服务端分页、搜索、筛选和排序，状态已本地化；仅含隔离演示记录。
     </td>
     <td width="50%">
       <br><em>旧图库（01–12）仍保留供对比，但不再作为当前界面展示。</em>

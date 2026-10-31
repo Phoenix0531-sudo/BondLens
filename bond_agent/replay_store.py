@@ -109,7 +109,7 @@ def project_result(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_replay(replay_id: str) -> dict[str, Any] | None:
-    if not _REPLAY_ID.fullmatch(replay_id or ""):
+    if not _enabled() or not _REPLAY_ID.fullmatch(replay_id or ""):
         return None
     path = _replay_dir() / f"{replay_id}.json"
     try:
@@ -174,6 +174,8 @@ def save_replay(response: dict[str, Any]) -> dict[str, Any] | None:
 
 
 def list_replays(limit: int | None = 30) -> list[dict[str, Any]]:
+    if not _enabled():
+        return []
     directory = _replay_dir()
     if not directory.exists():
         return []
@@ -186,6 +188,52 @@ def list_replays(limit: int | None = 30) -> list[dict[str, Any]]:
             if limit is not None and len(records) >= limit:
                 break
     return records
+
+
+def page_replays(*, cursor: str = '', direction: str = 'next', order: str = 'desc',
+                 query: str = '', source: str = '', status: str = '', start: str = '', end: str = '',
+                 page_size: int = 20) -> tuple[list[dict[str, Any]], bool, bool]:
+    """Keyset pagination; only read records needed to find this page and its neighbors."""
+    if not _enabled():
+        return [], False, False
+    if cursor and not _REPLAY_ID.fullmatch(cursor):
+        raise ValueError('Invalid cursor')
+    if direction not in {'next', 'prev'} or order not in {'asc', 'desc'} or not 1 <= page_size <= 50:
+        raise ValueError('Invalid pagination')
+    directory = _replay_dir()
+    try:
+        names = sorted((p.stem for p in directory.glob('*.json') if _REPLAY_ID.fullmatch(p.stem)), reverse=order == 'desc')
+    except OSError:
+        return [], False, False
+    if cursor:
+        names = [name for name in names if (name < cursor if order == 'desc' else name > cursor) == (direction == 'next') and name != cursor]
+    if direction == 'prev':
+        names.reverse()
+    rows = []
+    for name in names:
+        record = load_replay(name)
+        if not record:
+            continue
+        date = str(record.get('created_at') or '')[:10]
+        data_source = record.get('data_source') or {}
+        llm = record.get('llm') or {}
+        if query and query.casefold() not in str(record.get('question') or '').casefold():
+            continue
+        if source and (data_source.get('runtime_mode') or 'unknown') != source:
+            continue
+        if status and (llm.get('status') or 'unknown') != status:
+            continue
+        if (start and date < start) or (end and (not date or date > end)):
+            continue
+        rows.append(record)
+        if len(rows) > page_size:
+            break
+    has_more = len(rows) > page_size
+    rows = rows[:page_size]
+    if direction == 'prev':
+        rows.reverse()
+        return rows, has_more, bool(cursor)
+    return rows, bool(cursor), has_more
 
 
 def _summarize_response(response: dict[str, Any], replay_id: str) -> dict[str, Any]:

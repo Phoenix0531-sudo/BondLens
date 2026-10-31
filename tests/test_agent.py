@@ -263,6 +263,22 @@ def test_agent_cpa_base_url_without_api_key_disables_llm(monkeypatch):
     assert result["final_answer_source"] == "deterministic_fallback"
 
 
+def test_mode_limitations_match_requested_source(monkeypatch, tmp_path):
+    from bond_agent.agent import BondAnalystAgent
+    from bond_agent.evidence_pack import build_evidence_pack
+
+    monkeypatch.setenv('BOND_REPLAY_DIR', str(tmp_path / 'history'))
+    monkeypatch.setenv('BOND_EVIDENCE_PACK_ENABLED', 'false')
+    agent = BondAnalystAgent(data_mode='static')
+    result = agent.answer('概览当前市场')
+    assert not any('实时链路可能降级' in item for item in result['limitations'])
+    assert any('本地静态样本' in item for item in result['limitations'])
+    assert not any('实时链路可能降级' in item for item in build_evidence_pack(result)['limitations'])
+    for mode, expected in [('live', '不回退'), ('auto', 'Auto 可回退'), ('import', '上传数据'), ('other', '数据来源')]:
+        notes = agent._append_data_source_limitations([], {'runtime_mode': mode, 'requested_mode': mode}, {})
+        assert any(expected in note for note in notes)
+
+
 def test_agent_openai_client_uses_configured_timeout(monkeypatch):
     monkeypatch.setenv("OPENAI_TIMEOUT_SECONDS", "3.5")
 

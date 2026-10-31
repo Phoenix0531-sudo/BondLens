@@ -18,13 +18,11 @@ LIMITATIONS_TEMPLATE_ZH = [
     "非投资建议，仅用于学习和研究。",
     "当前行情源不包含主体评级、财务报表、担保与信用事件。",
     "收益率高低是风险信号，不是买卖依据。",
-    "Auto 模式可能回退至快照或本地样本；Live 模式不回退。请以 data_source 血缘为准。",
 ]
 LIMITATIONS_TEMPLATE_EN = [
     "Non-investment advice. For learning and research only.",
     "The market feed does not include issuer ratings, financial statements, guarantees, or credit events.",
     "Yield level is a risk signal, not a buy/sell instruction.",
-    "Auto may fall back to a snapshot or local sample; Live does not fall back. Check data_source lineage.",
 ]
 
 
