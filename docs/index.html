@@ -177,6 +177,7 @@
     <a href="https://github.com/Phoenix0531-sudo/BondLens">GitHub</a>
     <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md">README</a>
     <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md">中文 README</a>
+    <a href="#featured-case">完整案例</a>
     <a href="#demo-runs">示例报告</a>
   </nav>
   <main>
@@ -185,9 +186,9 @@
         <p class="eyebrow">专业研究工作台 · Chinese bond research workbench</p>
         <h1>BondLens</h1>
         <p class="lead">
-          面向中国债券市场的专业研究工作台：市场总览、条件筛选、单券研究、研究历史，
-          外加可选的自然语言分析入口。数据来源与行情日期全程可见，利率债优先，
-          支持公开行情与本地 CSV/Excel 样例。
+          本地、证据优先的债券研究工作台：从市场样本出发，完成债券筛选、
+          单券同业比较、确定性分析及历史证据回溯。支持静态样本与 CSV/Excel 导入；
+          AI 解读须由用户显式触发。
         </p>
         <div class="page-pills">
           <span><b>市场总览</b> /market</span>
@@ -201,18 +202,18 @@
           仅在结果页显式点击后才发起单次请求。所有页面中英双语。
         </p>
         <div class="actions">
-          <a class="button primary" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md#runtime-and-deployment">本地运行指南</a>
+          <a class="button primary" href="portfolio_case/bond-study.html">查看真实研究报告</a>
           <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens">GitHub 仓库</a>
-          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md">中文 README</a>
+          <a class="button" href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.zh-CN.md#本地运行">本地运行说明</a>
         </div>
       </header>
       <aside class="facts">
         <h2>关键事实</h2>
         <ul>
-          <li><b>数据来源可见</b>：AkShare 实时 → 快照 → 本地样例逐级回退，或上传 CSV/Excel；每次运行显示来源与行情日期。</li>
+          <li><b>数据来源可见</b>：Auto 模式允许实时 → 有效快照 → 静态样例回退；Live 模式严格实时、失败即报错。展示实际来源与行情日期。</li>
           <li><b>AI 按需显式触发</b>：默认零模型调用；点击「生成 AI 解读」才发起一次请求，失败或未配置时确定性结果独立可用。</li>
           <li><b>确定性优先</b>：7 个工具算数（检索 / 概览 / 排名 / 异常 / 同业对比 / 监控 / 单券报告），数字不由模型编造。</li>
-          <li><b>质量基线</b>：Python 3.12 · 212 项 pytest 通过（1 项跳过）· 守护栏 + 评审 + 证据包 + 回放。</li>
+          <li><b>验证记录</b>：2026-10-31 本地 253 项 pytest 通过、1 项跳过；CI 同时检查 Docker 健康、Agent 与红队评测。</li>
         </ul>
         <div class="notice">
           本页是 GitHub Pages 静态介绍页，不提供在线交互服务。
@@ -221,25 +222,40 @@
       </aside>
     </div>
 
+    <section id="featured-case">
+      <h2>完整研究案例：21附息国债03</h2>
+      <p>
+        基于 <b>2024-03-22 静态历史样本</b>（非实时）：目标收益率 <b>2.68%</b>，
+        与 <b>19 条</b>相同券种、相同期限桶的可比记录比较，同业平均收益率 <b>2.6077%</b>，
+        相对均值 <b>+7.23 BP</b>。数据缺少逐行行情日期，不能据此确认所有交易同日发生，也不构成投资建议。
+      </p>
+      <div class="links">
+        <a href="portfolio_case/bond-study.html">无需安装：打开 HTML Evidence Pack</a>
+        <a href="portfolio_case/walkthrough.mp4">60 秒无声界面导览</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/portfolio_case/CASE_STUDY.zh-CN.md">研究方法与限制</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/portfolio_case/case-data.json">核对原始计算结果</a>
+      </div>
+    </section>
+
     <section>
       <h2>工作台界面（真实截图）</h2>
-      <p>以下为当前版本真实页面截图（本地样例数据，非实时行情）。交互应用需本地运行后访问。</p>
+      <p>以下截图全部来自上述 21附息国债03 静态研究案例；原始历史和付费模型均未参与。交互应用仍需本地启动。</p>
       <div class="shot-grid">
         <figure class="shot">
-          <img src="screenshots/current/09-market-workbench.png" alt="市场总览页：收益率六档分布、样本日期与来源条（静态样例数据）">
-          <figcaption><b>市场总览</b> · 收益率分布、成交量与来源/日期单行摘要（样例数据演示）</figcaption>
+          <img src="portfolio_case/screenshots/01-market.png" alt="市场总览：2024年3月22日静态数据及收益率分布">
+          <figcaption><b>市场总览</b> · 样本收益率分布、来源与日期</figcaption>
         </figure>
         <figure class="shot">
-          <img src="screenshots/current/10-screener-static.png" alt="条件筛选页：按简称/收益率/待偿期过滤的债券列表（静态样例数据）">
-          <figcaption><b>条件筛选</b> · 多条件过滤，点击行进入单券研究（样例数据演示）</figcaption>
+          <img src="portfolio_case/screenshots/02-screen.png" alt="债券筛选：按名称定位21附息国债03">
+          <figcaption><b>条件筛选</b> · 精确定位 21附息国债03</figcaption>
         </figure>
         <figure class="shot">
-          <img src="screenshots/current/11-bond-detail.png" alt="单券研究页：券种身份、关键指标与同业对比（静态样例数据）">
-          <figcaption><b>单券研究</b> · 关键指标、同业对比与按需 AI 解读面板（样例数据演示）</figcaption>
+          <img src="portfolio_case/screenshots/03-bond.png" alt="单券研究：21附息国债03的收益率、净价、成交量及同业比较">
+          <figcaption><b>单券研究</b> · 实际指标与 19 条同类可比样本</figcaption>
         </figure>
         <figure class="shot">
-          <img src="screenshots/current/08-replay-dashboard.png" alt="研究历史页：既往研究运行的摘要卡片与证据包入口（英文界面）">
-          <figcaption><b>研究历史</b> · 既往运行的时间、问题、来源与技术详情（英文界面演示）</figcaption>
+          <img src="portfolio_case/screenshots/05-history.png" alt="研究历史：包含21附息国债03在内的隔离研究记录">
+          <figcaption><b>研究历史</b> · 隔离演示记录，支持只读回看</figcaption>
         </figure>
       </div>
     </section>
@@ -275,13 +291,14 @@
     </section>
 
     <section id="demo-runs">
-      <h2>示例报告（无需 API key，浏览器直接打开）</h2>
-      <p>静态导出的 Evidence Pack，展示同样的证据结构与报告格式。</p>
+      <h2>静态报告示例（无需 API key）</h2>
+      <p>当前完整研究案例和以前保存的其他演示分开列出；所有 HTML 都是静态报告，不是在线运行的研究服务。</p>
       <div class="links">
+        <a href="portfolio_case/bond-study.html">当前单券研究案例</a>
         <a href="demo_runs/demo-market-overview.html">市场概览报告</a>
-        <a href="demo_runs/demo-bond-report.html">单券报告</a>
+        <a href="demo_runs/demo-bond-report.html">历史单券演示</a>
         <a href="demo_runs/demo-yield-outliers.html">收益率异常监控</a>
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_cpa_gpt54.md">LLM 输出矩阵</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/demo_runs/llm_matrix_cpa_gpt54.md">历史 LLM 实验记录</a>
       </div>
     </section>
 
@@ -290,15 +307,15 @@
       <div class="cards">
         <article class="card">
           <h3>本地运行</h3>
-          <p>Python 3.12 + Flask/Jinja + pandas，<code>python app.py</code> 即可离线样例分析；Docker Compose 单容器部署，健康检查 <code>/healthz</code>。</p>
+          <p>Python 3.12 + Flask/Jinja + pandas；设置 <code>BOND_DATA_MODE=static</code> 后运行 <code>python app.py</code>，或使用 Docker Compose；健康检查 <code>/healthz</code>。</p>
         </article>
         <article class="card">
           <h3>质量与验证</h3>
-          <p>212 项 pytest 通过（1 项跳过）、agent 与红队评测脚本、CI 含 Docker 构建健康检查；同步与 SSE 共用同一条分析管线。</p>
+          <p>2026-10-31 本地 253 项 pytest 通过、1 项跳过；Agent 与红队评测、Docker 构建和健康检查均纳入 CI。</p>
         </article>
       </div>
       <div class="links">
-        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/README.md#runtime-and-deployment">运行与部署（README）</a>
+        <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/TECHNICAL_GUIDE.zh-CN.md">技术与部署指南</a>
         <a href="https://github.com/Phoenix0531-sudo/BondLens/blob/main/docs/figs/architecture.png">架构图</a>
         <a href="https://github.com/Phoenix0531-sudo/BondLens/actions/workflows/ci.yml">CI 状态</a>
       </div>
